@@ -1,0 +1,11 @@
+.count-time {
+    ul {
+        li {
+            min-width: 68px;
+            min-height: 68px;
+            position: relative;
+            @include flex-align(center, center);
+            flex-direction: column;
+        }
+    }
+}

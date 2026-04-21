@@ -1,0 +1,190 @@
+.tab_filter .nav-link {
+    border: 1px solid $gray-700 !important;
+    padding: 2px !important;
+}
+
+.tab_filter .nav-link.active {
+    border-color: $black !important;
+}
+
+.tab_filter .nav-link.active .grid1 {
+    background-color: $black;
+}
+
+.tab_filter .filter-option .grid1 {
+    width: 10px;
+    height: 20px;
+    background-color: $gray-700;
+    margin-right: 2px;
+}
+
+.tab_filter .filter-option .grid1:last-child {
+    margin-right: 0px;
+}
+
+//checkbox-
+.filter-box {
+    border: 1px solid #e7e6e6;
+    box-shadow: 0 0 10px rgba(0, 0, 0, .15);
+    border-radius: 5px;
+
+    //checkbox
+    .form-check-input:checked {
+        background-color: $teal;
+        border-color: $teal;
+    }
+
+    .form-check-input:checked+.form-check-label {
+        color: $teal;
+    }
+
+    .form-check-input {
+        background-color: transparent;
+    }
+
+    .filter-search {
+        .form-control {
+            border: 2px solid $black;
+        }
+    }
+}
+
+//checkbox-round
+.round {
+    .form-check-input {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+    }
+}
+
+.filter-category {
+    max-height: 250px;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    /* Scrollbar Styling */
+        &::-webkit-scrollbar {
+            width: 4px;
+        }
+
+    
+        &::-webkit-scrollbar-track {
+            background-color: #ebebeb;
+            -webkit-border-radius: 10px;
+            border-radius: 10px;
+        }
+    
+        &::-webkit-scrollbar-thumb {
+            -webkit-border-radius: 10px;
+            border-radius: 10px;
+            background: #c8c8c8;
+        }
+}
+
+.filter-title {
+    width: 60px;
+    height: 2px;
+    background-color: $black;
+}
+
+.filter-list {
+    overflow-x: auto;
+
+    li {
+        a {
+            padding: 0 14px;
+            border-right: 1px solid $gray-300;
+            white-space: nowrap;
+
+            &:hover {
+                color: $teal !important;
+                transition: all 0.3s ease-in-out;
+
+                .filter-close {
+                    display: none;
+                }
+
+                .filter-open {
+                    display: block !important;
+                    color: $teal;
+                }
+            }
+        }
+    }
+}
+
+.cookies-law {
+    padding: 15px 34px;
+    box-shadow: 0 0 9px rgba(0, 0, 0, .14);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: $white;
+    z-index: 4;
+}
+
+.age-model {
+    height: 384px;
+    position: relative;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background-color: #000;
+        opacity: 0.28;
+    }
+
+    .model-detail {
+        padding: 0 20px;
+    }
+}
+
+// shop-1600px container
+.shop-container {
+    @media (min-width:1200px) {
+        max-width: 1600px;
+    }
+}
+
+.form-comman {
+    .form-control:focus {
+        border-color: black;
+    }
+}
+
+.checkout-order {
+    background-color: $gray-100;
+    border-radius: 10px;
+    padding: 30px 20px;
+}
+
+
+
+// filter range 
+.noUi-horizontal {
+    border: none;
+    height: 3px !important;
+    background-color: #E7E7E7 !important;
+    .noUi-connect {
+        background-color: var(--bs-teal);
+    }
+    .noUi-handle {
+        border: none;
+        width: 4px;
+        height: 18px;
+        right: -1px;
+        top: -8px;
+        cursor: grab;
+        &::before, &::after {
+            display: none;
+        }
+        .noUi-touch-area {
+            background-color: var(--bs-teal);
+        }
+    }
+}

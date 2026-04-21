@@ -1,0 +1,104 @@
+/*
+Template Name: Kalles
+File: Main Css File
+*/
+
+//Fonts
+@import "custom/fonts/fonts";
+
+//Core files
+@import "./node_modules/bootstrap/scss/functions";
+@import "./node_modules/bootstrap/scss/variables";
+@import "variables";
+@import "variables-dark";
+@import "./node_modules/bootstrap/scss/mixins";
+@import "custom/components/mixin";
+
+@import "custom/structure/topbar";
+@import "custom/structure/footer";
+@import "custom/structure/popup";
+
+// Components
+@import "custom/components/helper";
+@import "custom/components/avatar";
+@import "custom/components/forms";
+@import "custom/components/animation";
+
+// // Pages
+@import "custom/pages/flickity";
+@import "custom/pages/index";
+@import "custom/pages/count";
+@import "custom/pages/medical";
+@import "custom/pages/home-flower";
+@import "custom/pages/home-furniture";
+@import "custom/pages/home-bags";
+@import "custom/pages/home-shoes";
+@import "custom/pages/home-glasses";
+@import "custom/pages/home-decor";
+@import "custom/pages/home-lingerie";
+@import "custom/pages/home-cosmetics";
+@import "custom/pages/home-sport";
+@import "custom/pages/home-jewelry";
+@import "custom/pages/home-handmade";
+@import "custom/pages/home-product-store";
+@import "custom/pages/home-digital";
+@import "custom/pages/kids";
+@import "custom/pages/header";
+@import "custom/pages/blog-grid";
+@import "custom/pages/pagination";
+@import "custom/pages/feature";
+@import "custom/pages/portfolio";
+@import "custom/pages/product";
+
+
+.cloth-tab :hover {
+    // border: 1px solid black !important;
+    color: red !important;
+}
+
+.no-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+#size-chart-tabs.product-tabs .nav-item button {
+    padding: 16px;
+}
+
+.header-dropdown .dropdown-toggle::after {
+    display: none;
+}
+
+.header-dropdown .dropdown-menu.show {
+    top: 20px !important;
+}
+
+.customDiv {
+    --bs-breadcrumb-divider: '>';
+    /* Add more custom properties here if needed */
+
+  }
+
+  .currency-button.dropdown-toggle::after {
+    display: none;
+  }
+
+.dropdown-toggle::after {
+    display: none;
+}
+.productmodal{
+   margin: auto !important;
+}
+
+.drop{
+    position: absolute; 
+    inset: 0px auto auto 0px; 
+    margin: 0px; transform: 
+    translate(381px, 22px);
+}
+.custom-nav-link {
+    background-color: transparent !important;
+    color: inherit !important;
+  }
+  .custom-nav-link:hover {
+    color: #000 !important; /* Hover color */
+  }

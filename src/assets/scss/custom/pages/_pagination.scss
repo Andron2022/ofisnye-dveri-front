@@ -1,0 +1,31 @@
+.filter-pagination {
+    border-top: 1px solid $gray-200;
+
+    .pagination .active a:hover,
+    .pagination .active a:focus,
+    .pagination .active a {
+        background-color: transparent;
+        color: $red;
+        border: 0;
+        outline: none;
+    }
+
+    .pagination li a {
+        margin-left: 0;
+        color: $text-muted;
+        padding: 7px 2px;
+        margin: 0 20px;
+        font-size: 15px;
+    }
+
+    .pagination li a:hover {
+        background-color: transparent;
+        color: $red;
+        padding-bottom: 2px;
+    }
+
+    .pagination li a:focus {
+        outline: none;
+        background-color: transparent;
+    }
+}

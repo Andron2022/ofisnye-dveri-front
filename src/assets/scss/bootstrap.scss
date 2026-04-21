@@ -1,0 +1,17 @@
+/*
+Template Name: kalles
+File: Custom Bootstrap Css File
+*/
+
+//Core files
+@import "./node_modules/bootstrap/scss/functions";
+@import "./node_modules/bootstrap/scss/variables";
+@import "variables";
+@import "variables-dark";
+@import "./node_modules/bootstrap/scss/bootstrap";
+
+@import "custom/components/accordion";
+@import "custom/components/buttons";
+@import "custom/components/dropdown";
+@import "custom/components/card";
+@import "custom/components/nav";

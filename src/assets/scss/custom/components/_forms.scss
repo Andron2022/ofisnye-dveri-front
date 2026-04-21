@@ -1,0 +1,38 @@
+//
+// Forms.scss
+//
+
+[type="tel"],
+[type="url"],
+[type="email"],
+[type="number"] {
+  &::placeholder {
+    text-align: left
+      /*rtl: right*/
+    ;
+  }
+}
+
+.form-check {
+  position: relative;
+  text-align: left
+    /*rtl: right*/
+  ;
+}
+
+// checkbox color
+@each $color,
+$value in $theme-colors {
+  .form-check-#{$color} {
+    .form-check-input {
+      &:checked {
+        background-color: $value;
+        border-color: $value;
+      }
+    }
+  }
+}
+
+.form-check-input, .form-check-label {
+  cursor: pointer;
+}

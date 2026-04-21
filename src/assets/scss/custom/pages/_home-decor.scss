@@ -1,0 +1,164 @@
+.kalles-decor-2-grid-top-banners {
+    .img-zoom {
+        &:hover {
+            .btn_icon_true {
+                &::after {
+                    transform: translateX(20%);
+                }
+            }
+        }
+    }
+
+    .audio-img {
+        @media (max-width:1024px) {
+            height: 540px;
+        }
+    }
+}
+
+.kalles-decor-02-blog-post.kalles-section_type_featured_blog {
+    .blog-card {
+        position: relative;
+
+        .blog-img {
+            height: 277px !important;
+        }
+    }
+}
+
+.kalles-decor-newsletter {
+    padding: 70px 0;
+
+    .signup-newsletter-form {
+        input {
+            height: 50px;
+            border: 1px solid #878787;
+            font-size: 13px;
+        }
+
+        .btn {
+            height: 50px;
+            font-size: 16px;
+            min-width: 200px;
+        }
+    }
+}
+
+//decor 
+.kalles-decor {
+    .main-title {
+        position: relative;
+
+        &::before {
+            content: "";
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            right: 0;
+            max-width: 140px;
+            height: 3px;
+            margin: 0 auto;
+            background-color: $white;
+        }
+    }
+
+
+
+    .bg-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(var(--#{$prefix}dark-rgb), 0.1);
+    }
+
+    .kalles-decor-img {
+        min-height: 350px;
+        object-fit: cover;
+        background-position: center center;
+
+        @media (min-width:768px) {
+            height: 500px;
+        }
+
+        @media (min-width:1440px) {
+            height: 700px;
+        }
+
+    }
+
+    .btn-custom {
+        background-color: var(--#{$prefix}dark);
+        border-color: var(--#{$prefix}dark);
+        color: $white !important;
+        min-height: 50px;
+
+        &:hover {
+            color: $white !important;
+            background-color: $teal !important;
+            border-color: $teal !important;
+        }
+    }
+}
+
+.hover-zoom {
+    .dark {
+        &.btn_icon_true::after {
+            color: var(--#{$prefix}dark);
+        }
+    }
+
+    &:hover {
+        .btn_icon_true::after {
+            transform: translateX(.25rem);
+        }
+    }
+}
+
+.kalles-decor-cat-banner-layout {
+    .killes-banner-img {
+        @media (max-width: 556px) {
+            opacity: 30%;
+        }
+    }
+}
+
+.kill-store-banner {
+    height: 650px;
+
+    @media (max-width:557px) {
+        height: 350px !important;
+    }
+}
+
+//electric
+.kalles-electric-newsletter {
+    background-color: #f5f5f5;
+
+    .footer-subscribe {
+        .form-control {
+            background-color: transparent;
+            border-color: black;
+        }
+
+        .btn-dark {
+            width: 180px;
+            font-size: 16px;
+            top: 3px;
+            right: 3px;
+            height: 49px;
+            font-weight: 600;
+            color: $white;
+        }
+    }
+}
+
+.decor-title {
+    font-size: 50px;
+    font-weight: 500;
+
+    @media (max-width:767px) {
+        font-size: 28px;
+    }
+}

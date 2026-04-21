@@ -1,0 +1,191 @@
+.kids-banner {
+    .slideshow__slide {
+        height: 540px !important;
+    }
+}
+
+.kids-deal-section {
+    border: 2px solid var(--#{$prefix}pink);
+    .loop-product-stock {
+        .progress {
+            height: 8px;
+            .progress-bar {
+                background-image: linear-gradient(235deg, #ff7298 0%, #f9b5c7 100%) !important;
+            }
+        }
+    }
+
+    .product-button {
+        .btn {
+            background-color: #cae9ec !important;
+            color: #000;
+        }
+    }
+
+    .product2-button {
+        background-color: #cae9ec !important;
+        color: #000;
+        .btn:hover {
+            background-color: $pink2;
+        }
+        .btn:active {
+            border-color: transparent;
+        }
+    }
+}
+
+.home-kids-pin {
+    .kalles-lookbook-home {
+        height: 512px;
+    }
+
+    .position-01 {
+        top: 35%;
+        left: 20%;
+    }
+
+    .position-02 {
+        top: 70%;
+        left: 36%;
+    }
+
+    .position-03 {
+        top: 84%;
+        left: 67%;
+    }
+
+}
+
+.kids-header {
+    position: relative;
+    display: inline;
+
+    &::after {
+        position: absolute;
+        bottom: 7px;
+        left: 0;
+        width: 100%;
+        height: 6px;
+        content: '';
+        background-color: #ff7298;
+        opacity: 30%;
+        z-index: 0;
+    }
+}
+
+.kids-subscribe-image {
+    height: 120px;
+    width: 100%;
+    img {
+        height: 100%;
+        width: 100%;
+    }
+    @media(max-width:992px){
+        height: 200px;
+    }
+
+}
+.kids-subscribe-btn {
+    top: 4px;
+    right: 3px;
+    width: 140px;
+    height: 48px;
+    @media(max-width:650px){
+        width: 120px;
+    }
+}
+
+.kidsPoducts {
+    max-height: 500px !important;
+}
+
+.kidsPoducts.productSmall .swiper-wrapper {
+    height: 130px !important;
+}
+
+.kidsPoducts.swiper-vertical>.swiper-wrapper {
+    flex-direction: row !important;
+
+}
+
+.kalles-medical-deal-section.kids-deal-section {
+    .flickity-button.previous{
+        left: 0;
+    }
+    .flickity-button.next{
+        right: 0;
+    }
+}
+.btn-pink2:hover{
+    color: var(--#{$prefix}white) !important;
+}
+.home_kids_main {
+    max-width: 1420px;
+    margin: 0 auto;
+    a.main_link_primary:hover{
+        color: $pink2 !important;
+    }
+    .footer-subscribe .footer-kids-btn {
+        background-color: $pink2;
+        border-color: $pink2;
+    }
+    .productMain .swiper-button-next:hover::after,
+    .productMain .swiper-button-prev:hover::after{
+        background-color: $pink2 !important;
+        border-color: $pink2 !important;
+    }
+    .product_wishlist:hover{
+        border-color: $pink2 !important;
+        a {
+            color: $pink2 !important;
+        }
+    }
+    .input-step button:hover{
+        color: $pink2 !important;
+    }
+    .pin-type a:hover{
+        color: var(--#{$prefix}white) !important;
+    }
+    .kids-deal-section .product-button .btn:hover {
+        background-color: $pink2 !important;
+    }
+    .kids-banner{
+        .flickity-button.flickity-prev-next-button{
+            background-color: var(--#{$prefix}white);
+            border-color: var(--#{$prefix}white);
+            display: none;
+            &:hover{
+                background-color: $pink2;
+                border-color: $pink2;
+            }
+        }
+        &:hover {
+            .flickity-button.flickity-prev-next-button{
+                display: block;
+            }
+        }
+    }
+}
+
+.flickity-page-dot:focus{
+    box-shadow: none;
+}
+
+.home-fashion-trend {
+    .navbar.navbar-custom{
+        min-height: 80px;
+    } 
+    a.main_link_acid_green:hover{
+        color: $green3 !important;
+    }
+    .insta-card{
+        a:hover {
+            color: var(--#{$prefix}white) !important;
+        }
+    }
+    .btn-load:hover{
+        background-color: $green3;
+        border-color: $green3;
+        color: var(--#{$prefix}white);
+    }
+}

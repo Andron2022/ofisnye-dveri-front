@@ -1,0 +1,17 @@
+.kalles-digital {
+
+    .slideshow__slide,
+    .flickity-viewport {
+        height: 400px !important;
+    }
+}
+
+.kills-card-img {
+    img {
+        @media (max-width:767px) {
+            object-fit: cover !important;
+            height: 260px !important;
+            opacity: 60%;
+        }
+    }
+}

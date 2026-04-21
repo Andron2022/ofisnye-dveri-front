@@ -1,0 +1,40 @@
+{
+  "name": "kalles_nextjs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "preview": "next start"
+  },
+  "dependencies": {
+    "aos": "^2.3.4",
+    "bootstrap": "^5.3.3",
+    "flickity": "^3.0.0",
+    "flickity-fade": "^2.0.0",
+    "flickity-imagesloaded": "^2.0.0",
+    "jarallax": "^2.2.0",
+    "next": "^15.1.7",
+    "nouislider": "^15.8.1",
+    "react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "rc-slider": "^11.1.5",
+    "react-bootstrap": "^2.10.2",
+    "react-countdown": "^2.3.5",
+    "react-icons": "^5.2.1",
+    "react-responsive": "^10.0.0",
+    "sass": "^1.77.5",
+    "swiper": "^11.1.4"
+  },
+  "devDependencies": {
+    "@types/flickity": "^2.2.11",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.3",
+    "typescript": "^5"
+  }
+}

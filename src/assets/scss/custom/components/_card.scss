@@ -1,0 +1,17 @@
+// 
+// _card.scss
+// 
+
+
+.hover-zoom {
+  overflow: hidden;
+  .hover-zoom-img {
+    transition: all 0.5s ease;
+  }
+
+  &:hover {
+    .hover-zoom-img {
+      transform: scale(1.1);
+    }
+  }
+}

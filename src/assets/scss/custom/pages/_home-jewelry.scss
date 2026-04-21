@@ -1,0 +1,23 @@
+.kalles-jewelry-home {
+
+    .slideshow__slide,
+    .flickity-viewport {
+        height: 100vh !important;
+    }
+}
+
+.jewelry-home{
+    .footer .footer-subscribe {
+        input{
+            border-radius: 0 !important;
+            height: 40px;
+            padding-left: 10px;
+        }
+        button {
+            top: 0;
+            right: 0;
+            border-radius: 0 !important;
+            height: 100%;
+        }
+    }
+}

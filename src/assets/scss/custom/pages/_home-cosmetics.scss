@@ -1,0 +1,195 @@
+.topbar-cosmetics {
+    .t_header {
+        background-color: #6d604c;
+        min-height: 50px;
+
+        .dropdown {
+            height: 12px;
+
+            .dropdown-currency {
+                min-width: 100px;
+
+                a {
+                    color: $gray-700;
+                    font-size: 13px;
+                    font-weight: 500;
+                    transition: all 0.5s ease;
+
+                    &:hover {
+                        color: $lima;
+                    }
+                }
+            }
+        }
+    }
+}
+
+.cosmetics-navbar {
+    .navbar {
+        min-height: 100px;
+    }
+
+    .nt-social a {
+        margin: 0 8px;
+        color: var(--#{$prefix}dark);
+        transition: all 0.2s ease;
+
+        i {
+            transition: all 0.4s ease;
+        }
+
+        &:hover {
+            color: $lima;
+
+            i {
+                transform: translateY(-4px);
+            }
+        }
+    }
+
+    .navbar-collapse {
+        border-top: 1px solid var(--#{$prefix}border-color);
+        position: relative;
+
+        .navbar-nav {
+            flex-direction: row;
+
+            .nav-item {
+                .nav-link {
+                    padding-right: 17.5px;
+                    padding-left: 17.5px;
+                    height: 60px;
+                    font-weight: 500;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    .badge {
+                        position: absolute;
+                        color: $body-bg;
+                        font-size: 9px;
+                        padding: 1px 7px 0;
+                        border-radius: 50px;
+                        top: 50%;
+                        line-height: 16px;
+                        transform: translateY(-50%);
+                        right: -5px;
+                        margin-top: -14px;
+                        transition: opacity .3s ease-in-out;
+                        opacity: 1;
+
+                    }
+                }
+
+                .dropdown-menu {
+                    transform: none !important;
+                    margin: 0 auto !important;
+
+                    .dropdown-sub-column-item {
+                        padding: 10px 15px;
+
+                        .dropdown-menu-title {
+                            display: block;
+                            color: var(--#{$prefix}body-color);
+                            text-transform: uppercase;
+                            font-weight: $font-weight-medium;
+                            font-size: 12px;
+                            padding: 13px 0;
+                            border-bottom: 1px solid var(--#{$prefix}border-color);
+                        }
+
+                        .sub-column-menu {
+                            list-style: none;
+                            padding-left: 0;
+
+                            a {
+                                display: block;
+                                color: var(--#{$prefix}secondary-color);
+                                line-height: 1.5;
+                                padding: 10px 0;
+                                font-size: 14px;
+                                transition: all 0.5s ease;
+
+                                &:hover {
+                                    color: $black !important;
+                                }
+                            }
+                        }
+                    }
+
+                    &.dropdown-sub-column {
+                        padding: 10px 0;
+
+                        a {
+                            display: block;
+                            color: var(--#{$prefix}secondary-color);
+                            line-height: 1.5;
+                            padding: 14px 15px;
+                            transition: all 0.5s ease;
+                            font-size: 14px;
+
+                            &:hover {
+                                color: var(--#{$prefix}body-color);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+.kalles-cosmetics {
+    .flickity-page-dot {
+        background-color: rgba($lima, 0.5);
+
+        &.is-selected {
+            background-color: rgba($lima, 1);
+        }
+    }
+}
+
+.kalles-cosmetics-trending-products {
+    padding: 90px 0;
+
+    .flickity-button {
+        border: 2px solid var(--#{$prefix}lima);
+        background-color: var(--#{$prefix}lima);
+        color: $white;
+
+        &.flickity-prev-next-button {
+            &:hover {
+                background-color: var(--#{$prefix}lima);
+                border-color: var(--#{$prefix}lima);
+                color: $white;
+            }
+        }
+    }
+}
+
+//electrict-input
+.electrict-input {
+    .categories {
+        position: absolute !important;
+        top: 10px !important;
+        left: 10px;
+        border: none;
+        font-size: 12px;
+        border-right: 1px solid $gray-400 ;
+        outline: none !important;
+    }
+
+    .input-search {
+        padding: 8px 140px 9px 130px;
+    }
+
+    .search-btn {
+        width: 130px;
+        padding: 5px;
+        top: 3px !important;
+        right: 4px !important;
+    }
+}

@@ -1,0 +1,36 @@
+.kalles-sport-home {
+
+    .slideshow__slide,
+    .flickity-viewport {
+        height: 790px !important;
+
+        @media (max-width:767px) {
+            height: 500px !important;
+        }
+    }
+}
+
+.featuredSwiper {
+    .swiper-button-prev,
+    .swiper-button-next {
+        display: none;
+    }
+    &:hover{
+        .swiper-button-prev,
+        .swiper-button-next{
+            display: block;
+        }
+    }
+    .swiper-button-prev::after,
+    .swiper-button-next::after{
+        color: $white;
+        background-color: #ff8400;
+        font-size: 14px;
+        font-weight: 600;
+        min-height: 40px;
+        min-width: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}

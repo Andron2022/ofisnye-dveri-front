@@ -1,0 +1,236 @@
+.header-offcanvas {
+    .offcanvas-close {
+        position: fixed;
+        left: 340px;
+        width: 50px;
+        height: 50px;
+        top: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--#{$prefix}body-color);
+        color: #fff !important;
+        opacity: 100%;
+        font-size: 28px;
+        border-radius: 0;
+
+        @media (max-width:425px) {
+            width: 32px;
+            height: 32px;
+            font-size: 22px;
+        }
+    }
+
+    .nav-pills {
+        background-color: rgba(0, 0, 0, .04);
+        width: 100%;
+
+        .nav-item {
+            width: 50%;
+
+            .nav-link {
+                width: 100%;
+                text-align: center;
+                padding: 5px 10px;
+                font-weight: 500;
+                height: 55px;
+                font-size: 12px;
+                color: var(--#{$prefix}body-color);
+
+                &.active {
+                    background-color: rgba(0, 0, 0, .05) !important;
+                    border-bottom: 1px solid #56cfe1 !important;
+                    border-radius: 0 !important;
+                }
+            }
+        }
+    }
+
+    .accordion-button:not(.collapsed) {
+        background-color: rgba(0, 0, 0, .04);
+        color: var(--#{$prefix}body-color);
+    }
+
+    .accordion-item {
+        border-right: none;
+        border-left: none;
+    }
+
+    .accordion-item:hover .accordion-button,
+    .pill-item:hover .nav-link {
+        background-color: rgba(0, 0, 0, .05) !important;
+    }
+
+    .pill-item .nav-link {
+        padding: 16px 20px !important;
+        border-bottom: 1px solid rgba(129, 129, 129, .2);
+        display: block;
+        width: 100%;
+        color: var(--#{$prefix}body-color);
+        text-align: left;
+    }
+
+    .accordion-button::after {
+        background: none;
+        content: '+';
+        // font-family: 'Line Awesome Free';
+        font-size: 24px;
+        font-weight: 400;
+        opacity: 80%;
+        transition: none !important;
+
+    }
+
+    .accordion-button:not(.collapsed)::after {
+        content: "-";
+        font-size: 24px;
+        font-weight: 400;
+        opacity: 80%;
+    }
+}
+
+.accordion-nav-list>li>a {
+    padding: 14px 30px !important;
+    border-bottom: 1px solid rgba(129, 129, 129, .2);
+    display: block;
+    width: 100%;
+    color: #878787;
+    text-align: left;
+
+    &:hover {
+        background-color: rgba(0, 0, 0, .05) !important;
+    }
+}
+
+.accordion-navs-list>li>a {
+    padding: 14px 20px !important;
+}
+
+.accordion-nav-list>li:last-child>a {
+    border-bottom: none;
+}
+
+.accordion-nav-list>li:first-child>a {
+    border-top: 1px solid rgba(129, 129, 129, .2);
+}
+
+.need-help {
+    padding: 20px;
+    border-top: 1px solid rgba(129, 129, 129, .2);
+    border-bottom: 1px solid rgba(129, 129, 129, .2);
+
+    li>a {
+        color: var(--#{$prefix}body-color);
+    }
+}
+
+.map-img {
+    width: 30px;
+    height: 20px;
+    margin-right: 4px;
+}
+
+//header-search-model
+.header-search-model {
+
+    @media (min-width: 997px) {
+        width: 94%;
+        margin: 60px auto;
+    }
+
+    @media (min-width: 1025px) {
+        width: 82%;
+        margin: 60px auto;
+    }
+
+    .need-sec {
+        border-bottom: 1px solid rgba(129, 129, 129, .2);
+        border-top: 1px solid rgba(129, 129, 129, .2);
+        box-shadow: 0 3px 10px 0 rgba(129, 129, 129, .2);
+    }
+
+    .search-model-close {
+        font-size: 32px;
+        top: 0;
+        right: 0;
+        position: absolute;
+        padding: 8px;
+        color: var(--#{$prefix}body-color);
+    }
+
+
+}
+
+.nav-electric-item {
+    .nav-link {
+        &:hover {
+            color: #fff !important;
+        }
+    }
+}
+
+.badge-tag {
+    position: absolute;
+    border-radius: 10px;
+    font-weight: 400;
+    color: $white;
+    right: -40px;
+    top: 10px;
+}
+
+
+.navbar-custom .navbar-nav .nav-item .dropdown-menu .dropdown-sub-column-item .sub-column-menu a:hover {
+    color: $black !important;
+}
+
+
+//header scroll fixed
+.headerFixed {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background-color: $white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+    z-index: 999;
+    transition: all 0.3s ease-in-out;
+}
+
+.navbar-custom .navbar-nav .nav-item .nav-link:hover {
+    color: $black;
+}
+
+
+.header-lingeries .navbar-custom .navbar-nav .nav-item .nav-link:hover {
+    color: $black;
+}
+
+//headernav color hover
+.navbar-collapse .digital-header .nav-item .nav-link:hover,
+body .digital-header a:hover {
+    color: $indigo !important;
+}
+
+.navbar-collapse .sport-header .nav-item .nav-link:hover,
+body .sport-header a:hover {
+    color: $orange !important;
+}
+
+.navbar-collapse .lingeries-header .nav-item .nav-link:hover,
+body .lingeries-header a:hover {
+    color: $black !important;
+}
+
+.navbar-collapse .cosmetics-header .nav-item .nav-link:hover,
+body .cosmetics-header a:hover {
+    color: $lima !important;
+}
+
+.navbar-collapse .glasses-header .nav-item .nav-link:hover,
+body .glasses-header a:hover {
+    color: $mustard !important;
+}
+
+.navbar-collapse .shoes-header .nav-item .nav-link:hover,
+.shoes-header .navbar-custom .topbar-toolbar a:hover {
+    color: $danger-dark !important;
+}

@@ -1,0 +1,26 @@
+.kalles-bags {
+    .slideshow__slide {
+        height: 780px !important;
+        @media (max-width: 1024px) {
+            height: 500px !important;
+        }
+        @media (max-width: 768px) {
+            height: 380px !important;
+        }
+        img {
+            object-fit: cover;
+        }
+    }
+
+    .flickity-page-dot {
+        background-color: rgba($white, 0.5);
+
+        &.is-selected {
+            background-color: rgba($white, 1);
+        }
+    }
+}
+
+.kalles-bags-brand {
+    padding: 85px 0 55px;
+}

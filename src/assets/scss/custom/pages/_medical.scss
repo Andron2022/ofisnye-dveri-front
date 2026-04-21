@@ -1,0 +1,213 @@
+.medical-navbar {
+    .h__top {
+        background-color: var(--#{$prefix}body-bg);
+
+        .badge {
+            background: #3751ee;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+    }
+
+    .navbar-custom {
+        min-height: 82px;
+
+        .navbar-nav {
+            .nav-item {
+                .nav-link {
+                    height: 82px;
+
+                    @media (max-width:1024px) {
+                        height: auto;
+                    }
+                }
+            }
+        }
+    }
+
+    .search_header {
+        .form-control {
+            min-width: 300px;
+            height: 40px;
+            line-height: 18px;
+            padding-right: 50px;
+        }
+
+        .btn {
+            @include position-align(absolute, 0, 0, 0, null);
+        }
+    }
+}
+
+@media (min-width: 1025px) {
+
+    .wrapper_cus .container {
+        max-width: 1420px;
+    }
+}
+
+//home section
+.kalles-medical {
+    img {
+        transform: translateX(200px);
+        opacity: 0;
+        transition: none;
+        transition: all 0.4s ease;
+    }
+
+    .content {
+        transition: all 0.4s cubic-bezier(0.44, 0.13, 0.48, 0.87) 0.3s;
+        transform: translateX(-40px);
+        opacity: 0;
+    }
+
+    .is-selected {
+        img {
+            opacity: 1;
+            transform: translateX(0px);
+        }
+
+        .content {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+}
+
+//banner section
+.kalles-medical-banner-01 {
+    .content {
+        top: 50%;
+        left: 11%;
+        transform: translate(-11%, -50%);
+    }
+
+}
+
+.img-zoom {
+    overflow: hidden;
+
+    img {
+        transition: transform .5s cubic-bezier(0, 0, .44, 1.18);
+    }
+
+    &:hover {
+        img {
+            transform: scale(1.09);
+        }
+    }
+}
+
+//deal-section
+.kalles-medical-deal-section {
+    padding: 0 30px 48px;
+    border: 2px solid var(--#{$prefix}primary);
+    border-radius: 5px;
+    margin-top: 21px;
+
+    .flickity-button {
+        border: 2px solid var(--#{$prefix}blue) !important;
+        background-color: var(--#{$prefix}blue) !important;
+        color: #fff !important;
+
+        &.previous {
+            left: -40px;
+
+            @media (max-width:556px) {
+                left: 10px;
+            }
+        }
+
+        &.next {
+            right: -40px;
+
+            @media (max-width:556px) {
+                right: 10px;
+            }
+        }
+    }
+
+    .product-cd-header {
+        transform: translateY(-23px);
+        padding: 5px 20px;
+    }
+
+    .loop-product-stock {
+        .progress {
+            height: 8px;
+
+            .progress-bar {
+                background-image: linear-gradient(235deg, #4e97fd 0%, #77ccfd 100%);
+            }
+        }
+    }
+}
+
+.desgin_1 {
+    &.topbar-product-card {
+        .bg-overlay {
+            background: rgba(var(--#{$prefix}dark-rgb), 0.1);
+            height: 100%;
+            top: 0;
+        }
+
+        .onsale {
+            height: 25px;
+            width: 60px;
+            font-size: 14px;
+            top: 15px;
+            right: 15px;
+        }
+
+        .out-of-stock {
+            background-color: #e7f0e4;
+            height: 25px;
+            width: 60px;
+            font-size: 14px;
+            top: 48px;
+            right: 15px;
+        }
+
+        .product-button {
+            .btn {
+                color: $white;
+                background-color: var(--#{$prefix}primary);
+
+                &:hover {
+                    background-color: $body-color;
+                }
+            }
+        }
+    }
+}
+
+//kellas-medical-brand-list
+
+.kellas-medical-brand-list {
+    padding: 75px 0;
+
+    .brand-item {
+        &:hover {
+            img {
+                animation: bounceIn .5s ease;
+            }
+        }
+    }
+}
+
+//kalles-medical-blog-post
+.kalles-medical-blog-post {
+    padding: 78px 0 60px;
+
+    .blog-card {
+        img {
+            height: 245px;
+        }
+    }
+}
+
+//medical-shipping-info
+.kalles-medical-shipping-info {
+    padding: 33px 0 33px;
+}

@@ -1,0 +1,67 @@
+# Системные директории и зависимости сборки
+.idea/
+node_modules/
+vendor/
+.next/
+out/
+build/
+dist/
+
+# Медиа, шрифты и тяжелые ассеты (те самые 100 МБ)
+assets/
+public/
+wp-content/uploads/
+
+# Убиваем демо-данные и конфиги лишних меню
+src/common/data/
+src/common/shop/
+src/common/Header/
+!src/common/Header/header.ts
+
+# Убиваем все демо-главные страницы кроме выбранной
+src/app/(home)/*
+!src/app/(home)/home-index/
+# Убиваем все лишние варианты карточки товара (оставь только один!)
+src/app/(product)/*
+!src/app/(product)/product-detail-swatch-radio/
+
+# Убиваем лишние шаблоны каталога
+src/app/(shop)/shop-*/
+!src/app/(shop)/shop-left-sidebar/
+
+# Убиваем блоги, портфолио и прочие не-ecommerce страницы
+src/app/(blog)/*
+!src/app/(blog)/blog-grid/
+!src/app/(blog)/blog-post-with-product-listing/
+
+
+
+# Убиваем специфичные шапки и подвалы
+src/components/Footer*.tsx
+!src/components/Footer.tsx
+src/components/Header*.tsx
+!src/components/Header.tsx
+!src/components/Headers/Header.tsx
+
+
+
+# Ядро WordPress (мне нужна только логика твоего API/Headless и твоя тема)
+wp-admin/
+wp-includes/
+# Исключаем файлы в корне WP, кроме критичных (обычно там только мусор и wp-config)
+*.php
+!wp-content/**/*.php
+
+# Локальные базы LocalWP, дампы и логи
+*.sql
+*.log
+local/
+.local/
+
+# Секреты и ключи (в чат их передавать не нужно)
+.env
+.env.*
+wp-config.php
+
+#Архивы фронта
+zips/

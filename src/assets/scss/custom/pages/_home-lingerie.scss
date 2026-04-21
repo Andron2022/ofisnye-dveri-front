@@ -1,0 +1,53 @@
+.kalles-lingerie-main {
+    padding: 80px 0;
+    background-color: #f5f9fa;
+}
+
+.kalles-lingerie-new-products {
+    padding: 80px 0;
+}
+
+.kalles-lingerie-banner-trending {
+    padding: 50px 0;
+}
+
+.kalles-lingerie-brand {
+    .type_brand_list {
+        img {
+            width: auto;
+            height: 60px;
+            filter: grayscale(100%);
+            opacity: .5;
+            transition: filter .3s ease, opacity .3s ease;
+        }
+
+        &:hover {
+            img {
+                opacity: 1;
+                filter: grayscale(0);
+            }
+        }
+    }
+}
+
+.kalles-lingerie-newsletter {
+    padding: 150px 0;
+    background-image: url('../../../images/home-lingerie/newsletter-bg.jpg');
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    .signup-newsletter-form {
+        border: 1px solid $dark;
+        padding: 2px;
+
+        input {
+            height: 50px;
+            font-size: 13px;
+        }
+
+        .btn {
+            min-width: 200px;
+            height: 50px;
+        }
+    }
+}

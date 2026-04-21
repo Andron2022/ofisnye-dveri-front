@@ -1,0 +1,207 @@
+//
+// _buttons.scss
+//
+
+.btn-load {
+    cursor: pointer;
+    border: 2px solid var(--#{$prefix}dark);
+    padding: 11px 45px;
+    background: var(--#{$prefix}body-bg);
+    color: var(--#{$prefix}dark);
+    border-radius: 40px;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 40px;
+
+    &.load {
+        background-image: url('../../../images/svg/lds-sw.svg') !important;
+        background-size: 0 !important;
+        background-repeat: no-repeat !important;
+        background-position: center !important;
+        transition: none !important;
+    }
+}
+
+.btn-wishlistadd {
+    border: 1px solid var(--#{$prefix}body-color);
+    color: var(--#{$prefix}body-color);
+    transition: all 0.5s ease;
+
+    &:hover {
+        animation: beat_heart .6s ease-in-out infinite;
+        color: var(--#{$prefix}info);
+        border-color: var(--#{$prefix}info);
+    }
+}
+
+.btn-custom-white {
+    color: $white;
+    border: 2px solid $white;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: var(--#{$prefix}info) !important;
+        border-color: var(--#{$prefix}info) !important;
+    }
+}
+
+.btn-custom-white-red {
+    color: $white;
+    border: 2px solid $white;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: #c91f28 !important;
+        border-color: #c91f28 !important;
+    }
+}
+
+.btn-custom-dark-red {
+    color: $dark;
+    border: 2px solid $dark;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: #c91f28 !important;
+        border-color: #c91f28 !important;
+    }
+}
+
+.btn-custom-dark {
+    color: $dark;
+    border: 2px solid $dark;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: var(--#{$prefix}info) !important;
+        border-color: var(--#{$prefix}info) !important;
+    }
+}
+
+.btn_icon_true {
+    position: relative;
+
+    &::after {
+        font-family: 'Line Awesome Free', sans-serif;
+        font-weight: 900;
+        content: "\f061";
+        display: inline-block;
+        margin-left: 5px;
+        font-size: 16px;
+        color: $white;
+        transition: transform .2s ease-in-out;
+    }
+}
+
+.btn-mustard {
+    color: $white;
+    border: 2px solid $mustard;
+    transition: all 0.5s ease;
+    min-height: 50px;
+    font-size: 14px;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: rgba($mustard, .8) !important;
+        border-color: rgba($mustard, .8) !important;
+    }
+}
+
+.btn-outline-mustard {
+    color: $white;
+    border: 2px solid $white;
+    transition: all 0.5s ease;
+    min-height: 50px;
+    font-size: 14px;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: $mustard !important;
+        border-color: $mustard !important;
+    }
+}
+
+.btn-cosmetics {
+    color: $lima;
+    border: 2px solid $lima;
+    background-color: $white;
+    transition: all 0.5s ease;
+    padding: 5px 25px;
+    letter-spacing: 3px;
+    font-weight: 500;
+    min-height: 50px;
+    font-size: 14px;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: rgba($lima, 0.80) !important;
+        border-color: rgba($lima, 0.80) !important;
+    }
+}
+
+.btn-orange {
+    color: $white;
+    border-color: $orange;
+    background-color: $orange;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: rgba($orange, 0.80) !important;
+        border-color: rgba($orange, 0.80) !important;
+    }
+} 
+
+
+.btn-custom-orange {
+    color: $white;
+    border: 1 solid $dark;
+    background-color: $dark;
+    transition: all 0.5s ease;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &:focus-within,
+    :not(.btn-check)+.btn:active {
+        color: $white !important;
+        background-color: $orange !important;
+        border-color: $orange !important;
+    }
+}

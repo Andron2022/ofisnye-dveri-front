@@ -1,0 +1,312 @@
+.furniture-header {
+    .h__top {
+        background-color: #293341;
+        color: #c7c7c7;
+        min-height: 44px;
+    }
+
+    //menu
+    .navbar-custom {
+        min-height: 100px;
+
+        .navbar-nav {
+            .nav-item {
+                .nav-link {
+                    letter-spacing: .17em;
+                    text-transform: uppercase;
+                    height: 100px;
+
+                    @media (max-width:1024px) {
+                        height: auto;
+                    }
+                }
+            }
+        }
+    }
+}
+
+//home
+.kalles-home-furniture {
+    height: 150px;
+    background-size: cover;
+    background-position: center;
+
+    @media (min-width:768px) {
+        height: 320px;
+    }
+
+    @media (min-width:1440px) {
+        height: 678px;
+    }
+
+    .pin-type {
+        a {
+            width: 24px;
+            height: 24px;
+
+        }
+
+        .zoompin {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            bottom: -8px;
+            left: -8px;
+            display: block;
+            animation: zoompin 2s ease infinite;
+            border-radius: 50%;
+            backface-visibility: hidden;
+            perspective: 800px;
+            background-color: rgba(255, 255, 255, .5);
+        }
+
+        &.position-01 {
+            transform: translate(-41%, -67%);
+            top: 67%;
+            left: 41%;
+        }
+
+        &.position-02 {
+            transform: translate(-75%, -42%);
+            top: 42%;
+            left: 75%;
+        }
+
+        &.position-03 {
+            transform: translate(-79%, -54%);
+            top: 54%;
+            left: 79%;
+        }
+    }
+}
+
+.product-btn-warning {
+    &.product-button {
+        .btn {
+            background-color: $dark;
+            color: $white;
+
+            &:hover {
+                background-color: var(--#{$prefix}warning);
+
+                span {
+                    transform: translateY(-130%) translateZ(0);
+                }
+
+                i {
+                    opacity: 100;
+                    transform: translateY(0) translateZ(0);
+                    visibility: visible;
+                }
+
+            }
+        }
+    }
+}
+
+.kalles-furnitur-type-banner {
+    padding: 92px 0 100px;
+    background-color: #f5f9fa;
+
+    .title {
+        font-size: 16px;
+        line-height: 30px;
+        letter-spacing: 0.17em;
+        margin-top: 0;
+        margin-bottom: 18px;
+    }
+
+    .sub-title {
+        font-size: 30px;
+        line-height: 50px;
+        font-family: $font-family-roboto-slab;
+        font-weight: 300;
+        margin-bottom: 55px;
+
+        @media (max-width:320px) {
+            font-size: 24px;
+        }
+
+        @media (max-width:768px) {
+            font-size: 24px;
+            line-height: 40px;
+            margin-bottom: 40px;
+        }
+    }
+
+    .btn {
+        min-height: 56px;
+        color: var(--#{$prefix}secondary-color);
+        background-color: var(--#{$prefix}body-bg);
+        border: 2px solid var(--#{$prefix}dark);
+        letter-spacing: .17em;
+        max-width: 248px;
+
+        &:hover {
+            color: $white;
+            background-color: var(--#{$prefix}warning);
+            border-color: var(--#{$prefix}warning);
+        }
+    }
+}
+
+//featured-collection
+.kalles-furnitur-featured-collection {
+    padding: 82px 0;
+
+    .flickity-button {
+        border: 2px solid var(--#{$prefix}black);
+        color: var(--#{$prefix}body-color);
+
+        &:hover {
+            background-color: var(--#{$prefix}black);
+            border-color: var(--#{$prefix}black);
+            color: $white;
+        }
+
+
+        &.flickity-prev-next-button {
+            border-radius: 0 !important;
+        }
+    }
+}
+
+.wrap_title {
+    &::before {
+        content: '';
+        position: absolute;
+        display: inline-block;
+        width: 72px;
+        height: 5px;
+        bottom: -30px;
+        background-color: var(--#{$prefix}warning);
+        left: 0;
+        right: 0;
+        margin: auto;
+    }
+}
+
+.furnitur {
+    &.wishlistadd {
+        color: var(--#{$prefix}warning);
+    }
+}
+
+.onsale {
+    height: 25px;
+    width: 60px;
+    font-size: 14px;
+    top: 15px;
+    right: 15px;
+}
+
+//recent-project-section
+.kalles-furniture-recent-project-section {
+    height: 700px;
+
+    @media (max-width: 768px) {
+        height: 400px;
+    }
+}
+
+.kalles-furniture-wrap-inner {
+    padding: 58px 39px 54px;
+    max-width: 640px;
+    margin-bottom: -155px;
+
+    .sub-title {
+        font-size: 14px;
+        line-height: 24px;
+        letter-spacing: .17em;
+    }
+
+    .heading {
+        font-size: 45px;
+        line-height: 55px;
+    }
+}
+
+//kalles-furniture-testimonial
+.kalles-furniture-testimonial {
+    padding: 95px 0;
+
+    @media(max-width:768px){
+        padding-bottom: 10px;
+    }
+
+    .sub-title {
+        line-height: 24px;
+        letter-spacing: .17em;
+    }
+
+    .title {
+        font-size: 35px;
+        line-height: 40px;
+    }
+
+    .quotes_wrapper {
+        margin-top: 50px;
+
+        .quote_slide {
+            padding: 41px 20px 49px;
+
+            .quote_author {
+                font-size: 13px;
+                line-height: 20px;
+                letter-spacing: .17em;
+            }
+        }
+    }
+}
+
+//kalles-furniture-feature-blog {
+.kalles-furniture-feature-blog {
+    padding: 90px 0;
+
+    .post-blog {
+        .post-info {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease;
+        }
+
+        &:hover {
+            .post-info {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+    }
+}
+
+
+//kalles-furniture-newsletter
+.kalles-furniture-newsletter {
+    .container {
+        padding: 43px 0;
+
+        .signup-newsletter-form {
+            padding: 18px 20px;
+        }
+        
+        @media(max-width:992px){
+            h1 {
+                font-size: 24px;
+                font-weight: 600 !important;
+            }
+        }
+
+        @media(max-width: 768px){
+            .signup-newsletter-form {
+                gap: 10px;
+                flex-direction: column;
+                input {
+                    width: 100%;
+                }
+                button {
+                    padding: 18px 20px;
+                }
+            }
+        }
+    }
+}

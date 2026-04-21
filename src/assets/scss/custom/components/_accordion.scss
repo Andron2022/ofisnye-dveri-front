@@ -1,0 +1,69 @@
+//
+// accordion.scss
+//
+
+
+.accordion-custom {
+    --#{$prefix}accordion-active-color: #{$white};
+    --#{$prefix}accordion-active-bg: #{$green-dark};
+
+    .accordion-item {
+        margin-bottom: 8px;
+        border: none;
+
+        .accordion-button {
+            padding: 10px 30px;
+            min-height: 60px;
+
+            &::after {
+                display: none;
+            }
+
+            .icon {
+                right: 10px;
+                width: 44px;
+                height: 44px;
+                background-color: $green-dark;
+                position: relative;
+                flex-shrink: 0;
+
+                &::after,
+                &::before {
+                    content: '';
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%) rotate(-90deg);
+                    background-color: $white;
+                    transition: transform 0.35s ease-in-out, opacity 0.35s ease-in-out;
+                }
+
+                &::after {
+                    width: 2px;
+                    height: 15px;
+                }
+
+                &::before {
+                    width: 15px;
+                    height: 2px;
+                }
+            }
+
+            &[aria-expanded="true"] {
+                .icon {
+                    background-color: $white;
+
+                    &::after,
+                    &::before {
+                        background-color: $green-dark;
+                        transform: translate(-50%, -50%) rotate(90deg);
+                    }
+
+                    &::before {
+                        opacity: 0;
+                    }
+                }
+            }
+        }
+    }
+}

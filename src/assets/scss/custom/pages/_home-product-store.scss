@@ -1,0 +1,71 @@
+.kalles-one-product-store-slide-type-02 {
+    padding: 220px 0;
+    background-size: cover;
+    background-position: center center;
+    background-image: url("../../../images/home-one-product-store/slide-second-desktop.jpg");
+
+    .bg-overlay {
+        background-color: rgba($dark, 0.20);
+        position: absolute;
+        inset: 0;
+    }
+
+    @media (max-width:425px) {
+        padding: 40px 0;
+    }
+
+    @media (max-width:650px) {
+        .fs-small-14{
+            font-size: 14px !important;
+        }
+    }
+
+}
+
+.kalles-one-product-store-slide-type-03 {
+    height: 750px;
+    padding: 95px 0;
+    background-image: url("../../../images/home-one-product-store/slide-third-desktop.jpg");
+    background-size: cover;
+    background-position: center;
+
+    @media (max-width:425px) {
+        height: auto;
+    }
+}
+
+.kalles-one-product-store-testimonial-section {
+    padding: 80px 0;
+}
+
+.kalles-on-product-frequently-questions {
+    padding: 95px 0;
+    background-image: url("../../../images/home-one-product-store/parallax-bg.png");
+    background-size: cover;
+    background-position: center;
+}
+
+.home-one-product {
+    .footer-subscribe{
+        input::-webkit-input-placeholder { 
+            color: var(--#{$prefix}white);
+        }
+    }
+}
+
+.follow-insta-card{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) !important;
+    z-index: 5;
+    max-width: 400px;
+    padding: 23px 10px;
+    background-color: rgba(246, 246, 248, 0.8);
+    width: 100%;
+    box-shadow: 0 0 12px rgba(0, 0, 0, .22);
+    @media(max-width:450px){
+        max-width: 80%;
+        margin: auto;
+    }
+}

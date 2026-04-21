@@ -1,0 +1,74 @@
+.kalles-glasses-home {
+
+    .slideshow__slide,
+    .flickity-viewport {
+        height: 700px !important;
+
+        @media (max-width:425px) {
+            height: 450px !important;
+        }
+    }
+
+    .flickity-page-dot {
+        background-color: rgba($mustard, 0.5);
+
+        &.is-selected {
+            background-color: rgba($mustard, 1);
+        }
+    }
+}
+
+.kalles-glasses-banner-double-cat {
+    .nt_promotion_html {
+        top: 30%;
+        width: auto;
+        right: 5%;
+        transform: translate(5%, -30%);
+        left: auto;
+    }
+}
+
+.tt_divider {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 5px 0 8px;
+
+    >span {
+        width: 24px;
+        height: 1px;
+        display: inline-block;
+        background-color: var(--#{$prefix}border-color);
+    }
+
+    >i {
+        display: inline-block;
+        margin: 0 8px;
+        font-size: 22px;
+    }
+}
+
+.kalles-glasses-vertical-products {
+    .widget-title {
+        position: relative;
+        font-family: $font-family-montserrat;
+
+        &::before {
+            content: "";
+            position: absolute;
+            width: 60px;
+            height: 2px;
+            background: var(--#{$prefix}body-color);
+            left: 0;
+            bottom: -8px;
+        }
+    }
+
+    .max-w-95 {
+        max-width: 95px;
+    }
+}
+
+.header-glasses .navbar-custom {
+    min-height: 80px;
+}
