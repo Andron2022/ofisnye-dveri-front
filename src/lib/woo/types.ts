@@ -2,8 +2,8 @@
 
 // -----------------------------------------------------
 // Базовые типы ответа WooCommerce REST API.
-// Здесь только те поля, которые нам реально нужны
-// на первом живом шаге каталога.
+// Здесь только те поля, которые реально нужны
+// для текущего MVP: каталог, карточка товара и BFF.
 // -----------------------------------------------------
 
 // Любая meta_data запись WooCommerce.
@@ -40,11 +40,7 @@ export type WooProductAttribute = {
 };
 
 // Товар WooCommerce.
-// Обрати внимание:
-// - public_article_no оставляем как optional,
-//   потому что он может прийти либо как custom REST field,
-//   либо только внутри meta_data.
-// - meta_data нужна нам, чтобы вытащить public_article_no уже сейчас.
+// description и short_description нужны уже на шаге PDP.
 export type WooProduct = {
     id: number;
     name: string;
@@ -55,6 +51,8 @@ export type WooProduct = {
     regular_price?: string;
     sale_price?: string;
     stock_status?: string;
+    description?: string;
+    short_description?: string;
     images: WooProductImage[];
     categories: WooProductCategory[];
     attributes: WooProductAttribute[];
@@ -80,12 +78,23 @@ export type WooListResponse<T> = {
 };
 
 // Типы каталогов, которые мы будем читать.
-// На этом шаге уже поддерживаем и двери, и панели,
-// даже если страницу панелей пока не переключаем.
 export type CatalogType = "doors" | "panels";
 
+// Унифицированная карта нужных атрибутов двери.
+export type DoorCatalogAttributes = {
+    color?: string[];
+    size?: string[];
+    leafCount?: string[];
+    openingDirection?: string[];
+    fireResistance?: string[];
+    material?: string[];
+    glazing?: string[];
+    openingType?: string[];
+    glazingType?: string[];
+    purpose?: string[];
+};
+
 // Нормализованный товар карточки каталога для фронта.
-// Это уже НЕ raw Woo response, а удобный формат для UI.
 export type CatalogProductCard = {
     id: number;
     slug: string;
@@ -95,18 +104,8 @@ export type CatalogProductCard = {
     price: string | null;
     image: string | null;
     categorySlugs: string[];
-    attributes: {
-        color?: string[];
-        size?: string[];
-        leafCount?: string[];
-        openingDirection?: string[];
-        fireResistance?: string[];
-        material?: string[];
-        glazing?: string[];
-        openingType?: string[];
-        glazingType?: string[];
-        purpose?: string[];
-    };
+    attributes: DoorCatalogAttributes;
+    path: string;
 };
 
 // Итоговый ответ для каталога.
@@ -119,3 +118,27 @@ export type CatalogResult = {
     totalPages: number;
     items: CatalogProductCard[];
 };
+
+// Нормализованный товар для страницы карточки.
+export type DoorProductDetails = {
+    id: number;
+    slug: string;
+    name: string;
+    sku: string;
+    publicArticleNo: string | null;
+    price: string | null;
+    regularPrice: string | null;
+    salePrice: string | null;
+    stockStatus: string | null;
+    path: string;
+    image: string | null;
+    gallery: WooProductImage[];
+    categories: WooProductCategory[];
+    categorySlugs: string[];
+    shortDescriptionHtml: string | null;
+    descriptionHtml: string | null;
+    attributes: DoorCatalogAttributes;
+};
+
+// Категории маршрута дверей на фронте.
+export type DoorRouteCategory = "skrytye" | "protivopozharnye";

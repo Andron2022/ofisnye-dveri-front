@@ -5,6 +5,9 @@ import type {
     CatalogProductCard,
     CatalogResult,
     CatalogType,
+    DoorCatalogAttributes,
+    DoorProductDetails,
+    DoorRouteCategory,
     WooMetaDataItem,
     WooProduct,
     WooProductCategoryTerm,
@@ -15,12 +18,32 @@ import type {
 // 1) чтение категорий Woo
 // 2) чтение товаров Woo
 // 3) нормализацию raw Woo product в формат,
-//    удобный для каталога Next
+//    удобный для каталога и карточки товара Next
 // -----------------------------------------------------
 
 const ROOT_CATEGORY_BY_TYPE: Record<CatalogType, string> = {
     doors: "mezhkomnatnye-dveri",
     panels: "stenovye-paneli",
+};
+
+// -----------------------------------------------------
+// Фиксированное сопоставление frontend URL -> Woo slug.
+// Важно:
+// - фронт работает с короткими URL /skrytye и /protivopozharnye
+// - Woo категории у тебя заведены как skrytye-dveri и protivopozharnye-dveri
+// -----------------------------------------------------
+
+const DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG: Record<
+    DoorRouteCategory,
+    string
+> = {
+    skrytye: "skrytye-dveri",
+    protivopozharnye: "protivopozharnye-dveri",
+};
+
+const WOO_CATEGORY_SLUG_TO_DOOR_ROUTE_CATEGORY: Record<string, DoorRouteCategory> = {
+    "skrytye-dveri": "skrytye",
+    "protivopozharnye-dveri": "protivopozharnye",
 };
 
 // -----------------------------------------------------
@@ -60,7 +83,6 @@ function getMetaString(
 // Работа с атрибутами Woo
 // -----------------------------------------------------
 
-// Убираем пробелы и пустые значения.
 function cleanOptions(values: string[] | undefined): string[] | undefined {
     if (!values || values.length === 0) {
         return undefined;
@@ -91,7 +113,6 @@ function getAttributeOptionsBySlugs(
     return cleanOptions(attribute.options);
 }
 
-// Короткие алиасы, чтобы ниже код был читаемым.
 function getDoorColor(product: WooProduct): string[] | undefined {
     return getAttributeOptionsBySlugs(product, ["pa_tsvet-dveri", "tsvet-dveri"]);
 }
@@ -144,13 +165,44 @@ function getPurpose(product: WooProduct): string[] | undefined {
     return getAttributeOptionsBySlugs(product, ["pa_naznachenie", "naznachenie"]);
 }
 
+function mapDoorAttributes(product: WooProduct): DoorCatalogAttributes {
+    return {
+        color: getDoorColor(product),
+        size: getDoorSize(product),
+        leafCount: getLeafCount(product),
+        openingDirection: getOpeningDirection(product),
+        fireResistance: getFireResistance(product),
+        material: getMaterial(product),
+        glazing: getGlazing(product),
+        openingType: getOpeningType(product),
+        glazingType: getGlazingType(product),
+        purpose: getPurpose(product),
+    };
+}
+
 // -----------------------------------------------------
-// Картинка и UI артикул
+// Картинка, описания и UI артикул
 // -----------------------------------------------------
+
+function normalizeMediaUrl(url: string | undefined): string | null {
+    if (!url) {
+        return null;
+    }
+    
+    try {
+        // Кодируем кириллицу, пробелы и прочие символы,
+        // которые ломают header/preload на сервере.
+        return encodeURI(url);
+    } catch {
+        // Если вдруг URL кривой, лучше вернуть исходное значение,
+        // чем уронить весь рендер.
+        return url;
+    }
+}
 
 function getCardImage(product: WooProduct): string | null {
     const firstImage = product.images[0];
-    return firstImage?.src ?? null;
+    return normalizeMediaUrl(firstImage?.src);
 }
 
 function getPublicArticleNo(product: WooProduct): string | null {
@@ -164,43 +216,79 @@ function getPublicArticleNo(product: WooProduct): string | null {
     return getMetaString(product.meta_data, "public_article_no");
 }
 
+function getHtmlOrNull(value: string | undefined): string | null {
+    if (!value || value.trim() === "") {
+        return null;
+    }
+    
+    return value;
+}
+
 // -----------------------------------------------------
-// Нормализация товара Woo в карточку каталога
+// Категории дверей и URL товара
 // -----------------------------------------------------
 
-function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
-    // TEMP DEBUG: смотрим сырые Woo attributes по нужным товарам
-    const debugNeedles = ["dk01", "dk02", "dk03"];
-    
-    const debugHaystack = [
-        product.name,
-        product.slug,
-        product.sku ?? "",
-    ]
-        .join(" ")
-        .toLowerCase();
-    
-    const shouldDebug = debugNeedles.some((needle) =>
-        debugHaystack.includes(needle),
-    );
-    
-    if (shouldDebug) {
-        console.log("\n================ RAW WOO PRODUCT DEBUG ================");
-        console.log("name:", product.name);
-        console.log("slug:", product.slug);
-        console.log("sku:", product.sku ?? "—");
-        console.log("public_article_no:", product.public_article_no ?? "—");
-        console.log(
-            "categories:",
-            product.categories.map((c) => ({
-                id: c.id,
-                slug: c.slug,
-                name: c.name,
-            })),
-        );
-        console.dir(product.attributes, { depth: null });
-        console.log("======================================================\n");
+function getDoorRouteCategoryFromWooCategorySlugs(
+    categorySlugs: string[],
+): DoorRouteCategory | null {
+    for (const slug of categorySlugs) {
+        const routeCategory = WOO_CATEGORY_SLUG_TO_DOOR_ROUTE_CATEGORY[slug];
+        
+        if (routeCategory) {
+            return routeCategory;
+        }
     }
+    
+    return null;
+}
+
+export function getDoorCategoryLabelByRouteCategory(
+    routeCategory?: DoorRouteCategory,
+): string {
+    if (routeCategory === "skrytye") {
+        return "Скрытые двери";
+    }
+    
+    if (routeCategory === "protivopozharnye") {
+        return "Противопожарные двери";
+    }
+    
+    return "Межкомнатные двери";
+}
+
+export function getDoorTypeLabel(categorySlugs: string[]): string {
+    const routeCategory = getDoorRouteCategoryFromWooCategorySlugs(categorySlugs);
+    
+    if (routeCategory === "skrytye") {
+        return "Скрытая";
+    }
+    
+    if (routeCategory === "protivopozharnye") {
+        return "Противопожарная";
+    }
+    
+    return "Межкомнатная";
+}
+
+export function buildDoorProductPath({
+                                         slug,
+                                         categorySlugs,
+                                     }: {
+    slug: string;
+    categorySlugs: string[];
+}): string {
+    const routeCategory = getDoorRouteCategoryFromWooCategorySlugs(categorySlugs);
+    
+    if (routeCategory) {
+        return `/mezhkomnatnye-dveri/${routeCategory}/${slug}`;
+    }
+    
+    return `/mezhkomnatnye-dveri/${slug}`;
+}
+
+function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
+    const categorySlugs = product.categories.map((category) => category.slug);
+    
     return {
         id: product.id,
         slug: product.slug,
@@ -209,19 +297,39 @@ function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
         publicArticleNo: getPublicArticleNo(product),
         price: product.price ? product.price : null,
         image: getCardImage(product),
-        categorySlugs: product.categories.map((category) => category.slug),
-        attributes: {
-            color: getDoorColor(product),
-            size: getDoorSize(product),
-            leafCount: getLeafCount(product),
-            openingDirection: getOpeningDirection(product),
-            fireResistance: getFireResistance(product),
-            material: getMaterial(product),
-            glazing: getGlazing(product),
-            openingType: getOpeningType(product),
-            glazingType: getGlazingType(product),
-            purpose: getPurpose(product),
-        },
+        categorySlugs,
+        attributes: mapDoorAttributes(product),
+        path: buildDoorProductPath({
+            slug: product.slug,
+            categorySlugs,
+        }),
+    };
+}
+
+function mapDoorProductDetails(product: WooProduct): DoorProductDetails {
+    const categorySlugs = product.categories.map((category) => category.slug);
+    
+    return {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        sku: product.sku ?? "",
+        publicArticleNo: getPublicArticleNo(product),
+        price: product.price ? product.price : null,
+        regularPrice: product.regular_price ? product.regular_price : null,
+        salePrice: product.sale_price ? product.sale_price : null,
+        stockStatus: product.stock_status ?? null,
+        path: buildDoorProductPath({
+            slug: product.slug,
+            categorySlugs,
+        }),
+        image: getCardImage(product),
+        gallery: product.images,
+        categories: product.categories,
+        categorySlugs,
+        shortDescriptionHtml: getHtmlOrNull(product.short_description),
+        descriptionHtml: getHtmlOrNull(product.description),
+        attributes: mapDoorAttributes(product),
     };
 }
 
@@ -277,6 +385,22 @@ function collectDescendantCategoryIds(
     return Array.from(result);
 }
 
+function assertCategoryInsideTree(
+    categories: WooProductCategoryTerm[],
+    rootCategory: WooProductCategoryTerm,
+    requestedCategory: WooProductCategoryTerm,
+): void {
+    const allowedIds = new Set(
+        collectDescendantCategoryIds(categories, rootCategory.id),
+    );
+    
+    if (!allowedIds.has(requestedCategory.id)) {
+        throw new Error(
+            `Категория "${requestedCategory.slug}" не принадлежит дереву "${rootCategory.slug}"`,
+        );
+    }
+}
+
 // -----------------------------------------------------
 // Публичная функция каталога
 // -----------------------------------------------------
@@ -285,12 +409,13 @@ type GetCatalogProductsArgs = {
     type: CatalogType;
     page?: number;
     perPage?: number;
+    categorySlug?: string;
 };
 
 export async function getCatalogProducts(
     args: GetCatalogProductsArgs,
 ): Promise<CatalogResult> {
-    const { type, page = 1, perPage = 24 } = args;
+    const { type, page = 1, perPage = 24, categorySlug } = args;
     
     const rootCategorySlug = ROOT_CATEGORY_BY_TYPE[type];
     const categories = await getAllProductCategories();
@@ -303,7 +428,22 @@ export async function getCatalogProducts(
         );
     }
     
-    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
+    let effectiveCategory = rootCategory;
+    
+    if (categorySlug) {
+        const requestedCategory = findCategoryBySlug(categories, categorySlug);
+        
+        if (!requestedCategory) {
+            throw new Error(
+                `В WooCommerce не найдена категория со slug "${categorySlug}"`,
+            );
+        }
+        
+        assertCategoryInsideTree(categories, rootCategory, requestedCategory);
+        effectiveCategory = requestedCategory;
+    }
+    
+    const categoryIds = collectDescendantCategoryIds(categories, effectiveCategory.id);
     
     const productsResponse = await wooGetList<WooProduct>(
         "products",
@@ -320,11 +460,140 @@ export async function getCatalogProducts(
     
     return {
         type,
-        categorySlug: rootCategorySlug,
+        categorySlug: effectiveCategory.slug,
         page,
         perPage,
         total: productsResponse.total,
         totalPages: productsResponse.totalPages,
         items: productsResponse.items.map(mapCatalogProductCard),
     };
+}
+
+// -----------------------------------------------------
+// Разбор универсального door route.
+// -----------------------------------------------------
+
+export type DoorRouteResolution =
+    | {
+    kind: "category";
+    routeCategory: DoorRouteCategory;
+    wooCategorySlug: string;
+}
+    | {
+    kind: "product";
+    slug: string;
+    routeCategory?: DoorRouteCategory;
+    wooCategorySlug?: string;
+};
+
+function isDoorRouteCategory(value: string): value is DoorRouteCategory {
+    return value === "skrytye" || value === "protivopozharnye";
+}
+
+export function resolveDoorRoute(
+    segments: string[],
+): DoorRouteResolution | null {
+    if (segments.length === 0 || segments.length > 2) {
+        return null;
+    }
+    
+    if (segments.length === 1) {
+        const [firstSegment] = segments;
+        
+        if (isDoorRouteCategory(firstSegment)) {
+            return {
+                kind: "category",
+                routeCategory: firstSegment,
+                wooCategorySlug:
+                    DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[firstSegment],
+            };
+        }
+        
+        return {
+            kind: "product",
+            slug: firstSegment,
+        };
+    }
+    
+    const [firstSegment, secondSegment] = segments;
+    
+    if (!isDoorRouteCategory(firstSegment)) {
+        return null;
+    }
+    
+    return {
+        kind: "product",
+        slug: secondSegment,
+        routeCategory: firstSegment,
+        wooCategorySlug: DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[firstSegment],
+    };
+}
+
+// -----------------------------------------------------
+// Чтение одной карточки двери по slug.
+// -----------------------------------------------------
+
+type GetDoorProductBySlugArgs = {
+    slug: string;
+    routeCategory?: DoorRouteCategory;
+};
+
+export async function getDoorProductBySlug(
+    args: GetDoorProductBySlugArgs,
+): Promise<DoorProductDetails | null> {
+    const { slug, routeCategory } = args;
+    
+    const categories = await getAllProductCategories();
+    const rootCategory = findCategoryBySlug(
+        categories,
+        ROOT_CATEGORY_BY_TYPE.doors,
+    );
+    
+    if (!rootCategory) {
+        throw new Error(
+            `В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`,
+        );
+    }
+    
+    const allowedDoorCategoryIds = new Set(
+        collectDescendantCategoryIds(categories, rootCategory.id),
+    );
+    
+    const productsResponse = await wooGetList<WooProduct>(
+        "products",
+        {
+            status: "publish",
+            slug,
+            per_page: 20,
+            page: 1,
+        },
+        60,
+    );
+    
+    const rawProduct = productsResponse.items.find((product) => {
+        const belongsToDoorsTree = product.categories.some((category) =>
+            allowedDoorCategoryIds.has(category.id),
+        );
+        
+        if (!belongsToDoorsTree) {
+            return false;
+        }
+        
+        if (!routeCategory) {
+            return true;
+        }
+        
+        const expectedWooCategorySlug =
+            DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[routeCategory];
+        
+        return product.categories.some(
+            (category) => category.slug === expectedWooCategorySlug,
+        );
+    });
+    
+    if (!rawProduct) {
+        return null;
+    }
+    
+    return mapDoorProductDetails(rawProduct);
 }

@@ -1,20 +1,12 @@
-// src/app/mezhkomnatnye-dveri/page.tsx
-
-import type { Metadata } from "next";
-import TopBanner from "@src/components/Headers/TopBanner";
+import Link from "next/link";
 import Header from "@src/components/Headers/Header";
+import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
-import { getCatalogProducts } from "@src/lib/woo/products";
+import {
+    getCatalogProducts,
+    getDoorTypeLabel,
+} from "@src/lib/woo/products";
 import type { CatalogProductCard } from "@src/lib/woo/types";
-
-// -----------------------------------------------------
-// Metadata страницы
-// -----------------------------------------------------
-
-export const metadata: Metadata = {
-    title: "Межкомнатные двери",
-    description: "Каталог межкомнатных дверей из WooCommerce",
-};
 
 // -----------------------------------------------------
 // Форматирование цены
@@ -32,22 +24,6 @@ function formatPrice(price: string | null): string {
     }
     
     return `${new Intl.NumberFormat("ru-RU").format(normalized)} ₽`;
-}
-
-// -----------------------------------------------------
-// Определение типа двери по категории
-// -----------------------------------------------------
-
-function getDoorTypeLabel(categorySlugs: string[]): string {
-    if (categorySlugs.includes("skrytye-dveri")) {
-        return "Скрытая";
-    }
-    
-    if (categorySlugs.includes("protivopozharnye-dveri")) {
-        return "Противопожарная";
-    }
-    
-    return "Межкомнатная";
 }
 
 // -----------------------------------------------------
@@ -102,90 +78,86 @@ function OptionalProductSpecRow({
 }
 
 // -----------------------------------------------------
-// Карточка товара каталога
+// Карточка товара каталога.
+// Теперь она уже ведёт в реальную карточку товара.
 // -----------------------------------------------------
 
 function CatalogCard({ item }: { item: CatalogProductCard }) {
     return (
         <article className="topbar-product-card h-100 border rounded-3 p-3 bg-white d-flex flex-column">
-            {/* Изображение */}
-            <div className="mb-3">
-                <div
-                    className="rounded-3 overflow-hidden bg-light d-flex align-items-center justify-content-center"
-                    style={{ aspectRatio: "4 / 3" }}
-                >
-                    {item.image ? (
-                        <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-100 h-100 object-fit-cover"
-                        />
-                    ) : (
-                        <div className="text-muted small">Нет изображения</div>
-                    )}
+            <Link href={item.path} className="text-decoration-none text-reset">
+                <div className="mb-3">
+                    <div
+                        className="rounded-3 overflow-hidden bg-light d-flex align-items-center justify-content-center"
+                        style={{ aspectRatio: "4 / 3" }}
+                    >
+                        {item.image ? (
+                            <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-100 h-100 object-fit-cover"
+                            />
+                        ) : (
+                            <div className="text-muted small">Нет изображения</div>
+                        )}
+                    </div>
                 </div>
-            </div>
-            
-            {/* Верхняя служебная строка */}
-            <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
-        <span className="badge text-bg-light">
-          {getDoorTypeLabel(item.categorySlugs)}
-        </span>
                 
-                {item.publicArticleNo ? (
-                    <span className="badge text-bg-secondary">
-            Арт. UI {item.publicArticleNo}
-          </span>
-                ) : null}
-            </div>
-            
-            {/* Название */}
-            <h2 className="fs-5 mb-2">{item.name}</h2>
-            
-            {/* SKU и slug */}
-            <div className="small text-muted mb-3">
-                <div>SKU: {item.sku || "—"}</div>
-                <div>Slug: {item.slug}</div>
-            </div>
-            
-            {/* Характеристики */}
-            <ul className="list-unstyled mb-3">
-                <ProductSpecRow label="Цвет" value={item.attributes.color} />
-                <ProductSpecRow label="Размер" value={item.attributes.size} />
-                <ProductSpecRow label="Полотна" value={item.attributes.leafCount} />
-                <ProductSpecRow label="Материал" value={item.attributes.material} />
-                <ProductSpecRow label="Остекление" value={item.attributes.glazing} />
-                <ProductSpecRow label="Открывание" value={item.attributes.openingType} />
+                <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+                    <span className="badge text-bg-light">
+                        {getDoorTypeLabel(item.categorySlugs)}
+                    </span>
+                    
+                    {item.publicArticleNo ? (
+                        <span className="badge text-bg-secondary">
+                            Арт. UI {item.publicArticleNo}
+                        </span>
+                    ) : null}
+                </div>
                 
-                {/* Ниже как раз те поля, которых тебе не хватало */}
-                <OptionalProductSpecRow
-                    label="Назначение"
-                    value={item.attributes.purpose}
-                />
+                <h2 className="fs-5 mb-2">{item.name}</h2>
                 
-                <OptionalProductSpecRow
-                    label="Направление"
-                    value={item.attributes.openingDirection}
-                />
+                <div className="small text-muted mb-3">
+                    <div>SKU: {item.sku || "—"}</div>
+                    <div>Slug: {item.slug}</div>
+                </div>
                 
-                <OptionalProductSpecRow
-                    label="Огнестойкость"
-                    value={item.attributes.fireResistance}
-                />
-                
-                <OptionalProductSpecRow
-                    label="Тип остекления"
-                    value={item.attributes.glazingType}
-                />
-            </ul>
+                <ul className="list-unstyled mb-3">
+                    <ProductSpecRow label="Цвет" value={item.attributes.color} />
+                    <ProductSpecRow label="Размер" value={item.attributes.size} />
+                    <ProductSpecRow label="Полотна" value={item.attributes.leafCount} />
+                    <ProductSpecRow label="Материал" value={item.attributes.material} />
+                    <ProductSpecRow label="Остекление" value={item.attributes.glazing} />
+                    <ProductSpecRow label="Открывание" value={item.attributes.openingType} />
+                    
+                    <OptionalProductSpecRow
+                        label="Назначение"
+                        value={item.attributes.purpose}
+                    />
+                    
+                    <OptionalProductSpecRow
+                        label="Направление"
+                        value={item.attributes.openingDirection}
+                    />
+                    
+                    <OptionalProductSpecRow
+                        label="Огнестойкость"
+                        value={item.attributes.fireResistance}
+                    />
+                    
+                    <OptionalProductSpecRow
+                        label="Тип остекления"
+                        value={item.attributes.glazingType}
+                    />
+                </ul>
+            </Link>
             
-            {/* Низ карточки */}
             <div className="mt-auto pt-3 border-top d-flex justify-content-between align-items-center gap-3">
                 <strong className="fs-5">{formatPrice(item.price)}</strong>
                 
-                <span className="small text-muted">
-          Карточка — следующим шагом
-        </span>
+                <Link href={item.path} className="small text-decoration-none">
+                    Открыть карточку
+                </Link>
             </div>
         </article>
     );
@@ -236,9 +208,9 @@ export default async function InteriorDoorsPage() {
                         </div>
                         
                         <div className="alert alert-light border mb-4">
-                            На этом шаге мы уже читаем реальные данные из WooCommerce. Сейчас
-                            цель — добиться корректного полного вывода базовых характеристик
-                            карточек каталога.
+                            Теперь каталог уже не тупиковый: карточки ведут в реальные URL
+                            товаров, а универсальный маршрут /mezhkomnatnye-dveri/[...segments]
+                            будет разбирать категории и PDP.
                         </div>
                         
                         {loadError ? (
@@ -271,14 +243,3 @@ export default async function InteriorDoorsPage() {
         </>
     );
 }
-
-//
-// import DoorsGrid from "@src/app/(shop)/shop-left-sidebar/page";
-//
-//
-// const InteriorDoors = () => {
-//  return (
-//      <DoorsGrid /> );
-// };
-//
-// export default InteriorDoors;

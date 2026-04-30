@@ -5,21 +5,23 @@ import { getCatalogProducts } from "@src/lib/woo/products";
 import type { CatalogType } from "@src/lib/woo/types";
 
 // -----------------------------------------------------
-// Этот route handler нужен не потому, что серверная страница
-// не может читать Woo напрямую.
-// Она может.
-// Он нужен как первый реальный BFF endpoint:
-// - для быстрой проверки JSON в браузере
-// - для будущих клиентских фильтров
-// - для последующего повторного использования
+// Это первый реальный BFF endpoint проекта.
+// Он нужен для:
+// - быстрой проверки JSON в браузере
+// - будущих клиентских фильтров
+// - повторного использования фронтом без прямого знания о Woo REST
 // -----------------------------------------------------
 
-// Проверяем, что type допустимый.
+
+// Проверяет, является ли переданное значение допустимым типом каталога.
+
 function isCatalogType(value: string | null): value is CatalogType {
     return value === "doors" || value === "panels";
 }
 
-// Безопасно парсим положительное число из query string.
+
+// Безопасно парсит строку в положительное число. Если значение некорректно, возвращает fallback-значение.
+
 function parsePositiveNumber(
     value: string | null,
     fallback: number,
@@ -37,6 +39,10 @@ function parsePositiveNumber(
     return Math.floor(parsed);
 }
 
+
+// Главный обработчик GET-запроса для API каталога.
+// Извлекает параметры из URL и возвращает JSON со списком товаров.
+
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -50,10 +56,13 @@ export async function GET(request: NextRequest) {
             48,
         );
         
+        const categorySlug = searchParams.get("categorySlug") ?? undefined;
+        
         const catalog = await getCatalogProducts({
             type,
             page,
             perPage,
+            categorySlug,
         });
         
         return NextResponse.json(catalog, {

@@ -2,6 +2,7 @@
 
 # archives
 /zips
+/src-layer
 
 # dependencies
 /node_modules
