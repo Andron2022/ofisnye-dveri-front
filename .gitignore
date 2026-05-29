@@ -41,3 +41,6 @@ next-env.d.ts
 
 #repomix
 repomix-output*.md
+
+#archive project
+/*.zip
