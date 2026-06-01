@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useCart } from "@src/lib/cart/CartProvider";
+import type { CartAccessorySnapshot, CartItemInput, CartOptionSnapshot } from "@src/lib/cart/types";
 import type {
     DoorAccessoryCard,
     DoorCartCandidate,
@@ -44,6 +47,14 @@ function findSelectedChoice(group: DoorOptionGroup, selectedId: string): DoorOpt
     return group.choices.find((choice) => choice.id === selectedId) ?? null;
 }
 
+function getSelectedChoiceOrFallback(group: DoorOptionGroup, selectedId: string): DoorOptionChoice {
+    return (
+        findSelectedChoice(group, selectedId) ??
+        group.choices.find((choice) => choice.id === group.defaultOptionId) ??
+        group.choices[0]
+    );
+}
+
 function getOptionsDelta(product: DoorProductDetails, selectedOptions: SelectedOptions): number {
     const selectedChoices = [
         findSelectedChoice(product.orderOptions.box, selectedOptions.box),
@@ -51,7 +62,7 @@ function getOptionsDelta(product: DoorProductDetails, selectedOptions: SelectedO
         findSelectedChoice(product.orderOptions.soundproofing, selectedOptions.soundproofing),
         findSelectedChoice(product.orderOptions.threshold, selectedOptions.threshold),
     ];
-    
+
     return selectedChoices.reduce((sum, choice) => sum + (choice?.priceDelta ?? 0), 0);
 }
 
@@ -61,6 +72,68 @@ function getAllAccessories(product: DoorProductDetails): DoorAccessoryCard[] {
         ...product.accessories.hinges,
         ...product.accessories.locks,
     ];
+}
+
+function buildSelectedOptionSnapshots(
+    product: DoorProductDetails,
+    selectedOptions: SelectedOptions,
+): CartOptionSnapshot[] {
+    const optionGroups = [
+        product.orderOptions.box,
+        product.orderOptions.openingSide,
+        product.orderOptions.soundproofing,
+        product.orderOptions.threshold,
+    ];
+
+    return optionGroups.map((group) => {
+        const selectedId = selectedOptions[group.key];
+        const choice = getSelectedChoiceOrFallback(group, selectedId);
+
+        return {
+            groupKey: group.key,
+            groupTitle: group.title,
+            choiceId: choice.id,
+            choiceLabel: choice.label,
+            priceDelta: choice.priceDelta,
+        };
+    });
+}
+
+function buildSelectedAccessorySnapshots(
+    product: DoorProductDetails,
+    selectedAccessories: SelectedAccessoryMap,
+): CartAccessorySnapshot[] {
+    return getAllAccessories(product)
+        .filter((item) => (selectedAccessories[item.id] ?? 0) > 0)
+        .map((item) => ({
+            productId: item.id,
+            name: item.name,
+            slug: item.slug,
+            sku: item.sku,
+            image: item.image,
+            price: toNumber(item.price),
+            qty: selectedAccessories[item.id] ?? 0,
+        }));
+}
+
+function buildCartItemInput(
+    product: DoorProductDetails,
+    selectedOptions: SelectedOptions,
+    selectedAccessories: SelectedAccessoryMap,
+): CartItemInput {
+    return {
+        productId: product.id,
+        slug: product.slug,
+        path: product.path,
+        name: product.name,
+        sku: product.sku,
+        publicArticleNo: product.publicArticleNo,
+        image: product.image,
+        basePrice: toNumber(product.price),
+        selectedOptions: buildSelectedOptionSnapshots(product, selectedOptions),
+        selectedAccessories: buildSelectedAccessorySnapshots(product, selectedAccessories),
+        quantity: 1,
+    };
 }
 
 function OptionGroupBlock({ group, value, onChange }: {
@@ -74,7 +147,7 @@ function OptionGroupBlock({ group, value, onChange }: {
             <div className="d-flex flex-column gap-2">
                 {group.choices.map((choice) => {
                     const inputId = `${group.key}-${choice.id}`;
-                    
+
                     return (
                         <label
                             key={choice.id}
@@ -113,7 +186,7 @@ function AccessoryCard({ item, qty, onQtyChange }: {
 }) {
     const price = toNumber(item.price);
     const lineTotal = price === null ? null : price * qty;
-    
+
     return (
         <article className="border rounded-3 p-3 bg-white h-100 d-flex flex-column">
             <div className="d-flex gap-3 align-items-start">
@@ -127,14 +200,14 @@ function AccessoryCard({ item, qty, onQtyChange }: {
                         <span className="small text-muted text-center px-2">Нет фото</span>
                     )}
                 </div>
-                
+
                 <div className="flex-grow-1">
                     <h4 className="fs-6 mb-1">{item.shortLabel || item.name}</h4>
                     <div className="small text-muted mb-2">SKU: {item.sku || "—"}</div>
                     <div className="fw-medium">{formatPrice(item.price)}</div>
                 </div>
             </div>
-            
+
             <div className="mt-auto pt-3 d-flex align-items-center justify-content-between gap-3">
                 <label className="small text-muted" htmlFor={`accessory-${item.id}`}>Количество</label>
                 <input
@@ -151,7 +224,7 @@ function AccessoryCard({ item, qty, onQtyChange }: {
                     }}
                 />
             </div>
-            
+
             {qty > 0 ? <div className="small text-muted mt-2 text-end">Сумма: {formatPrice(lineTotal)}</div> : null}
         </article>
     );
@@ -164,7 +237,7 @@ function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
     onQtyChange: (productId: number, nextQty: number) => void;
 }) {
     if (items.length === 0) return null;
-    
+
     return (
         <div className="mb-4">
             <h3 className="fs-5 mb-3">{title}</h3>
@@ -184,9 +257,11 @@ function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
 }
 
 export default function DoorProductConfigurator({ product }: { product: DoorProductDetails }) {
+    const { addItem, isHydrated } = useCart();
     const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>(() => getInitialSelectedOptions(product));
     const [selectedAccessories, setSelectedAccessories] = useState<SelectedAccessoryMap>({});
-    
+    const [addedItemKey, setAddedItemKey] = useState<string | null>(null);
+
     const basePrice = toNumber(product.price);
     const optionsDelta = getOptionsDelta(product, selectedOptions);
     const allAccessories = getAllAccessories(product);
@@ -196,7 +271,12 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
         return sum + itemPrice * (selectedAccessories[item.id] ?? 0);
     }, 0);
     const totalPrice = basePrice === null ? null : basePrice + optionsDelta + accessoriesTotal;
-    
+
+    const cartItemInput = useMemo(
+        () => buildCartItemInput(product, selectedOptions, selectedAccessories),
+        [product, selectedOptions, selectedAccessories],
+    );
+
     const cartCandidate: DoorCartCandidate = {
         productId: product.id,
         name: product.name,
@@ -209,15 +289,32 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
             qty: selectedAccessories[item.id] ?? 0,
         })),
     };
-    
+
     const changeOption = (key: keyof SelectedOptions, value: string) => {
         setSelectedOptions((current) => ({ ...current, [key]: value }));
+        setAddedItemKey(null);
     };
-    
+
     const changeAccessoryQty = (productId: number, nextQty: number) => {
-        setSelectedAccessories((current) => ({ ...current, [productId]: nextQty }));
+        setSelectedAccessories((current) => {
+            const next = { ...current };
+
+            if (nextQty <= 0) {
+                delete next[productId];
+                return next;
+            }
+
+            next[productId] = nextQty;
+            return next;
+        });
+        setAddedItemKey(null);
     };
-    
+
+    const handleAddToCart = () => {
+        const item = addItem(cartItemInput);
+        setAddedItemKey(item.itemKey);
+    };
+
     return (
         <section className="mt-5 border-top pt-4">
             <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
@@ -225,7 +322,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                     <p className="text-uppercase text-muted mb-2 small">Конфигуратор заказа</p>
                     <h2 className="fs-3 mb-0">Комплектация двери</h2>
                 </div>
-                
+
                 <div className="border rounded-3 p-3 bg-light" style={{ minWidth: 260 }}>
                     <div className="d-flex justify-content-between gap-3 small mb-1"><span className="text-muted">Полотно</span><span>{formatPrice(product.price)}</span></div>
                     <div className="d-flex justify-content-between gap-3 small mb-1"><span className="text-muted">Опции</span><span>{formatDelta(optionsDelta)}</span></div>
@@ -233,14 +330,14 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                     <div className="d-flex justify-content-between gap-3 border-top pt-2 fw-bold"><span>Итого без доставки</span><span>{formatPrice(totalPrice)}</span></div>
                 </div>
             </div>
-            
+
             <div className="row g-3 mb-5">
                 <div className="col-12 col-lg-6"><OptionGroupBlock group={product.orderOptions.box} value={selectedOptions.box} onChange={(value) => changeOption("box", value)} /></div>
                 <div className="col-12 col-lg-6"><OptionGroupBlock group={product.orderOptions.openingSide} value={selectedOptions.openingSide} onChange={(value) => changeOption("openingSide", value)} /></div>
                 <div className="col-12 col-lg-6"><OptionGroupBlock group={product.orderOptions.soundproofing} value={selectedOptions.soundproofing} onChange={(value) => changeOption("soundproofing", value)} /></div>
                 <div className="col-12 col-lg-6"><OptionGroupBlock group={product.orderOptions.threshold} value={selectedOptions.threshold} onChange={(value) => changeOption("threshold", value)} /></div>
             </div>
-            
+
             <div className="mb-5">
                 <p className="text-uppercase text-muted mb-2 small">Доп. товары</p>
                 <h2 className="fs-3 mb-4">Подходящая фурнитура</h2>
@@ -248,18 +345,32 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                 <AccessoriesGroup title="Петли" items={product.accessories.hinges} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
                 <AccessoriesGroup title="Замки" items={product.accessories.locks} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
             </div>
-            
+
             <div className="border rounded-3 p-3 bg-light">
                 <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
                     <div>
-                        <h3 className="fs-5 mb-1">Готово к следующему шагу: корзина</h3>
-                        <p className="text-muted mb-0 small">Ниже уже собран объект будущей строки корзины. На следующем шаге подключим хранение и кнопку добавления.</p>
+                        <h3 className="fs-5 mb-1">Добавить комплектацию в корзину</h3>
+                        <p className="text-muted mb-0 small">Корзина сохраняется локально в браузере. Заказ в Woo подключим следующим слоем.</p>
                     </div>
-                    <button type="button" className="btn btn-dark rounded-pill px-4" disabled>Добавление в корзину — следующий шаг</button>
+                    <button type="button" className="btn btn-dark rounded-pill px-4" onClick={handleAddToCart} disabled={!isHydrated}>
+                        {isHydrated ? "Добавить в корзину" : "Загружаем корзину…"}
+                    </button>
                 </div>
+
+                {addedItemKey ? (
+                    <div className="alert alert-success mt-3 mb-0 d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
+                        <span>Комплектация добавлена в корзину.</span>
+                        <Link href="/shopping-cart" className="btn btn-sm btn-outline-dark rounded-pill">
+                            Перейти в корзину
+                        </Link>
+                    </div>
+                ) : null}
+
                 <details className="mt-3">
                     <summary className="small text-muted">Показать cart-ready payload</summary>
-                    <pre className="small bg-white border rounded-3 p-3 mt-2 mb-0 overflow-auto">{JSON.stringify(cartCandidate, null, 2)}</pre>
+                    <pre className="small bg-white border rounded-3 p-3 mt-2 mb-0 overflow-auto">
+                        {JSON.stringify({ cartCandidate, cartItemInput }, null, 2)}
+                    </pre>
                 </details>
             </div>
         </section>

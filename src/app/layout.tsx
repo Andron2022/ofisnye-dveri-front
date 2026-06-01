@@ -6,6 +6,7 @@ import "@assets/icons/font-icon.css";
 import { ReactNode } from "react";
 import {Metadata} from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import Providers from "@src/app/providers";
 
 const fontSans = Inter({
   subsets: ["latin", "cyrillic"],
@@ -46,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
     {/*<p>*/}
     {/*  {JSON.stringify(fontSans, null, 2)}*/}
     {/*</p>*/}
-    {children}
+    <Providers>{children}</Providers>
       </body>
     </html>
   );
