@@ -164,72 +164,171 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory }: {
 }
 
 // -----------------------------------------------------
-// Sibling links: переключатели между простыми товарами одного семейства.
+// Sibling UI: матрица вариантов семейства.
+//
+// Важно: у нас НЕ variable products Woo.
+// Каждый SEO-значимый вариант двери — отдельный simple product.
+// Поэтому переключатель не меняет атрибуты текущего товара на месте,
+// а ведёт на соседний товар того же door_family.
+//
+// Логика матрицы:
+// - показываем все значения, которые вообще есть в family;
+// - для каждого значения ищем точную комбинацию:
+//   выбранное значение по текущей оси + остальные значения как у текущего товара;
+// - если такой simple product есть — даём ссылку;
+// - если такой simple product не создан — показываем disabled.
 // -----------------------------------------------------
 
 type SiblingAttributeKey = "color" | "size" | "leafCount";
+
+type VariantAxisConfig = {
+    key: SiblingAttributeKey;
+    title: string;
+    shortTitle: string;
+};
+
+const VARIANT_AXES: VariantAxisConfig[] = [
+    { key: "color", title: "Цвет", shortTitle: "Цвет" },
+    { key: "size", title: "Размер", shortTitle: "Размер" },
+    { key: "leafCount", title: "Количество полотен", shortTitle: "Полотна" },
+];
+
+const variantValueCollator = new Intl.Collator("ru", {
+    numeric: true,
+    sensitivity: "base",
+});
 
 function getSiblingAttributeValue(sibling: DoorFamilySibling, key: SiblingAttributeKey): string | null {
     return firstAttributeValue(sibling.attributes[key]);
 }
 
-function matchesOtherCurrentAttributes({ sibling, current, changedKey }: {
+function getCurrentAttributeValue(product: DoorProductDetails, key: SiblingAttributeKey): string | null {
+    return firstAttributeValue(product.attributes[key]);
+}
+
+function getVariantValueLabel(value: string | null): string {
+    return value || "—";
+}
+
+function getFamilyAttributeValues(product: DoorProductDetails, key: SiblingAttributeKey): string[] {
+    const values = new Set<string>();
+
+    for (const sibling of product.family.siblings) {
+        const value = getSiblingAttributeValue(sibling, key);
+        if (value) values.add(value);
+    }
+
+    const currentValue = getCurrentAttributeValue(product, key);
+    if (currentValue) values.add(currentValue);
+
+    return Array.from(values).sort((a, b) => variantValueCollator.compare(a, b));
+}
+
+function siblingMatchesExactCombination({
+                                            sibling,
+                                            product,
+                                            changedKey,
+                                            changedValue,
+                                        }: {
     sibling: DoorFamilySibling;
-    current: DoorProductDetails;
+    product: DoorProductDetails;
     changedKey: SiblingAttributeKey;
+    changedValue: string;
 }): boolean {
-    const keys: SiblingAttributeKey[] = ["color", "size", "leafCount"];
-    
-    return keys.every((key) => {
-        if (key === changedKey) return true;
-        return getSiblingAttributeValue(sibling, key) === firstAttributeValue(current.attributes[key]);
+    return VARIANT_AXES.every(({ key }) => {
+        const siblingValue = getSiblingAttributeValue(sibling, key);
+
+        if (key === changedKey) {
+            return siblingValue === changedValue;
+        }
+
+        return siblingValue === getCurrentAttributeValue(product, key);
     });
 }
 
-function getVariantLinks({ product, key }: { product: DoorProductDetails; key: SiblingAttributeKey }): DoorFamilySibling[] {
-    const byValue = new Map<string, DoorFamilySibling>();
-    
-    for (const sibling of product.family.siblings) {
-        const value = getSiblingAttributeValue(sibling, key);
-        if (!value) continue;
-        if (matchesOtherCurrentAttributes({ sibling, current: product, changedKey: key })) byValue.set(value, sibling);
-    }
-    
-    if (byValue.size === 0) {
-        for (const sibling of product.family.siblings) {
-            const value = getSiblingAttributeValue(sibling, key);
-            if (value && !byValue.has(value)) byValue.set(value, sibling);
-        }
-    }
-    
-    return Array.from(byValue.values());
+function findExactSiblingForVariant({
+                                        product,
+                                        changedKey,
+                                        changedValue,
+                                    }: {
+    product: DoorProductDetails;
+    changedKey: SiblingAttributeKey;
+    changedValue: string;
+}): DoorFamilySibling | null {
+    return product.family.siblings.find((sibling) => siblingMatchesExactCombination({
+        sibling,
+        product,
+        changedKey,
+        changedValue,
+    })) ?? null;
 }
 
-function VariantLinkGroup({ title, attributeKey, product }: {
-    title: string;
-    attributeKey: SiblingAttributeKey;
+function getSortedFamilySiblings(product: DoorProductDetails): DoorFamilySibling[] {
+    return [...product.family.siblings].sort((a, b) => {
+        for (const { key } of VARIANT_AXES) {
+            const result = variantValueCollator.compare(
+                getVariantValueLabel(getSiblingAttributeValue(a, key)),
+                getVariantValueLabel(getSiblingAttributeValue(b, key)),
+            );
+
+            if (result !== 0) return result;
+        }
+
+        return variantValueCollator.compare(a.name, b.name);
+    });
+}
+
+function VariantMatrixRow({ axis, product }: {
+    axis: VariantAxisConfig;
     product: DoorProductDetails;
 }) {
-    const links = getVariantLinks({ product, key: attributeKey });
-    if (links.length === 0) return null;
-    
-    const currentValue = firstAttributeValue(product.attributes[attributeKey]);
-    
+    const values = getFamilyAttributeValues(product, axis.key);
+    if (values.length === 0) return null;
+
+    const currentValue = getCurrentAttributeValue(product, axis.key);
+
     return (
         <div className="mb-3">
-            <h3 className="fs-6 text-muted mb-2">{title}</h3>
+            <div className="d-flex justify-content-between gap-3 mb-2">
+                <h3 className="fs-6 text-muted mb-0">{axis.title}</h3>
+                <span className="small text-muted">Текущее: {getVariantValueLabel(currentValue)}</span>
+            </div>
+
             <div className="d-flex flex-wrap gap-2">
-                {links.map((sibling) => {
-                    const value = getSiblingAttributeValue(sibling, attributeKey);
-                    const isActive = sibling.isCurrent || value === currentValue;
+                {values.map((value) => {
+                    const exactSibling = findExactSiblingForVariant({
+                        product,
+                        changedKey: axis.key,
+                        changedValue: value,
+                    });
+                    const isCurrentValue = value === currentValue;
+                    const label = getVariantValueLabel(value);
+
+                    if (!exactSibling) {
+                        return (
+                            <button
+                                key={`${axis.key}-${value}`}
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary rounded-pill opacity-50"
+                                disabled
+                                title="Такой точной комплектации в этом семействе нет"
+                            >
+                                {label}
+                                <span className="ms-2 small">недоступно</span>
+                            </button>
+                        );
+                    }
+
                     return (
                         <Link
-                            key={`${attributeKey}-${sibling.id}`}
-                            href={sibling.path}
-                            className={`btn btn-sm rounded-pill ${isActive ? "btn-dark" : "btn-outline-dark"}`}
-                            aria-current={sibling.isCurrent ? "page" : undefined}
+                            key={`${axis.key}-${value}-${exactSibling.id}`}
+                            href={exactSibling.path}
+                            className={`btn btn-sm rounded-pill ${isCurrentValue ? "btn-dark" : "btn-outline-dark"}`}
+                            aria-current={exactSibling.isCurrent ? "page" : undefined}
+                            title={exactSibling.name}
                         >
-                            {value || sibling.name}
+                            {label}
+                            {isCurrentValue ? <span className="ms-2 small">текущий</span> : null}
                         </Link>
                     );
                 })}
@@ -238,22 +337,99 @@ function VariantLinkGroup({ title, attributeKey, product }: {
     );
 }
 
-function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
-    if (!product.family.code || product.family.siblings.length <= 1) return null;
-    
+function CurrentFamilyCombination({ product }: { product: DoorProductDetails }) {
+    return (
+        <div className="small text-muted">
+            Текущая комбинация: {VARIANT_AXES.map(({ key, shortTitle }) => (
+                `${shortTitle}: ${getVariantValueLabel(getCurrentAttributeValue(product, key))}`
+            )).join(" / ")}
+        </div>
+    );
+}
+
+function AllFamilyConfigurations({ product }: { product: DoorProductDetails }) {
+    const siblings = getSortedFamilySiblings(product);
+    if (siblings.length === 0) return null;
+
     return (
         <div className="border rounded-3 p-3 mb-4 bg-white">
             <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
                 <div>
-                    <h2 className="fs-5 mb-1">Другие варианты этой модели</h2>
-                    <div className="small text-muted">Семейство: {product.family.code}</div>
+                    <h2 className="fs-5 mb-1">Все комплектации</h2>
+                    <div className="small text-muted">Полный список simple products внутри семейства.</div>
                 </div>
-                <div className="small text-muted">Найдено вариантов: {product.family.siblings.length}</div>
+                <div className="small text-muted">Всего: {siblings.length}</div>
             </div>
-            <VariantLinkGroup title="Цвет" attributeKey="color" product={product} />
-            <VariantLinkGroup title="Размер" attributeKey="size" product={product} />
-            <VariantLinkGroup title="Количество полотен" attributeKey="leafCount" product={product} />
+
+            <div className="table-responsive">
+                <table className="table table-sm align-middle mb-0">
+                    <thead>
+                    <tr>
+                        <th scope="col">Товар</th>
+                        <th scope="col">Цвет</th>
+                        <th scope="col">Размер</th>
+                        <th scope="col">Полотна</th>
+                        <th scope="col">Цена</th>
+                        <th scope="col" className="text-end">Переход</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {siblings.map((sibling) => (
+                        <tr key={sibling.id} className={sibling.isCurrent ? "table-active" : undefined}>
+                            <td>
+                                <div className="fw-medium">{sibling.name}</div>
+                                <div className="small text-muted">SKU: {sibling.sku || "—"}</div>
+                            </td>
+                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "color"))}</td>
+                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "size"))}</td>
+                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "leafCount"))}</td>
+                            <td>{formatPrice(sibling.price)}</td>
+                            <td className="text-end">
+                                {sibling.isCurrent ? (
+                                    <span className="badge text-bg-dark">Открыто</span>
+                                ) : (
+                                    <Link href={sibling.path} className="btn btn-sm btn-outline-dark rounded-pill">
+                                        Открыть
+                                    </Link>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
+    );
+}
+
+function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
+    if (!product.family.code || product.family.siblings.length <= 1) return null;
+
+    return (
+        <>
+            <div className="border rounded-3 p-3 mb-4 bg-white">
+                <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+                    <div>
+                        <h2 className="fs-5 mb-1">Матрица вариантов</h2>
+                        <div className="small text-muted">Семейство: {product.family.code}</div>
+                    </div>
+                    <div className="small text-muted">Найдено вариантов: {product.family.siblings.length}</div>
+                </div>
+
+                <CurrentFamilyCombination product={product} />
+                <div className="mt-3">
+                    {VARIANT_AXES.map((axis) => (
+                        <VariantMatrixRow key={axis.key} axis={axis} product={product} />
+                    ))}
+                </div>
+
+                <div className="small text-muted border-top pt-3 mt-3">
+                    Серые варианты — это значения, которые есть в семействе, но не образуют точную комплектацию с текущими выбранными характеристиками.
+                </div>
+            </div>
+
+            <AllFamilyConfigurations product={product} />
+        </>
     );
 }
 
