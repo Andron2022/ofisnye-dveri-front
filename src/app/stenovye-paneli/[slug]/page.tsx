@@ -1,9 +1,7 @@
-import WallPanelDetails from "@src/app/(product)/product-detail-swatch-radio/page";
+import { notFound } from "next/navigation";
 
 const WallPanel = () => {
-    return (
-        <WallPanelDetails />
-    );
+    notFound();
 };
 
 export default WallPanel;

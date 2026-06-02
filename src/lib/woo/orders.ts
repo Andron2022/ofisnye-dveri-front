@@ -17,6 +17,29 @@ import type {
 const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
 
+const ALLOWED_DOOR_CATEGORY_SLUGS = new Set([
+    "mezhkomnatnye-dveri",
+    "skrytye-dveri",
+    "protivopozharnye-dveri",
+]);
+
+const ALLOWED_ACCESSORY_CATEGORY_SLUGS = new Set([
+    "furnitura",
+    "ruchki",
+    "petli",
+    "zamki",
+]);
+
+const DOOR_RELATED_ACCESSORY_META_KEYS = [
+    "configurator_related_handles",
+    "configurator_related_handless",
+    "related_handles",
+    "configurator_related_hinges",
+    "related_hinges",
+    "configurator_related_locks",
+    "related_locks",
+];
+
 type ValidatedDoorItem = {
     lineItem: WooOrderLineItemPayload;
     accessoryLineItems: WooOrderLineItemPayload[];
@@ -99,6 +122,64 @@ function getMetaString(metaData: WooMetaDataItem[] | undefined, key: string): st
     return null;
 }
 
+function getMetaNumberArrayByKeys(metaData: WooMetaDataItem[] | undefined, keys: string[]): number[] {
+    const values: number[] = [];
+
+    for (const key of keys) {
+        const value = getMetaValue(metaData, key);
+
+        if (Array.isArray(value)) {
+            values.push(
+                ...value
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isInteger(item) && item > 0),
+            );
+            continue;
+        }
+
+        if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+            values.push(value);
+            continue;
+        }
+
+        if (typeof value === "string" && value.trim() !== "") {
+            values.push(
+                ...value
+                    .split(",")
+                    .map((item) => Number(item.trim()))
+                    .filter((item) => Number.isInteger(item) && item > 0),
+            );
+        }
+    }
+
+    return Array.from(new Set(values));
+}
+
+function getCategorySlugs(product: WooProduct): string[] {
+    return product.categories.map((category) => category.slug);
+}
+
+function hasAnyCategorySlug(product: WooProduct, allowedSlugs: Set<string>): boolean {
+    return getCategorySlugs(product).some((slug) => allowedSlugs.has(slug));
+}
+
+function assertProductHasAllowedCategory(
+    product: WooProduct,
+    allowedSlugs: Set<string>,
+    roleLabel: string,
+): void {
+    if (hasAnyCategorySlug(product, allowedSlugs)) {
+        return;
+    }
+
+    const categoryList = getCategorySlugs(product).join(", ") || "без категории";
+    throw new Error(`Товар "${product.name}" не может быть оформлен как ${roleLabel}. Категории товара: ${categoryList}`);
+}
+
+function getAllowedAccessoryIdsForDoor(product: WooProduct): Set<number> {
+    return new Set(getMetaNumberArrayByKeys(product.meta_data, DOOR_RELATED_ACCESSORY_META_KEYS));
+}
+
 function getPublicArticleNo(product: WooProduct): string | null {
     if (typeof product.public_article_no === "string" && product.public_article_no.trim() !== "") {
         return product.public_article_no;
@@ -108,6 +189,12 @@ function getPublicArticleNo(product: WooProduct): string | null {
 }
 
 function ensureProductCanBeOrdered(product: WooProduct, role: "door" | "accessory"): void {
+    if (role === "door") {
+        assertProductHasAllowedCategory(product, ALLOWED_DOOR_CATEGORY_SLUGS, "дверь");
+    } else {
+        assertProductHasAllowedCategory(product, ALLOWED_ACCESSORY_CATEGORY_SLUGS, "фурнитуру");
+    }
+
     if (product.status && product.status !== "publish") {
         throw new Error(`Товар "${product.name}" сейчас не опубликован`);
     }
@@ -246,11 +333,16 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
     };
 
     const accessoryLineItems: WooOrderLineItemPayload[] = [];
+    const allowedAccessoryIds = getAllowedAccessoryIdsForDoor(doorProduct);
     let accessoriesTotal = 0;
 
     for (const accessory of item.selectedAccessories.filter((cartAccessory) => cartAccessory.qty > 0)) {
         if (!Number.isFinite(accessory.qty) || accessory.qty < 1 || accessory.qty > 99) {
             throw new Error(`Некорректное количество фурнитуры в корзине: ${accessory.name}`);
+        }
+
+        if (!allowedAccessoryIds.has(accessory.productId)) {
+            throw new Error(`Фурнитура "${accessory.name}" не привязана к двери "${doorProduct.name}" и не может быть оформлена в этом заказе`);
         }
 
         const accessoryProduct = await getWooProduct(accessory.productId);
