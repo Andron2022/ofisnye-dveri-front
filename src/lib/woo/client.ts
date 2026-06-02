@@ -151,6 +151,32 @@ export async function wooGetList<T>(
     };
 }
 
+
+export async function wooPost<TRequest, TResponse>(
+    path: string,
+    body: TRequest,
+    query: QueryParams = {},
+): Promise<TResponse> {
+    const url = buildWooUrl(path, query);
+    
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            Authorization: buildAuthorizationHeader(),
+            Accept: "application/json",
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        cache: "no-store",
+    });
+    
+    if (!response.ok) {
+        throw new Error(await buildHttpErrorMessage(response));
+    }
+    
+    return (await response.json()) as TResponse;
+}
+
 // -----------------------------------------------------
 // Публичный WordPress REST client.
 // Используем его только там, где нужен доступ к show_in_rest

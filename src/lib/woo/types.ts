@@ -39,6 +39,9 @@ export type WooProduct = {
     regular_price?: string;
     sale_price?: string;
     stock_status?: string;
+    status?: string;
+    type?: string;
+    purchasable?: boolean;
     description?: string;
     short_description?: string;
     images: WooProductImage[];
@@ -201,4 +204,58 @@ export type DoorProductDetails = {
     family: DoorFamilyInfo;
     orderOptions: DoorOrderOptions;
     accessories: DoorRelatedAccessories;
+};
+
+
+export type WooOrderMetaDataItem = {
+    key: string;
+    value: string | number | boolean;
+};
+
+export type WooOrderLineItemPayload = {
+    product_id: number;
+    quantity: number;
+    subtotal?: string;
+    total?: string;
+    meta_data?: WooOrderMetaDataItem[];
+};
+
+export type WooCreateOrderPayload = {
+    status: "pending" | "processing" | "on-hold" | "completed" | "cancelled" | "refunded" | "failed";
+    set_paid: boolean;
+    payment_method: string;
+    payment_method_title: string;
+    billing: {
+        first_name: string;
+        last_name: string;
+        company?: string;
+        address_1: string;
+        address_2?: string;
+        city: string;
+        state?: string;
+        postcode?: string;
+        country: string;
+        email: string;
+        phone: string;
+    };
+    shipping: {
+        first_name: string;
+        last_name: string;
+        address_1: string;
+        address_2?: string;
+        city: string;
+        state?: string;
+        postcode?: string;
+        country: string;
+    };
+    customer_note?: string;
+    line_items: WooOrderLineItemPayload[];
+    meta_data?: WooOrderMetaDataItem[];
+};
+
+export type WooCreatedOrder = {
+    id: number;
+    number: string;
+    status: string;
+    total: string;
 };

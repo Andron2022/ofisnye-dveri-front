@@ -350,7 +350,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                 <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
                     <div>
                         <h3 className="fs-5 mb-1">Добавить комплектацию в корзину</h3>
-                        <p className="text-muted mb-0 small">Корзина сохраняется локально в браузере. Заказ в Woo подключим следующим слоем.</p>
+                        <p className="text-muted mb-0 small">Корзина сохраняется локально в браузере. Оформить заказ можно на странице checkout.</p>
                     </div>
                     <button type="button" className="btn btn-dark rounded-pill px-4" onClick={handleAddToCart} disabled={!isHydrated}>
                         {isHydrated ? "Добавить в корзину" : "Загружаем корзину…"}

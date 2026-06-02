@@ -1,0 +1,361 @@
+// src/lib/woo/orders.ts
+
+import type { CartAccessorySnapshot, CartItem, CartOptionSnapshot } from "@src/lib/cart/types";
+import type { CheckoutOrderRequest, CheckoutOrderSuccessResponse } from "@src/lib/checkout/types";
+import { wooGet, wooPost } from "@src/lib/woo/client";
+import { mapDoorOrderOptions } from "@src/lib/woo/products";
+import type {
+    DoorOptionGroup,
+    WooCreateOrderPayload,
+    WooCreatedOrder,
+    WooMetaDataItem,
+    WooOrderLineItemPayload,
+    WooOrderMetaDataItem,
+    WooProduct,
+} from "@src/lib/woo/types";
+
+const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
+const DEFAULT_COUNTRY_CODE = "RU";
+
+type ValidatedDoorItem = {
+    lineItem: WooOrderLineItemPayload;
+    accessoryLineItems: WooOrderLineItemPayload[];
+    lineTotal: number;
+};
+
+function trim(value: string | null | undefined): string {
+    return (value ?? "").trim();
+}
+
+function assertFilled(value: string, fieldName: string): void {
+    if (!trim(value)) {
+        throw new Error(`Заполните поле: ${fieldName}`);
+    }
+}
+
+function assertEmail(value: string): void {
+    const email = trim(value);
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+        throw new Error("Укажите корректный email");
+    }
+}
+
+function assertCheckoutRequest(payload: CheckoutOrderRequest): void {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Некорректный payload оформления заказа");
+    }
+
+    assertFilled(payload.customer.firstName, "Имя");
+    assertFilled(payload.customer.phone, "Телефон");
+    assertEmail(payload.customer.email);
+    assertFilled(payload.customer.city, "Город");
+    assertFilled(payload.customer.address, "Адрес доставки");
+
+    if (!payload.customer.termsAccepted) {
+        throw new Error("Нужно подтвердить согласие с условиями обработки заказа");
+    }
+
+    if (!Array.isArray(payload.items) || payload.items.length === 0) {
+        throw new Error("Корзина пуста");
+    }
+}
+
+function parseMoney(value: string | number | null | undefined): number | null {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    if (!value) {
+        return null;
+    }
+
+    const normalized = Number(value.replace(",", "."));
+    return Number.isFinite(normalized) ? normalized : null;
+}
+
+function roundMoney(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
+function formatMoney(value: number): string {
+    return roundMoney(value).toFixed(2);
+}
+
+function getMetaValue(metaData: WooMetaDataItem[] | undefined, key: string): unknown {
+    return metaData?.find((item) => item.key === key)?.value ?? null;
+}
+
+function getMetaString(metaData: WooMetaDataItem[] | undefined, key: string): string | null {
+    const value = getMetaValue(metaData, key);
+
+    if (typeof value === "string" && value.trim() !== "") {
+        return value;
+    }
+
+    if (typeof value === "number") {
+        return String(value);
+    }
+
+    return null;
+}
+
+function getPublicArticleNo(product: WooProduct): string | null {
+    if (typeof product.public_article_no === "string" && product.public_article_no.trim() !== "") {
+        return product.public_article_no;
+    }
+
+    return getMetaString(product.meta_data, "public_article_no");
+}
+
+function ensureProductCanBeOrdered(product: WooProduct, role: "door" | "accessory"): void {
+    if (product.status && product.status !== "publish") {
+        throw new Error(`Товар "${product.name}" сейчас не опубликован`);
+    }
+
+    if (product.stock_status && product.stock_status !== "instock") {
+        throw new Error(`Товар "${product.name}" сейчас не в наличии`);
+    }
+
+    const price = parseMoney(product.price);
+    if (price === null) {
+        const label = role === "door" ? "двери" : "фурнитуры";
+        throw new Error(`У товара ${label} "${product.name}" не задана цена. Заказ можно оформить после заполнения цены в Woo`);
+    }
+}
+
+async function getWooProduct(productId: number): Promise<WooProduct> {
+    if (!Number.isFinite(productId) || productId <= 0) {
+        throw new Error("Некорректный ID товара в корзине");
+    }
+
+    return wooGet<WooProduct>(`products/${productId}`, {}, 0);
+}
+
+function getOptionGroupByKey(
+    product: WooProduct,
+    key: CartOptionSnapshot["groupKey"],
+): DoorOptionGroup {
+    const groups = mapDoorOrderOptions(product);
+    return groups[key];
+}
+
+function normalizeSelectedOption(product: WooProduct, option: CartOptionSnapshot): CartOptionSnapshot {
+    const group = getOptionGroupByKey(product, option.groupKey);
+    const choice = group.choices.find((item) => item.id === option.choiceId);
+
+    if (!choice) {
+        throw new Error(`У товара "${product.name}" не найдена опция "${option.groupTitle}: ${option.choiceLabel}"`);
+    }
+
+    if (!choice.enabled) {
+        throw new Error(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
+    }
+
+    return {
+        groupKey: group.key,
+        groupTitle: group.title,
+        choiceId: choice.id,
+        choiceLabel: choice.label,
+        priceDelta: choice.priceDelta,
+    };
+}
+
+function normalizeDoorOptions(product: WooProduct, item: CartItem): CartOptionSnapshot[] {
+    const groups = mapDoorOrderOptions(product);
+    const normalizedOptions: CartOptionSnapshot[] = [];
+
+    for (const group of Object.values(groups)) {
+        const selectedOption = item.selectedOptions.find((option) => option.groupKey === group.key);
+        const selectedChoiceId = selectedOption?.choiceId ?? group.defaultOptionId;
+        const choice = group.choices.find((itemChoice) => itemChoice.id === selectedChoiceId);
+
+        if (!choice) {
+            throw new Error(`У товара "${product.name}" не найдена опция "${group.title}: ${selectedChoiceId}"`);
+        }
+
+        if (!choice.enabled) {
+            throw new Error(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
+        }
+
+        normalizedOptions.push(normalizeSelectedOption(product, {
+            groupKey: group.key,
+            groupTitle: group.title,
+            choiceId: choice.id,
+            choiceLabel: choice.label,
+            priceDelta: choice.priceDelta,
+        }));
+    }
+
+    return normalizedOptions;
+}
+
+function optionMetaData(options: CartOptionSnapshot[]): WooOrderMetaDataItem[] {
+    return options.map((option) => ({
+        key: option.groupTitle,
+        value: option.priceDelta === 0
+            ? option.choiceLabel
+            : `${option.choiceLabel} (${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta)} ₽)`,
+    }));
+}
+
+function baseDoorMetaData(product: WooProduct, item: CartItem, normalizedOptions: CartOptionSnapshot[]): WooOrderMetaDataItem[] {
+    const publicArticleNo = getPublicArticleNo(product);
+
+    return [
+        { key: "Тип позиции", value: "Дверь" },
+        { key: "SKU", value: product.sku || item.sku || "—" },
+        ...(publicArticleNo ? [{ key: "Артикул UI", value: publicArticleNo }] : []),
+        { key: "Ссылка на фронте", value: item.path },
+        ...optionMetaData(normalizedOptions),
+    ];
+}
+
+function accessoryMetaData(accessory: CartAccessorySnapshot, parentProduct: WooProduct, parentItem: CartItem): WooOrderMetaDataItem[] {
+    return [
+        { key: "Тип позиции", value: "Фурнитура" },
+        { key: "Комплектуется с", value: `${parentProduct.name} (${parentProduct.sku || parentItem.sku || "SKU не указан"})` },
+        { key: "Родительская позиция корзины", value: parentItem.itemKey },
+        { key: "Количество на одну дверь", value: accessory.qty },
+    ];
+}
+
+async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> {
+    if (!Number.isFinite(item.quantity) || item.quantity < 1 || item.quantity > 99) {
+        throw new Error(`Некорректное количество товара в корзине: ${item.name}`);
+    }
+
+    const doorProduct = await getWooProduct(item.productId);
+    ensureProductCanBeOrdered(doorProduct, "door");
+
+    const doorBasePrice = parseMoney(doorProduct.price);
+    if (doorBasePrice === null) {
+        throw new Error(`У двери "${doorProduct.name}" не задана цена`);
+    }
+
+    const normalizedOptions = normalizeDoorOptions(doorProduct, item);
+    const optionsDelta = normalizedOptions.reduce((sum, option) => sum + option.priceDelta, 0);
+    const doorUnitTotal = roundMoney(doorBasePrice + optionsDelta);
+    const doorLineTotal = roundMoney(doorUnitTotal * item.quantity);
+
+    const lineItem: WooOrderLineItemPayload = {
+        product_id: doorProduct.id,
+        quantity: item.quantity,
+        subtotal: formatMoney(doorLineTotal),
+        total: formatMoney(doorLineTotal),
+        meta_data: baseDoorMetaData(doorProduct, item, normalizedOptions),
+    };
+
+    const accessoryLineItems: WooOrderLineItemPayload[] = [];
+    let accessoriesTotal = 0;
+
+    for (const accessory of item.selectedAccessories.filter((cartAccessory) => cartAccessory.qty > 0)) {
+        if (!Number.isFinite(accessory.qty) || accessory.qty < 1 || accessory.qty > 99) {
+            throw new Error(`Некорректное количество фурнитуры в корзине: ${accessory.name}`);
+        }
+
+        const accessoryProduct = await getWooProduct(accessory.productId);
+        ensureProductCanBeOrdered(accessoryProduct, "accessory");
+
+        const accessoryPrice = parseMoney(accessoryProduct.price);
+        if (accessoryPrice === null) {
+            throw new Error(`У фурнитуры "${accessoryProduct.name}" не задана цена`);
+        }
+
+        const quantity = accessory.qty * item.quantity;
+        const accessoryLineTotal = roundMoney(accessoryPrice * quantity);
+        accessoriesTotal += accessoryLineTotal;
+
+        accessoryLineItems.push({
+            product_id: accessoryProduct.id,
+            quantity,
+            subtotal: formatMoney(accessoryLineTotal),
+            total: formatMoney(accessoryLineTotal),
+            meta_data: accessoryMetaData(accessory, doorProduct, item),
+        });
+    }
+
+    return {
+        lineItem,
+        accessoryLineItems,
+        lineTotal: roundMoney(doorLineTotal + accessoriesTotal),
+    };
+}
+
+function buildCustomerNote(payload: CheckoutOrderRequest): string {
+    const parts = [
+        trim(payload.customer.deliveryComment) ? `Комментарий по доставке: ${trim(payload.customer.deliveryComment)}` : "",
+        trim(payload.customer.orderComment) ? `Комментарий к заказу: ${trim(payload.customer.orderComment)}` : "",
+        "Установка: не запрошена. Услуга будет добавлена отдельным order service позже.",
+    ].filter(Boolean);
+
+    return parts.join("\n\n");
+}
+
+function buildWooOrderPayload(
+    payload: CheckoutOrderRequest,
+    lineItems: WooOrderLineItemPayload[],
+    calculatedTotal: number,
+): WooCreateOrderPayload {
+    const firstName = trim(payload.customer.firstName);
+    const lastName = trim(payload.customer.lastName);
+    const city = trim(payload.customer.city);
+    const address = trim(payload.customer.address);
+    const apartment = trim(payload.customer.apartment);
+
+    return {
+        status: ORDER_STATUS_FOR_MANAGER_PROCESSING,
+        set_paid: false,
+        payment_method: "manager_confirmation",
+        payment_method_title: "Оплата после подтверждения менеджером",
+        billing: {
+            first_name: firstName,
+            last_name: lastName,
+            address_1: address,
+            address_2: apartment,
+            city,
+            country: DEFAULT_COUNTRY_CODE,
+            email: trim(payload.customer.email),
+            phone: trim(payload.customer.phone),
+        },
+        shipping: {
+            first_name: firstName,
+            last_name: lastName,
+            address_1: address,
+            address_2: apartment,
+            city,
+            country: DEFAULT_COUNTRY_CODE,
+        },
+        customer_note: buildCustomerNote(payload),
+        line_items: lineItems,
+        meta_data: [
+            { key: "Источник заказа", value: "Next.js storefront" },
+            { key: "Тип оформления", value: "Checkout MVP без онлайн-оплаты" },
+            { key: "Доставка", value: "Стоимость доставки не рассчитана. Уточняется менеджером." },
+            { key: "Установка", value: "Не запрошена. Будущий order service." },
+            { key: "Расчётная сумма фронта/BFF без доставки", value: formatMoney(calculatedTotal) },
+        ],
+    };
+}
+
+export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promise<CheckoutOrderSuccessResponse> {
+    assertCheckoutRequest(payload);
+
+    const validatedItems = await Promise.all(payload.items.map(validateDoorCartItem));
+    const lineItems = validatedItems.flatMap((item) => [item.lineItem, ...item.accessoryLineItems]);
+    const calculatedTotal = roundMoney(validatedItems.reduce((sum, item) => sum + item.lineTotal, 0));
+
+    if (lineItems.length === 0) {
+        throw new Error("В заказе нет валидных позиций");
+    }
+
+    const wooPayload = buildWooOrderPayload(payload, lineItems, calculatedTotal);
+    const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload);
+
+    return {
+        success: true,
+        orderId: order.id,
+        orderNumber: order.number,
+        status: order.status,
+        total: order.total,
+    };
+}

@@ -305,7 +305,7 @@ function normalizeDefaultOptionId(metaData: WooMetaDataItem[], keys: string[], f
     return parseSelectValue(value, fallbackId).id;
 }
 
-function mapDoorOrderOptions(product: WooProduct): DoorOrderOptions {
+export function mapDoorOrderOptions(product: WooProduct): DoorOrderOptions {
     const metaData = product.meta_data;
     
     const boxDefaultOptionId = normalizeDefaultOptionId(
