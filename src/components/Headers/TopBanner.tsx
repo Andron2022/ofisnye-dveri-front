@@ -1,65 +1,40 @@
 "use client";
-import Link from 'next/link';
-import Countdown from 'react-countdown';
-import React, { useState, useEffect } from 'react';
 
-const TopBanner = ({topclass}:any) => {
+import Link from "next/link";
+import React, { useState } from "react";
 
+const TopBanner = ({ topclass }: { topclass?: string }) => {
     const [isOpen, setIsOpen] = useState(true);
-    const [isClient, setIsClient] = useState(false);
 
-    useEffect(() => {
-        setIsClient(true);
-    }, []);
-
-    // Define the target date
-    const targetDate = new Date('2027/01/01').getTime();
-
-    // Helper function to pad single digits with a leading zero
-    const padWithZero = (number: number) => {
-        return number < 10 ? `0${number}` : number;
-    };
-
-    // Renderer for the countdown
-    const renderer = ({ days, hours, minutes, seconds, completed } : any) => {
-        if (completed) {
-            // Render a completed state
-            return <span>Time&apos;s up!</span>;
-        } else {
-            // Calculate weeks from days
-            const weeks = Math.floor(days / 7);
-            const remainingDays = days % 7;
-
-            // Render the countdown with padded values
-            return (
-                <span>
-                    {weeks} weeks {padWithZero(remainingDays)} days {padWithZero(hours)}:{padWithZero(minutes)}:{padWithZero(seconds)}
-                </span>
-            );
-        }
-    };
+    if (!isOpen) {
+        return null;
+    }
 
     return (
-        <React.Fragment>
-            <div className={topclass}>
-                <div className={`t_header fs-13 d-flex align-items-center ${!isOpen ? 'd-none' : ''}`}>
-                    <div className="container-fluid">
-                        <div className="d-flex gap-2">
-                            <div className="col text-center text-white">
-                                Today deal sale off <strong>70% </strong>. End in {' '}
-                                <strong className="js_kl__countdown">
-                                    {isClient && <Countdown date={targetDate} renderer={renderer} />}
-                                </strong>
-                                . <Link href="#!" className="text-white">Hurry Up <i className="las la-arrow-right"></i></Link>
-                            </div>
-                            <div className="col-auto mt-2 mt-md-0">
-                                <Link href="#" className="h_banner_close text-white" onClick={(e) => { e.preventDefault(); setIsOpen(false); }}>close</Link>
-                            </div>
+        <div className={topclass}>
+            <div className="t_header fs-13 d-flex align-items-center">
+                <div className="container-fluid">
+                    <div className="d-flex gap-2 align-items-center">
+                        <div className="col text-center text-white">
+                            Межкомнатные двери с комплектацией и подходящей фурнитурой. Оформление заказа без онлайн-оплаты.{' '}
+                            <Link href="/mezhkomnatnye-dveri" className="text-white">
+                                Перейти в каталог <i className="las la-arrow-right" />
+                            </Link>
+                        </div>
+
+                        <div className="col-auto mt-2 mt-md-0">
+                            <button
+                                type="button"
+                                className="h_banner_close text-white border-0 bg-transparent p-0"
+                                onClick={() => setIsOpen(false)}
+                            >
+                                закрыть
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </React.Fragment>
+        </div>
     );
 };
 
