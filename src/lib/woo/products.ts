@@ -1,7 +1,12 @@
 // src/lib/woo/products.ts
 
 import { wooGetList } from "@src/lib/woo/client";
+import {
+    buildCatalogFilterGroups,
+    catalogItemMatchesActiveFilters,
+} from "@src/lib/woo/catalog-filters";
 import type {
+    CatalogActiveFilters,
     CatalogProductCard,
     CatalogResult,
     CatalogType,
@@ -650,15 +655,47 @@ function assertCategoryInsideTree(
     }
 }
 
+async function getAllPublishedProductsInCategoryTree(categoryIds: number[]): Promise<WooProduct[]> {
+    const baseParams = {
+        status: "publish",
+        per_page: 100,
+        category: categoryIds.join(","),
+        orderby: "date",
+        order: "desc",
+    };
+
+    const firstPage = await wooGetList<WooProduct>("products", {
+        ...baseParams,
+        page: 1,
+    }, 60);
+
+    if (firstPage.totalPages <= 1) {
+        return firstPage.items;
+    }
+
+    const restPages = await Promise.all(
+        Array.from({ length: firstPage.totalPages - 1 }, (_, index) => wooGetList<WooProduct>("products", {
+            ...baseParams,
+            page: index + 2,
+        }, 60)),
+    );
+
+    return [
+        ...firstPage.items,
+        ...restPages.flatMap((pageResponse) => pageResponse.items),
+    ];
+}
+
 type GetCatalogProductsArgs = {
     type: CatalogType;
     page?: number;
     perPage?: number;
     categorySlug?: string;
+    filters?: CatalogActiveFilters;
 };
 
 export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<CatalogResult> {
-    const { type, page = 1, perPage = 24, categorySlug } = args;
+    const { type, page = 1, perPage = 24, categorySlug, filters = {} } = args;
     const rootCategorySlug = ROOT_CATEGORY_BY_TYPE[type];
     
     const categories = await getAllProductCategories();
@@ -682,23 +719,49 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     }
     
     const categoryIds = collectDescendantCategoryIds(categories, effectiveCategory.id);
-    const productsResponse = await wooGetList<WooProduct>("products", {
-        status: "publish",
-        page,
-        per_page: perPage,
-        category: categoryIds.join(","),
-        orderby: "date",
-        order: "desc",
-    }, 60);
+    // MVP-решение: для дверей строим facet groups и фильтруем на BFF-слое.
+    // Это быстрее, чем сейчас писать отдельный WP tax_query endpoint, но контракт уже отделён
+    // от реализации. Позже внутренность можно заменить на серверную фильтрацию Woo/WP
+    // без переписывания UI каталога.
+    const productsResponse = type === "doors"
+        ? {
+            items: await getAllPublishedProductsInCategoryTree(categoryIds),
+            total: 0,
+            totalPages: 1,
+        }
+        : await wooGetList<WooProduct>("products", {
+            status: "publish",
+            page,
+            per_page: perPage,
+            category: categoryIds.join(","),
+            orderby: "date",
+            order: "desc",
+        }, 60);
+    
+    const allCards = productsResponse.items.map(mapCatalogProductCard);
+    const filteredCards = type === "doors"
+        ? allCards.filter((item) => catalogItemMatchesActiveFilters(item.attributes, filters))
+        : allCards;
+    const total = type === "doors" ? filteredCards.length : productsResponse.total;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const safePage = Math.min(Math.max(page, 1), totalPages);
+    const pageStartIndex = (safePage - 1) * perPage;
+    const pageItems = type === "doors"
+        ? filteredCards.slice(pageStartIndex, pageStartIndex + perPage)
+        : filteredCards;
     
     return {
         type,
         categorySlug: effectiveCategory.slug,
-        page,
+        page: safePage,
         perPage,
-        total: productsResponse.total,
-        totalPages: productsResponse.totalPages,
-        items: productsResponse.items.map(mapCatalogProductCard),
+        total,
+        totalPages,
+        items: pageItems,
+        filters: {
+            active: type === "doors" ? filters : {},
+            groups: type === "doors" ? buildCatalogFilterGroups(allCards, filters) : [],
+        },
     };
 }
 

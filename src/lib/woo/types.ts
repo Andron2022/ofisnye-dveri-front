@@ -80,6 +80,38 @@ export type DoorCatalogAttributes = {
     purpose?: string[];
 };
 
+export type DoorCatalogFilterKey =
+    | "tsvet-dveri"
+    | "razmer-dveri"
+    | "kolichestvo-poloten"
+    | "material-dveri"
+    | "osteklenie"
+    | "tip-otkryvaniya"
+    | "naznachenie"
+    | "napravlenie-otkryvaniya"
+    | "ognestoykost"
+    | "tip-ostekleniya";
+
+export type CatalogActiveFilters = Partial<Record<DoorCatalogFilterKey, string[]>>;
+
+export type CatalogFilterOption = {
+    value: string;
+    label: string;
+    count: number;
+    selected: boolean;
+};
+
+export type CatalogFilterGroup = {
+    key: DoorCatalogFilterKey;
+    label: string;
+    options: CatalogFilterOption[];
+};
+
+export type CatalogFiltersState = {
+    active: CatalogActiveFilters;
+    groups: CatalogFilterGroup[];
+};
+
 export type CatalogProductCard = {
     id: number;
     slug: string;
@@ -101,6 +133,7 @@ export type CatalogResult = {
     total: number;
     totalPages: number;
     items: CatalogProductCard[];
+    filters: CatalogFiltersState;
 };
 
 export type DoorRouteCategory = "skrytye" | "protivopozharnye";

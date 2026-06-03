@@ -10,12 +10,14 @@ import {
     getDoorTypeLabel,
     resolveDoorRoute,
 } from "@src/lib/woo/products";
+import { parseDoorCatalogFiltersFromSearchParams } from "@src/lib/woo/catalog-filters";
 import type {
     CatalogProductCard,
     DoorCatalogAttributes,
     DoorFamilySibling,
     DoorProductDetails,
 } from "@src/lib/woo/types";
+import CatalogFilters from "../CatalogFilters";
 import DoorProductConfigurator from "./DoorProductConfigurator";
 
 function formatPrice(price: string | null): string {
@@ -101,15 +103,27 @@ function CategoryCatalogCard({ item }: { item: CatalogProductCard }) {
     );
 }
 
-async function DoorCategoryPage({ wooCategorySlug, routeCategory }: {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }: {
     wooCategorySlug: string;
     routeCategory: "skrytye" | "protivopozharnye";
+    searchParams: PageSearchParams;
 }) {
+    const resolvedSearchParams = await searchParams;
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const routeHref = `/mezhkomnatnye-dveri/${routeCategory}`;
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let loadError: string | null = null;
     
     try {
-        catalog = await getCatalogProducts({ type: "doors", page: 1, perPage: 24, categorySlug: wooCategorySlug });
+        catalog = await getCatalogProducts({
+            type: "doors",
+            page: 1,
+            perPage: 24,
+            categorySlug: wooCategorySlug,
+            filters,
+        });
     } catch (error) {
         loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию из WooCommerce";
     }
@@ -134,6 +148,14 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory }: {
                             </div>
                             {catalog ? <div className="text-muted">Найдено товаров: {catalog.total}</div> : null}
                         </div>
+                        
+                        {catalog ? (
+                            <CatalogFilters
+                                filters={catalog.filters}
+                                action={routeHref}
+                                resetHref={routeHref}
+                            />
+                        ) : null}
                         
                         {loadError ? (
                             <div className="alert alert-danger" role="alert">
@@ -525,14 +547,26 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
     );
 }
 
-export default async function InteriorDoorsSegmentsPage({ params }: { params: Promise<{ segments: string[] }> }) {
+export default async function InteriorDoorsSegmentsPage({
+                                                            params,
+                                                            searchParams,
+                                                        }: {
+    params: Promise<{ segments: string[] }>;
+    searchParams: PageSearchParams;
+}) {
     const { segments } = await params;
     const resolvedRoute = resolveDoorRoute(segments);
     
     if (!resolvedRoute) notFound();
     
     if (resolvedRoute.kind === "category") {
-        return <DoorCategoryPage wooCategorySlug={resolvedRoute.wooCategorySlug} routeCategory={resolvedRoute.routeCategory} />;
+        return (
+            <DoorCategoryPage
+                wooCategorySlug={resolvedRoute.wooCategorySlug}
+                routeCategory={resolvedRoute.routeCategory}
+                searchParams={searchParams}
+            />
+        );
     }
     
     const product = await getDoorProductBySlug({ slug: resolvedRoute.slug, routeCategory: resolvedRoute.routeCategory });

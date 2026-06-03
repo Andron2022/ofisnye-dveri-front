@@ -6,7 +6,9 @@ import {
     getCatalogProducts,
     getDoorTypeLabel,
 } from "@src/lib/woo/products";
+import { parseDoorCatalogFiltersFromSearchParams } from "@src/lib/woo/catalog-filters";
 import type { CatalogProductCard } from "@src/lib/woo/types";
+import CatalogFilters from "./CatalogFilters";
 
 // -----------------------------------------------------
 // Форматирование цены
@@ -167,7 +169,11 @@ function CatalogCard({ item }: { item: CatalogProductCard }) {
 // Главная серверная страница каталога
 // -----------------------------------------------------
 
-export default async function InteriorDoorsPage() {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function InteriorDoorsPage({ searchParams }: { searchParams: PageSearchParams }) {
+    const resolvedSearchParams = await searchParams;
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let loadError: string | null = null;
     
@@ -176,6 +182,7 @@ export default async function InteriorDoorsPage() {
             type: "doors",
             page: 1,
             perPage: 24,
+            filters,
         });
     } catch (error) {
         loadError =
@@ -208,10 +215,16 @@ export default async function InteriorDoorsPage() {
                         </div>
                         
                         <div className="alert alert-light border mb-4">
-                            Теперь каталог уже не тупиковый: карточки ведут в реальные URL
-                            товаров, а универсальный маршрут /mezhkomnatnye-dveri/[...segments]
-                            будет разбирать категории и PDP.
+                            Каталог строится из WooCommerce. Фильтры работают через URL query и сохраняют текущий маршрут.
                         </div>
+                        
+                        {catalog ? (
+                            <CatalogFilters
+                                filters={catalog.filters}
+                                action="/mezhkomnatnye-dveri"
+                                resetHref="/mezhkomnatnye-dveri"
+                            />
+                        ) : null}
                         
                         {loadError ? (
                             <div className="alert alert-danger" role="alert">

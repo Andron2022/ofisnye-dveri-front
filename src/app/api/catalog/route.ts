@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCatalogProducts } from "@src/lib/woo/products";
+import { parseDoorCatalogFiltersFromURLSearchParams } from "@src/lib/woo/catalog-filters";
 import type { CatalogType } from "@src/lib/woo/types";
 
 // -----------------------------------------------------
@@ -57,12 +58,14 @@ export async function GET(request: NextRequest) {
         );
         
         const categorySlug = searchParams.get("categorySlug") ?? undefined;
+        const filters = parseDoorCatalogFiltersFromURLSearchParams(searchParams);
         
         const catalog = await getCatalogProducts({
             type,
             page,
             perPage,
             categorySlug,
+            filters,
         });
         
         return NextResponse.json(catalog, {
