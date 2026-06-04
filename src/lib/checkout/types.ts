@@ -2,6 +2,10 @@
 
 import type { CartItem } from "@src/lib/cart/types";
 
+export type CheckoutContactMethod = "phone" | "whatsapp" | "telegram" | "email";
+
+export type CheckoutCustomerType = "person" | "company";
+
 export type CheckoutCustomer = {
     firstName: string;
     lastName: string;
@@ -12,6 +16,9 @@ export type CheckoutCustomer = {
     apartment: string;
     deliveryComment: string;
     orderComment: string;
+    contactMethod: CheckoutContactMethod;
+    customerType: CheckoutCustomerType;
+    companyName: string;
     termsAccepted: boolean;
 };
 
@@ -26,11 +33,21 @@ export type CheckoutOrderSuccessResponse = {
     orderNumber: string;
     status: string;
     total: string;
+    successPath: string;
 };
+
+export type CheckoutFieldError = {
+    field: keyof CheckoutCustomer | "items" | "root";
+    message: string;
+};
+
+export type CheckoutOrderErrorCode = "VALIDATION_ERROR" | "ORDER_CREATE_ERROR";
 
 export type CheckoutOrderErrorResponse = {
     success: false;
     message: string;
+    code?: CheckoutOrderErrorCode;
+    errors?: CheckoutFieldError[];
 };
 
 export type CheckoutOrderResponse = CheckoutOrderSuccessResponse | CheckoutOrderErrorResponse;

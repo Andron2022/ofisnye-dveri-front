@@ -2,6 +2,13 @@
 
 import type { CartAccessorySnapshot, CartItem, CartOptionSnapshot } from "@src/lib/cart/types";
 import type { CheckoutOrderRequest, CheckoutOrderSuccessResponse } from "@src/lib/checkout/types";
+import {
+    getCheckoutErrorMessage,
+    getContactMethodLabel,
+    getCustomerTypeLabel,
+    validateCheckoutOrderRequest,
+} from "@src/lib/checkout/validation";
+import { buildAbsoluteUrl } from "@src/lib/seo/site";
 import { wooGet, wooPost } from "@src/lib/woo/client";
 import { mapDoorOrderOptions } from "@src/lib/woo/products";
 import type {
@@ -16,6 +23,7 @@ import type {
 
 const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
+const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v2";
 
 const ALLOWED_DOOR_CATEGORY_SLUGS = new Set([
     "mezhkomnatnye-dveri",
@@ -48,39 +56,6 @@ type ValidatedDoorItem = {
 
 function trim(value: string | null | undefined): string {
     return (value ?? "").trim();
-}
-
-function assertFilled(value: string, fieldName: string): void {
-    if (!trim(value)) {
-        throw new Error(`Заполните поле: ${fieldName}`);
-    }
-}
-
-function assertEmail(value: string): void {
-    const email = trim(value);
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-        throw new Error("Укажите корректный email");
-    }
-}
-
-function assertCheckoutRequest(payload: CheckoutOrderRequest): void {
-    if (!payload || typeof payload !== "object") {
-        throw new Error("Некорректный payload оформления заказа");
-    }
-
-    assertFilled(payload.customer.firstName, "Имя");
-    assertFilled(payload.customer.phone, "Телефон");
-    assertEmail(payload.customer.email);
-    assertFilled(payload.customer.city, "Город");
-    assertFilled(payload.customer.address, "Адрес доставки");
-
-    if (!payload.customer.termsAccepted) {
-        throw new Error("Нужно подтвердить согласие с условиями обработки заказа");
-    }
-
-    if (!Array.isArray(payload.items) || payload.items.length === 0) {
-        throw new Error("Корзина пуста");
-    }
 }
 
 function parseMoney(value: string | number | null | undefined): number | null {
@@ -287,22 +262,37 @@ function optionMetaData(options: CartOptionSnapshot[]): WooOrderMetaDataItem[] {
 
 function baseDoorMetaData(product: WooProduct, item: CartItem, normalizedOptions: CartOptionSnapshot[]): WooOrderMetaDataItem[] {
     const publicArticleNo = getPublicArticleNo(product);
+    const frontendUrl = buildAbsoluteUrl(item.path);
+    const doorBasePrice = parseMoney(product.price);
+    const doorOptionsDelta = normalizedOptions.reduce((sum, option) => sum + option.priceDelta, 0);
 
     return [
         { key: "Тип позиции", value: "Дверь" },
+        { key: "Product ID", value: product.id },
         { key: "SKU", value: product.sku || item.sku || "—" },
         ...(publicArticleNo ? [{ key: "Артикул UI", value: publicArticleNo }] : []),
-        { key: "Ссылка на фронте", value: item.path },
+        { key: "Ссылка на фронте", value: frontendUrl },
+        { key: "Путь на фронте", value: item.path },
+        { key: "Ключ позиции корзины", value: item.itemKey },
+        { key: "Цена двери из Woo", value: doorBasePrice === null ? "—" : formatMoney(doorBasePrice) },
+        { key: "Дельта опций", value: formatMoney(doorOptionsDelta) },
         ...optionMetaData(normalizedOptions),
     ];
 }
 
-function accessoryMetaData(accessory: CartAccessorySnapshot, parentProduct: WooProduct, parentItem: CartItem): WooOrderMetaDataItem[] {
+function accessoryMetaData(
+    accessory: CartAccessorySnapshot,
+    parentProduct: WooProduct,
+    parentItem: CartItem,
+    totalQuantity: number,
+): WooOrderMetaDataItem[] {
     return [
         { key: "Тип позиции", value: "Фурнитура" },
         { key: "Комплектуется с", value: `${parentProduct.name} (${parentProduct.sku || parentItem.sku || "SKU не указан"})` },
         { key: "Родительская позиция корзины", value: parentItem.itemKey },
         { key: "Количество на одну дверь", value: accessory.qty },
+        { key: "Количество дверей", value: parentItem.quantity },
+        { key: "Итоговое количество", value: totalQuantity },
     ];
 }
 
@@ -362,7 +352,7 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
             quantity,
             subtotal: formatMoney(accessoryLineTotal),
             total: formatMoney(accessoryLineTotal),
-            meta_data: accessoryMetaData(accessory, doorProduct, item),
+            meta_data: accessoryMetaData(accessory, doorProduct, item, quantity),
         });
     }
 
@@ -375,8 +365,15 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
 
 function buildCustomerNote(payload: CheckoutOrderRequest): string {
     const parts = [
+        `Предпочтительный способ связи: ${getContactMethodLabel(payload.customer.contactMethod)}`,
+        `Тип клиента: ${getCustomerTypeLabel(payload.customer.customerType)}`,
+        payload.customer.customerType === "company" && trim(payload.customer.companyName)
+            ? `Компания: ${trim(payload.customer.companyName)}`
+            : "",
         trim(payload.customer.deliveryComment) ? `Комментарий по доставке: ${trim(payload.customer.deliveryComment)}` : "",
         trim(payload.customer.orderComment) ? `Комментарий к заказу: ${trim(payload.customer.orderComment)}` : "",
+        "Доставка: стоимость уточняется менеджером после проверки адреса и объёма заказа.",
+        "Оплата: после подтверждения менеджером, онлайн-оплаты на сайте пока нет.",
         "Установка: не запрошена. Услуга будет добавлена отдельным order service позже.",
     ].filter(Boolean);
 
@@ -393,6 +390,7 @@ function buildWooOrderPayload(
     const city = trim(payload.customer.city);
     const address = trim(payload.customer.address);
     const apartment = trim(payload.customer.apartment);
+    const companyName = payload.customer.customerType === "company" ? trim(payload.customer.companyName) : "";
 
     return {
         status: ORDER_STATUS_FOR_MANAGER_PROCESSING,
@@ -402,6 +400,7 @@ function buildWooOrderPayload(
         billing: {
             first_name: firstName,
             last_name: lastName,
+            company: companyName || undefined,
             address_1: address,
             address_2: apartment,
             city,
@@ -412,6 +411,7 @@ function buildWooOrderPayload(
         shipping: {
             first_name: firstName,
             last_name: lastName,
+            company: companyName || undefined,
             address_1: address,
             address_2: apartment,
             city,
@@ -421,18 +421,41 @@ function buildWooOrderPayload(
         line_items: lineItems,
         meta_data: [
             { key: "Источник заказа", value: "Next.js storefront" },
+            { key: "Версия checkout contract", value: CHECKOUT_CONTRACT_VERSION },
             { key: "Тип оформления", value: "Checkout MVP без онлайн-оплаты" },
+            { key: "Статус оплаты", value: "Оплата после подтверждения менеджером" },
             { key: "Доставка", value: "Стоимость доставки не рассчитана. Уточняется менеджером." },
             { key: "Установка", value: "Не запрошена. Будущий order service." },
+            { key: "Тип клиента", value: getCustomerTypeLabel(payload.customer.customerType) },
+            { key: "Предпочтительный способ связи", value: getContactMethodLabel(payload.customer.contactMethod) },
+            ...(companyName ? [{ key: "Компания", value: companyName }] : []),
             { key: "Расчётная сумма фронта/BFF без доставки", value: formatMoney(calculatedTotal) },
+            { key: "Количество товарных строк Woo", value: lineItems.length },
+            { key: "Согласие на обработку данных", value: payload.customer.termsAccepted },
         ],
     };
 }
 
-export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promise<CheckoutOrderSuccessResponse> {
-    assertCheckoutRequest(payload);
+function buildCheckoutSuccessPath(order: WooCreatedOrder): string {
+    const params = new URLSearchParams({
+        orderNumber: order.number,
+        orderId: String(order.id),
+        status: order.status,
+        total: order.total,
+    });
 
-    const validatedItems = await Promise.all(payload.items.map(validateDoorCartItem));
+    return `/checkout/success?${params.toString()}`;
+}
+
+export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promise<CheckoutOrderSuccessResponse> {
+    const validation = validateCheckoutOrderRequest(payload);
+
+    if (!validation.ok) {
+        throw new Error(getCheckoutErrorMessage(validation.errors));
+    }
+
+    const normalizedPayload = validation.value;
+    const validatedItems = await Promise.all(normalizedPayload.items.map(validateDoorCartItem));
     const lineItems = validatedItems.flatMap((item) => [item.lineItem, ...item.accessoryLineItems]);
     const calculatedTotal = roundMoney(validatedItems.reduce((sum, item) => sum + item.lineTotal, 0));
 
@@ -440,7 +463,7 @@ export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promis
         throw new Error("В заказе нет валидных позиций");
     }
 
-    const wooPayload = buildWooOrderPayload(payload, lineItems, calculatedTotal);
+    const wooPayload = buildWooOrderPayload(normalizedPayload, lineItems, calculatedTotal);
     const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload);
 
     return {
@@ -449,5 +472,6 @@ export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promis
         orderNumber: order.number,
         status: order.status,
         total: order.total,
+        successPath: buildCheckoutSuccessPath(order),
     };
 }

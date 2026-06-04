@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import cart from "@assets/images/shopping-cart/shopping-cart-head.jpg";
 import FooterPage from "@src/components/Footer";
@@ -12,9 +13,10 @@ import { useCart } from "@src/lib/cart/CartProvider";
 import type { CartAccessorySnapshot, CartItem, CartOptionSnapshot } from "@src/lib/cart/types";
 import type {
     CheckoutCustomer,
+    CheckoutFieldError,
     CheckoutOrderResponse,
-    CheckoutOrderSuccessResponse,
 } from "@src/lib/checkout/types";
+import { getCheckoutErrorMessage, validateCheckoutOrderRequest } from "@src/lib/checkout/validation";
 
 function formatPrice(value: number | string | null): string {
     if (value === null || value === "") return "Цена по запросу";
@@ -32,6 +34,16 @@ function formatPrice(value: number | string | null): string {
 
 function buildFullName(customer: CheckoutCustomer): string {
     return [customer.firstName, customer.lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+}
+
+function buildFieldErrorMap(errors: CheckoutFieldError[]): Partial<Record<CheckoutFieldError["field"], string>> {
+    return errors.reduce<Partial<Record<CheckoutFieldError["field"], string>>>((result, error) => {
+        if (!result[error.field]) {
+            result[error.field] = error.message;
+        }
+
+        return result;
+    }, {});
 }
 
 function OptionSnapshotList({ options }: { options: CartOptionSnapshot[] }) {
@@ -89,26 +101,6 @@ function CheckoutItemRow({ item }: { item: CartItem }) {
     );
 }
 
-function SuccessState({ order }: { order: CheckoutOrderSuccessResponse }) {
-    return (
-        <div className="border rounded-3 p-4 p-lg-5 bg-light text-center">
-            <p className="text-uppercase text-muted small mb-2">Заказ создан</p>
-            <h1 className="fs-2 mb-3">Спасибо! Заказ №{order.orderNumber} принят</h1>
-            <p className="text-muted mb-4">
-                Мы получили заказ в WooCommerce. Менеджер свяжется с клиентом для подтверждения комплектации, доставки и оплаты.
-            </p>
-            <div className="d-flex flex-column flex-md-row justify-content-center gap-2">
-                <Link href="/mezhkomnatnye-dveri" className="btn btn-dark rounded-pill px-4">
-                    Вернуться в каталог
-                </Link>
-                <Link href="/" className="btn btn-outline-secondary rounded-pill px-4">
-                    На главную
-                </Link>
-            </div>
-        </div>
-    );
-}
-
 const initialCustomer: CheckoutCustomer = {
     firstName: "",
     lastName: "",
@@ -119,20 +111,31 @@ const initialCustomer: CheckoutCustomer = {
     apartment: "",
     deliveryComment: "",
     orderComment: "",
+    contactMethod: "phone",
+    customerType: "person",
+    companyName: "",
     termsAccepted: false,
 };
 
 const Checkout = () => {
+    const router = useRouter();
     const { items, totals, isHydrated, clearCart } = useCart();
     const [customer, setCustomer] = useState<CheckoutCustomer>(initialCustomer);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [createdOrder, setCreatedOrder] = useState<CheckoutOrderSuccessResponse | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Partial<Record<CheckoutFieldError["field"], string>>>({});
 
     const fullName = useMemo(() => buildFullName(customer), [customer]);
     const canSubmit = isHydrated && items.length > 0 && !totals.hasUnknownPrices && !isSubmitting;
 
-    const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const getFieldError = (field: CheckoutFieldError["field"]): string | null => fieldErrors[field] ?? null;
+
+    const getInputClassName = (field: CheckoutFieldError["field"], rounded = true): string => {
+        const baseClass = rounded ? "form-control rounded-pill" : "form-control";
+        return getFieldError(field) ? `${baseClass} is-invalid` : baseClass;
+    };
+
+    const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { id, value, type } = event.target;
         const checked = event.target instanceof HTMLInputElement ? event.target.checked : false;
 
@@ -140,16 +143,38 @@ const Checkout = () => {
             ...current,
             [id]: type === "checkbox" ? checked : value,
         }));
+
+        setFieldErrors((current) => {
+            if (!(id in current)) return current;
+
+            const nextErrors = { ...current };
+            delete nextErrors[id as CheckoutFieldError["field"]];
+            return nextErrors;
+        });
     };
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setErrorMessage(null);
+        setFieldErrors({});
 
         if (!canSubmit) {
             return;
         }
 
+        const validation = validateCheckoutOrderRequest({
+            customer,
+            items,
+        });
+
+        if (!validation.ok) {
+            setCustomer(validation.value.customer);
+            setFieldErrors(buildFieldErrorMap(validation.errors));
+            setErrorMessage(getCheckoutErrorMessage(validation.errors));
+            return;
+        }
+
+        setCustomer(validation.value.customer);
         setIsSubmitting(true);
 
         try {
@@ -158,20 +183,21 @@ const Checkout = () => {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    customer,
-                    items,
-                }),
+                body: JSON.stringify(validation.value),
             });
 
             const result = (await response.json()) as CheckoutOrderResponse;
 
             if (!response.ok || !result.success) {
+                if (!result.success && result.errors) {
+                    setFieldErrors(buildFieldErrorMap(result.errors));
+                }
+
                 throw new Error(result.success ? "Не удалось создать заказ" : result.message);
             }
 
-            setCreatedOrder(result);
             clearCart();
+            router.push(result.successPath);
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Не удалось оформить заказ");
         } finally {
@@ -203,17 +229,13 @@ const Checkout = () => {
                 <section>
                     <div className="container">
                         <div className="my-5">
-                            {createdOrder ? (
-                                <SuccessState order={createdOrder} />
-                            ) : null}
-
-                            {!createdOrder && !isHydrated ? (
+                            {!isHydrated ? (
                                 <div className="alert alert-light border" role="status">
                                     Загружаем корзину…
                                 </div>
                             ) : null}
 
-                            {!createdOrder && isHydrated && items.length === 0 ? (
+                            {isHydrated && items.length === 0 ? (
                                 <div className="border rounded-3 p-4 p-lg-5 text-center bg-light">
                                     <h1 className="fs-3 mb-3">Корзина пуста</h1>
                                     <p className="text-muted mb-4">Добавь товар в корзину перед оформлением заказа.</p>
@@ -223,8 +245,8 @@ const Checkout = () => {
                                 </div>
                             ) : null}
 
-                            {!createdOrder && isHydrated && items.length > 0 ? (
-                                <form onSubmit={handleSubmit} className="row g-5">
+                            {isHydrated && items.length > 0 ? (
+                                <form onSubmit={handleSubmit} className="row g-5" noValidate>
                                     <div className="col-lg-7">
                                         <h2 className="border-bottom pb-3 mb-0 fs-3">Контактные данные</h2>
                                         <div className="filter-title mb-4 bg-teal" style={{ width: "134px" }}></div>
@@ -233,13 +255,16 @@ const Checkout = () => {
                                             <div className="col-md-6">
                                                 <label className="fw-medium mb-2" htmlFor="firstName">Имя *</label>
                                                 <input
-                                                    className="form-control rounded-pill"
+                                                    className={getInputClassName("firstName")}
                                                     id="firstName"
                                                     type="text"
                                                     value={customer.firstName}
                                                     onChange={handleChange}
+                                                    aria-invalid={Boolean(getFieldError("firstName"))}
+                                                    autoComplete="given-name"
                                                     required
                                                 />
+                                                {getFieldError("firstName") ? <div className="invalid-feedback">{getFieldError("firstName")}</div> : null}
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="fw-medium mb-2" htmlFor="lastName">Фамилия</label>
@@ -249,30 +274,80 @@ const Checkout = () => {
                                                     type="text"
                                                     value={customer.lastName}
                                                     onChange={handleChange}
+                                                    autoComplete="family-name"
                                                 />
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="fw-medium mb-2" htmlFor="phone">Телефон *</label>
                                                 <input
-                                                    className="form-control rounded-pill"
+                                                    className={getInputClassName("phone")}
                                                     id="phone"
                                                     type="tel"
                                                     value={customer.phone}
                                                     onChange={handleChange}
+                                                    aria-invalid={Boolean(getFieldError("phone"))}
+                                                    autoComplete="tel"
+                                                    placeholder="+7 999 000-00-00"
                                                     required
                                                 />
+                                                {getFieldError("phone") ? <div className="invalid-feedback">{getFieldError("phone")}</div> : null}
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="fw-medium mb-2" htmlFor="email">Email *</label>
                                                 <input
-                                                    className="form-control rounded-pill"
+                                                    className={getInputClassName("email")}
                                                     id="email"
                                                     type="email"
                                                     value={customer.email}
                                                     onChange={handleChange}
+                                                    aria-invalid={Boolean(getFieldError("email"))}
+                                                    autoComplete="email"
                                                     required
                                                 />
+                                                {getFieldError("email") ? <div className="invalid-feedback">{getFieldError("email")}</div> : null}
                                             </div>
+                                            <div className="col-md-6">
+                                                <label className="fw-medium mb-2" htmlFor="contactMethod">Как удобнее связаться</label>
+                                                <select
+                                                    className="form-select rounded-pill"
+                                                    id="contactMethod"
+                                                    value={customer.contactMethod}
+                                                    onChange={handleChange}
+                                                >
+                                                    <option value="phone">Позвонить</option>
+                                                    <option value="whatsapp">WhatsApp</option>
+                                                    <option value="telegram">Telegram</option>
+                                                    <option value="email">Email</option>
+                                                </select>
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="fw-medium mb-2" htmlFor="customerType">Тип клиента</label>
+                                                <select
+                                                    className="form-select rounded-pill"
+                                                    id="customerType"
+                                                    value={customer.customerType}
+                                                    onChange={handleChange}
+                                                >
+                                                    <option value="person">Частное лицо</option>
+                                                    <option value="company">Компания</option>
+                                                </select>
+                                            </div>
+                                            {customer.customerType === "company" ? (
+                                                <div className="col-12">
+                                                    <label className="fw-medium mb-2" htmlFor="companyName">Название компании *</label>
+                                                    <input
+                                                        className={getInputClassName("companyName")}
+                                                        id="companyName"
+                                                        type="text"
+                                                        value={customer.companyName}
+                                                        onChange={handleChange}
+                                                        aria-invalid={Boolean(getFieldError("companyName"))}
+                                                        autoComplete="organization"
+                                                        required
+                                                    />
+                                                    {getFieldError("companyName") ? <div className="invalid-feedback">{getFieldError("companyName")}</div> : null}
+                                                </div>
+                                            ) : null}
                                         </div>
 
                                         <div className="mt-5 pt-md-3">
@@ -283,13 +358,16 @@ const Checkout = () => {
                                                 <div className="col-md-6">
                                                     <label className="fw-medium mb-2" htmlFor="city">Город *</label>
                                                     <input
-                                                        className="form-control rounded-pill"
+                                                        className={getInputClassName("city")}
                                                         id="city"
                                                         type="text"
                                                         value={customer.city}
                                                         onChange={handleChange}
+                                                        aria-invalid={Boolean(getFieldError("city"))}
+                                                        autoComplete="address-level2"
                                                         required
                                                     />
+                                                    {getFieldError("city") ? <div className="invalid-feedback">{getFieldError("city")}</div> : null}
                                                 </div>
                                                 <div className="col-md-6">
                                                     <label className="fw-medium mb-2" htmlFor="apartment">Квартира / офис</label>
@@ -299,18 +377,22 @@ const Checkout = () => {
                                                         type="text"
                                                         value={customer.apartment}
                                                         onChange={handleChange}
+                                                        autoComplete="address-line2"
                                                     />
                                                 </div>
                                                 <div className="col-12">
                                                     <label className="fw-medium mb-2" htmlFor="address">Адрес доставки *</label>
                                                     <input
-                                                        className="form-control rounded-pill"
+                                                        className={getInputClassName("address")}
                                                         id="address"
                                                         type="text"
                                                         value={customer.address}
                                                         onChange={handleChange}
+                                                        aria-invalid={Boolean(getFieldError("address"))}
+                                                        autoComplete="address-line1"
                                                         required
                                                     />
+                                                    {getFieldError("address") ? <div className="invalid-feedback">{getFieldError("address")}</div> : null}
                                                 </div>
                                                 <div className="col-12">
                                                     <label className="fw-medium mb-2" htmlFor="deliveryComment">Комментарий по доставке</label>
@@ -378,22 +460,30 @@ const Checkout = () => {
                                                 </div>
                                             ) : null}
 
+                                            {getFieldError("items") ? (
+                                                <div className="alert alert-warning small mb-3">
+                                                    {getFieldError("items")}
+                                                </div>
+                                            ) : null}
+
                                             <div className="alert alert-light border small mb-3">
                                                 Онлайн-оплаты сейчас нет. Заказ будет создан в WooCommerce со статусом “На удержании”, после чего менеджер подтвердит цену, доставку и способ оплаты.
                                             </div>
 
                                             <div className="form-check mb-3">
                                                 <input
-                                                    className="form-check-input"
+                                                    className={getFieldError("termsAccepted") ? "form-check-input is-invalid" : "form-check-input"}
                                                     type="checkbox"
                                                     id="termsAccepted"
                                                     checked={customer.termsAccepted}
                                                     onChange={handleChange}
+                                                    aria-invalid={Boolean(getFieldError("termsAccepted"))}
                                                     required
                                                 />
                                                 <label className="form-check-label small" htmlFor="termsAccepted">
                                                     Я согласен на обработку данных для оформления заказа *
                                                 </label>
+                                                {getFieldError("termsAccepted") ? <div className="invalid-feedback">{getFieldError("termsAccepted")}</div> : null}
                                             </div>
 
                                             {errorMessage ? (
