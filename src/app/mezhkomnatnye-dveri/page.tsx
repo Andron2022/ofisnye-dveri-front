@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Header from "@src/components/Headers/Header";
 import TopBanner from "@src/components/Headers/TopBanner";
@@ -9,6 +10,21 @@ import {
 import { parseDoorCatalogFiltersFromSearchParams } from "@src/lib/woo/catalog-filters";
 import type { CatalogProductCard } from "@src/lib/woo/types";
 import CatalogFilters from "./CatalogFilters";
+import {
+    buildBreadcrumbListJsonLd,
+    buildDoorCategoryMetadata,
+    getDoorCategoryBreadcrumbItems,
+    serializeJsonLd,
+} from "@src/lib/seo/site";
+
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export async function generateMetadata({ searchParams }: { searchParams: PageSearchParams }): Promise<Metadata> {
+    const resolvedSearchParams = await searchParams;
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+
+    return buildDoorCategoryMetadata(undefined, filters);
+}
 
 // -----------------------------------------------------
 // Форматирование цены
@@ -169,8 +185,6 @@ function CatalogCard({ item }: { item: CatalogProductCard }) {
 // Главная серверная страница каталога
 // -----------------------------------------------------
 
-type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
-
 export default async function InteriorDoorsPage({ searchParams }: { searchParams: PageSearchParams }) {
     const resolvedSearchParams = await searchParams;
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
@@ -193,6 +207,12 @@ export default async function InteriorDoorsPage({ searchParams }: { searchParams
     
     return (
         <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorCategoryBreadcrumbItems())),
+                }}
+            />
             <TopBanner />
             <Header />
             

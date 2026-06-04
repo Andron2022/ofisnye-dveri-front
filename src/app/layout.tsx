@@ -62,6 +62,7 @@ import { ReactNode } from "react";
 import {Metadata} from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import Providers from "@src/app/providers";
+import { buildMetadataBase, SITE_NAME } from "@src/lib/seo/site";
 
 const fontSans = Inter({
   subsets: ["latin", "cyrillic"],
@@ -84,7 +85,12 @@ export function generateViewport(): Record<string, string | number> {
 }
 
 export const metadata: Metadata = {
-  title: "Офисные двери",
+  metadataBase: buildMetadataBase(),
+  applicationName: SITE_NAME,
+  title: {
+    default: SITE_NAME,
+    template: `%s — ${SITE_NAME}`,
+  },
   description: "Headless интернет-магазин межкомнатных дверей с комплектацией и заказом без онлайн-оплаты.",
   icons: {
     icon: "/favicon.ico",

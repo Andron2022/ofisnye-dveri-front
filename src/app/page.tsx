@@ -16,12 +16,14 @@ import Header from "@src/components/Headers/Header";
 import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
 import { homePageContent } from "@src/lib/home/homepage-content";
+import { buildSeoMetadata } from "@src/lib/seo/site";
 
-export const metadata: Metadata = {
-  title: "Офисные двери — межкомнатные двери с комплектацией",
+export const metadata: Metadata = buildSeoMetadata({
+  title: "Межкомнатные двери с комплектацией",
   description:
     "Каталог межкомнатных дверей с комплектацией, фурнитурой, корзиной и оформлением заказа без онлайн-оплаты.",
-};
+  path: "/",
+});
 
 function SectionHeading({ eyebrow, title, description }: {
   eyebrow: string;

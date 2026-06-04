@@ -765,6 +765,21 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     };
 }
 
+
+export async function getDoorSitemapProducts(): Promise<CatalogProductCard[]> {
+    const categories = await getAllProductCategories();
+    const rootCategory = findCategoryBySlug(categories, ROOT_CATEGORY_BY_TYPE.doors);
+
+    if (!rootCategory) {
+        throw new Error(`В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`);
+    }
+
+    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
+    const products = await getAllPublishedProductsInCategoryTree(categoryIds);
+
+    return products.map(mapCatalogProductCard);
+}
+
 export type DoorRouteResolution =
     | { kind: "category"; routeCategory: DoorRouteCategory; wooCategorySlug: string }
     | { kind: "product"; slug: string; routeCategory?: DoorRouteCategory; wooCategorySlug?: string };

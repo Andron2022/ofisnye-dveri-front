@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@src/components/Headers/Header";
@@ -19,6 +20,15 @@ import type {
 } from "@src/lib/woo/types";
 import CatalogFilters from "../CatalogFilters";
 import DoorProductConfigurator from "./DoorProductConfigurator";
+import {
+    buildBreadcrumbListJsonLd,
+    buildDoorCategoryMetadata,
+    buildDoorProductJsonLd,
+    buildDoorProductMetadata,
+    getDoorCategoryBreadcrumbItems,
+    getDoorProductBreadcrumbItems,
+    serializeJsonLd,
+} from "@src/lib/seo/site";
 
 function formatPrice(price: string | null): string {
     if (!price) return "Цена по запросу";
@@ -103,7 +113,47 @@ function CategoryCatalogCard({ item }: { item: CatalogProductCard }) {
     );
 }
 
+type PageParams = Promise<{ segments: string[] }>;
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export async function generateMetadata({
+                                           params,
+                                           searchParams,
+                                       }: {
+    params: PageParams;
+    searchParams: PageSearchParams;
+}): Promise<Metadata> {
+    const { segments } = await params;
+    const resolvedRoute = resolveDoorRoute(segments);
+
+    if (!resolvedRoute) {
+        return {
+            title: "Страница не найдена",
+            robots: { index: false, follow: false },
+        };
+    }
+
+    if (resolvedRoute.kind === "category") {
+        const resolvedSearchParams = await searchParams;
+        const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+
+        return buildDoorCategoryMetadata(resolvedRoute.routeCategory, filters);
+    }
+
+    const product = await getDoorProductBySlug({
+        slug: resolvedRoute.slug,
+        routeCategory: resolvedRoute.routeCategory,
+    });
+
+    if (!product) {
+        return {
+            title: "Товар не найден",
+            robots: { index: false, follow: false },
+        };
+    }
+
+    return buildDoorProductMetadata(product);
+}
 
 async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }: {
     wooCategorySlug: string;
@@ -130,6 +180,12 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
     
     return (
         <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorCategoryBreadcrumbItems(routeCategory))),
+                }}
+            />
             <TopBanner />
             <Header />
             <main id="nt_content">
@@ -458,6 +514,18 @@ function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
 function DoorProductPage({ product }: { product: DoorProductDetails }) {
     return (
         <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorProductBreadcrumbItems(product))),
+                }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: serializeJsonLd(buildDoorProductJsonLd(product)),
+                }}
+            />
             <TopBanner />
             <Header />
             <main id="nt_content">
@@ -551,7 +619,7 @@ export default async function InteriorDoorsSegmentsPage({
                                                             params,
                                                             searchParams,
                                                         }: {
-    params: Promise<{ segments: string[] }>;
+    params: PageParams;
     searchParams: PageSearchParams;
 }) {
     const { segments } = await params;
