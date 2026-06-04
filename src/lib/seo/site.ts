@@ -280,9 +280,9 @@ export function buildDoorProductJsonLd(product: DoorProductDetails): JsonLdObjec
         "@context": "https://schema.org",
         "@type": "Product",
         name: product.name,
-        sku: product.sku || undefined,
+        sku: product.sku || null,
         productID: String(product.id),
-        image: product.gallery.length > 0 ? product.gallery.map((image) => image.src) : product.image ? [product.image] : undefined,
+        image: product.gallery.length > 0 ? product.gallery.map((image) => image.src) : product.image ? [product.image] : null,
         description,
         category,
         url: buildAbsoluteUrl(product.path),
@@ -302,7 +302,7 @@ export function buildDoorProductJsonLd(product: DoorProductDetails): JsonLdObjec
                     : "https://schema.org/InStock",
                 itemCondition: "https://schema.org/NewCondition",
             }
-            : undefined,
+            : null,
     });
 }
 

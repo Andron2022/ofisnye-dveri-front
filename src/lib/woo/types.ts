@@ -136,6 +136,25 @@ export type CatalogResult = {
     filters: CatalogFiltersState;
 };
 
+export type DoorFeedProduct = {
+    id: number;
+    slug: string;
+    name: string;
+    sku: string;
+    publicArticleNo: string | null;
+    price: string | null;
+    regularPrice: string | null;
+    salePrice: string | null;
+    stockStatus: string | null;
+    path: string;
+    image: string | null;
+    categories: WooProductCategory[];
+    categorySlugs: string[];
+    shortDescriptionHtml: string | null;
+    descriptionHtml: string | null;
+    attributes: DoorCatalogAttributes;
+};
+
 export type DoorRouteCategory = "skrytye" | "protivopozharnye";
 
 export type DoorOptionChoice = {

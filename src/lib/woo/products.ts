@@ -14,6 +14,7 @@ import type {
     DoorCatalogAttributes,
     DoorFamilyInfo,
     DoorFamilySibling,
+    DoorFeedProduct,
     DoorOptionChoice,
     DoorOrderOptions,
     DoorProductDetails,
@@ -778,6 +779,36 @@ export async function getDoorSitemapProducts(): Promise<CatalogProductCard[]> {
     const products = await getAllPublishedProductsInCategoryTree(categoryIds);
 
     return products.map(mapCatalogProductCard);
+}
+
+function mapDoorFeedProduct(product: WooProduct): DoorFeedProduct {
+    const card = mapCatalogProductCard(product);
+
+    return {
+        ...card,
+        regularPrice: product.regular_price ? product.regular_price : null,
+        salePrice: product.sale_price ? product.sale_price : null,
+        stockStatus: product.stock_status ?? null,
+        categories: product.categories,
+        shortDescriptionHtml: getHtmlOrNull(product.short_description),
+        descriptionHtml: getHtmlOrNull(product.description),
+    };
+}
+
+export async function getDoorFeedProducts(): Promise<DoorFeedProduct[]> {
+    const categories = await getAllProductCategories();
+    const rootCategory = findCategoryBySlug(categories, ROOT_CATEGORY_BY_TYPE.doors);
+
+    if (!rootCategory) {
+        throw new Error(`В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`);
+    }
+
+    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
+    const products = await getAllPublishedProductsInCategoryTree(categoryIds);
+
+    return products
+        .filter((product) => (product.type ?? "simple") === "simple")
+        .map(mapDoorFeedProduct);
 }
 
 export type DoorRouteResolution =
