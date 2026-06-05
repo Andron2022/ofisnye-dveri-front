@@ -43,7 +43,7 @@ const FooterPage = () => {
               Офисные двери
             </Link>
             <p className="text-muted mb-3">
-              Headless MVP интернет-магазина дверей: каталог, карточка с комплектацией, корзина и заказ в WooCommerce без онлайн-оплаты.
+              Интернет-магазин дверей для офисов и общественных пространств: каталог, комплектация, фурнитура и оформление заказа без онлайн-оплаты.
             </p>
             <div className="d-grid gap-2 text-muted small">
               <span>Москва и Московская область</span>
@@ -77,7 +77,7 @@ const FooterPage = () => {
 
         <div className="border-top mt-5 pt-4 d-flex flex-column flex-md-row justify-content-between gap-3 text-muted small">
           <span>© {new Date().getFullYear()} Офисные двери</span>
-          <span>Панели на MVP не продаются через корзину: для них будет отдельный проектный расчёт.</span>
+          <span>Стеновые панели рассчитываются отдельно под параметры проекта.</span>
         </div>
       </div>
     </footer>

@@ -65,7 +65,7 @@ function HeroSection() {
 
           <div className="col-lg-5">
             <div className="bg-white border rounded-4 p-4 p-lg-5 h-100 shadow-sm">
-              <h2 className="h4 mb-4">Что уже работает в MVP</h2>
+              <h2 className="h4 mb-4">Что важно при заказе</h2>
               <div className="d-grid gap-3">
                 {homePageContent.benefits.map((benefit) => (
                   <div key={benefit.id} className="border-bottom pb-3">
@@ -89,7 +89,7 @@ function ProductDirectionsSection() {
         <SectionHeading
           eyebrow="Продукция"
           title="Основные направления"
-          description="На MVP продающий сценарий включён только для дверей. Панели пока вынесены в проектный расчёт."
+          description="Двери доступны к заказу через каталог. Стеновые панели рассчитываются отдельно под проект."
         />
 
         <div className="row g-4">
@@ -121,7 +121,7 @@ function ProcessSection() {
       <div className="container">
         <SectionHeading
           eyebrow="Сценарий заказа"
-          title="От выбора двери до заказа в WooCommerce"
+          title="От выбора двери до подтверждения заказа"
         />
 
         <div className="row g-4">
@@ -175,7 +175,7 @@ function PanelsNoticeSection() {
       <div className="container">
         <div className="border rounded-4 p-4 p-lg-5 bg-light d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4">
           <div>
-            <p className="text-uppercase text-muted fs-12 mb-2">Будущий сценарий</p>
+            <p className="text-uppercase text-muted fs-12 mb-2">Проектный расчёт</p>
             <h2 className="h4 mb-3">{panelNotice.title}</h2>
             <p className="text-muted mb-0">{panelNotice.description}</p>
           </div>

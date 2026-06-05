@@ -423,7 +423,7 @@ const Checkout = () => {
                                             />
 
                                             <div className="alert alert-light border mt-3 small mb-0">
-                                                Установка пока не включена в форму. Позже добавим её как отдельную услугу уровня заказа.
+                                                Установка рассчитывается отдельно: менеджер уточнит условия объекта после оформления заказа.
                                             </div>
                                         </div>
                                     </div>
@@ -456,7 +456,7 @@ const Checkout = () => {
 
                                             {totals.hasUnknownPrices ? (
                                                 <div className="alert alert-warning small mb-3">
-                                                    В корзине есть позиции с ценой по запросу. Такой заказ пока нельзя автоматически создать в Woo.
+                                                    В корзине есть позиции с ценой по запросу. Оформление такого заказа требует предварительного уточнения с менеджером.
                                                 </div>
                                             ) : null}
 
@@ -467,7 +467,7 @@ const Checkout = () => {
                                             ) : null}
 
                                             <div className="alert alert-light border small mb-3">
-                                                Онлайн-оплаты сейчас нет. Заказ будет создан в WooCommerce со статусом “На удержании”, после чего менеджер подтвердит цену, доставку и способ оплаты.
+                                                Онлайн-оплаты сейчас нет. После отправки заказа менеджер проверит состав, подтвердит доставку и согласует способ оплаты.
                                             </div>
 
                                             <div className="form-check mb-3">
@@ -497,7 +497,7 @@ const Checkout = () => {
                                                 className="btn btn-teal my-2 px-5 py-3 fw-bold w-100 rounded-pill"
                                                 disabled={!canSubmit}
                                             >
-                                                {isSubmitting ? "Создаём заказ…" : "Создать заказ"}
+                                                {isSubmitting ? "Отправляем заказ…" : "Отправить заказ"}
                                             </button>
 
                                             <Link href="/shopping-cart" className="btn btn-outline-secondary rounded-pill w-100 mt-2">

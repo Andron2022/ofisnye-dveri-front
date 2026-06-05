@@ -16,7 +16,7 @@ import FooterPage from "@src/components/Footer";
 
 export const metadata: Metadata = {
     title: "Новости и статьи — Офисные двери",
-    description: "Новости и статьи будут подключены позже через WordPress. На MVP раздел очищен от demo-материалов Kalles.",
+    description: "Новости и статьи о выборе дверей, комплектации, доставке и установке будут добавлены позже.",
 };
 
 const futureContentSections = [
@@ -32,8 +32,8 @@ const futureContentSections = [
     },
     {
         id: "wp-source",
-        title: "Управление из WP",
-        description: "Публикации будут создаваться в админке WordPress и отдаваться во frontend через BFF.",
+        title: "Полезные материалы",
+        description: "Публикации будут помогать выбрать двери, разобраться в комплектации, доставке и установке.",
     },
 ];
 
@@ -51,8 +51,7 @@ export default function NewsAndArticlesPage() {
                                 <p className="text-uppercase text-muted small mb-2">Контентный раздел</p>
                                 <h1 className="mb-3">Новости и статьи будут добавлены позже</h1>
                                 <p className="lead text-muted mb-4">
-                                    Сейчас раздел не использует demo-блог Kalles. Для MVP оставлена безопасная страница-заглушка,
-                                    которую позже можно заменить на живую ленту публикаций из WordPress.
+                                    Скоро здесь появятся полезные материалы о выборе дверей, комплектации, фурнитуре, доставке и установке.
                                 </p>
                                 <div className="d-flex flex-column flex-sm-row justify-content-center gap-3">
                                     <Link href="/mezhkomnatnye-dveri" className="btn btn-dark rounded-0 px-4 py-3">

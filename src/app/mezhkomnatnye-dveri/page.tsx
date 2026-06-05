@@ -128,7 +128,7 @@ function CatalogCard({ item }: { item: CatalogProductCard }) {
                     
                     {item.publicArticleNo ? (
                         <span className="badge text-bg-secondary">
-                            Арт. UI {item.publicArticleNo}
+                            Арт. {item.publicArticleNo}
                         </span>
                     ) : null}
                 </div>
@@ -136,8 +136,7 @@ function CatalogCard({ item }: { item: CatalogProductCard }) {
                 <h2 className="fs-5 mb-2">{item.name}</h2>
                 
                 <div className="small text-muted mb-3">
-                    <div>SKU: {item.sku || "—"}</div>
-                    <div>Slug: {item.slug}</div>
+                    <div>Артикул: {item.sku || "—"}</div>
                 </div>
                 
                 <ul className="list-unstyled mb-3">
@@ -174,7 +173,7 @@ function CatalogCard({ item }: { item: CatalogProductCard }) {
                 <strong className="fs-5">{formatPrice(item.price)}</strong>
                 
                 <Link href={item.path} className="small text-decoration-none">
-                    Открыть карточку
+                    Выбрать комплектацию
                 </Link>
             </div>
         </article>
@@ -202,7 +201,7 @@ export default async function InteriorDoorsPage({ searchParams }: { searchParams
         loadError =
             error instanceof Error
                 ? error.message
-                : "Не удалось загрузить каталог из WooCommerce";
+                : "Не удалось загрузить каталог. Попробуйте обновить страницу.";
     }
     
     return (
@@ -222,7 +221,7 @@ export default async function InteriorDoorsPage({ searchParams }: { searchParams
                         <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
                             <div>
                                 <p className="text-uppercase text-muted mb-2">
-                                    Живой каталог из WooCommerce
+                                    Каталог дверей
                                 </p>
                                 <h1 className="mb-0">Межкомнатные двери</h1>
                             </div>
@@ -235,7 +234,7 @@ export default async function InteriorDoorsPage({ searchParams }: { searchParams
                         </div>
                         
                         <div className="alert alert-light border mb-4">
-                            Каталог строится из WooCommerce. Фильтры работают через URL query и сохраняют текущий маршрут.
+                            Подберите дверь по размеру, цвету, материалу, типу открывания и другим характеристикам. После выбора можно настроить комплектацию и добавить фурнитуру.
                         </div>
                         
                         {catalog ? (
@@ -255,7 +254,7 @@ export default async function InteriorDoorsPage({ searchParams }: { searchParams
                         
                         {!loadError && catalog && catalog.items.length === 0 ? (
                             <div className="alert alert-warning" role="alert">
-                                В категории <code>mezhkomnatnye-dveri</code> пока нет опубликованных товаров.
+                                В этом разделе пока нет опубликованных товаров.
                             </div>
                         ) : null}
                         

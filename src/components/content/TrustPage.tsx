@@ -170,9 +170,7 @@ function MapBlock({ map }: { map: TrustPageMap }) {
                             <p className="text-uppercase text-muted fs-12 mb-2">Карта</p>
                             <h2 className="h4 mb-3">{map.title}</h2>
                             <p className="text-muted mb-0">{map.description}</p>
-                            <div className="small text-muted mt-3">
-                                Переменная: <code>{map.embedUrlEnvKey}</code>
-                            </div>
+
                         </div>
 
                         <div className="col-lg-8">
@@ -189,9 +187,9 @@ function MapBlock({ map }: { map: TrustPageMap }) {
                                 ) : (
                                     <div className="d-flex align-items-center justify-content-center text-center p-4">
                                         <div>
-                                            <div className="h5 mb-2">Блок для карты готов</div>
+                                            <div className="h5 mb-2">Карта скоро будет добавлена</div>
                                             <p className="text-muted mb-0">
-                                                Вставьте iframe-ссылку Яндекс.Карт или Google Maps в <code>{map.embedUrlEnvKey}</code>.
+                                                Здесь можно разместить интерактивную карту Яндекс.Карт или Google Maps.
                                             </p>
                                         </div>
                                     </div>

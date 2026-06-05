@@ -16,7 +16,7 @@ import FooterPage from "@src/components/Footer";
 
 export const metadata: Metadata = {
     title: "Портфолио — Офисные двери",
-    description: "Портфолио реализованных проектов будет подключено позже через WP/BFF. На MVP раздел не содержит demo-данных Kalles.",
+    description: "Портфолио реализованных проектов с дверями для офисов и общественных пространств будет добавлено позже.",
 };
 
 const futurePortfolioSections = [
@@ -51,8 +51,7 @@ export default function PortfolioPage() {
                                 <p className="text-uppercase text-muted small mb-2">Компания</p>
                                 <h1 className="mb-3">Портфолио будет добавлено позже</h1>
                                 <p className="lead text-muted mb-4">
-                                    На MVP этот раздел очищен от demo Kalles. Позже здесь будут реальные проекты из WordPress:
-                                    объекты, фотографии, описания решений и ссылки на использованные двери.
+                                    Скоро здесь появятся реальные объекты: фотографии, описания решений, особенности комплектации и ссылки на использованные двери.
                                 </p>
                                 <div className="d-flex flex-column flex-sm-row justify-content-center gap-3">
                                     <Link href="/mezhkomnatnye-dveri" className="btn btn-dark rounded-0 px-4 py-3">

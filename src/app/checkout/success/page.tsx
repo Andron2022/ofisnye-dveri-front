@@ -55,7 +55,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
                                 {orderNumber ? `Спасибо! Заказ №${orderNumber} принят` : "Спасибо! Заказ принят"}
                             </h1>
                             <p className="text-muted mb-4">
-                                Менеджер проверит комплектацию, наличие фурнитуры, доставку и способ оплаты, после чего свяжется с клиентом.
+                                Менеджер проверит комплектацию, наличие фурнитуры, доставку и способ оплаты, после чего свяжется с вами.
                             </p>
 
                             <div className="row justify-content-center mb-4">
@@ -63,7 +63,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
                                     <div className="bg-white border rounded-3 p-3 text-start small">
                                         {orderId ? (
                                             <div className="d-flex justify-content-between gap-3 py-2 border-bottom">
-                                                <span className="text-muted">ID заказа в Woo</span>
+                                                <span className="text-muted">Внутренний номер заказа</span>
                                                 <strong>{orderId}</strong>
                                             </div>
                                         ) : null}

@@ -66,7 +66,7 @@ export type HomePageContent = {
 
 export const homePageContent: HomePageContent = {
   hero: {
-    eyebrow: "MVP-каталог дверей",
+    eyebrow: "Каталог дверей",
     title: "Межкомнатные двери для офисов и общественных пространств",
     description:
       "Выберите дверь, настройте комплектацию, добавьте подходящую фурнитуру и отправьте заказ менеджеру без онлайн-оплаты.",
@@ -84,16 +84,16 @@ export const homePageContent: HomePageContent = {
       id: "interior-doors",
       title: "Межкомнатные двери",
       description:
-        "Основной каталог дверей с реальными товарами WooCommerce, комплектацией и фурнитурой.",
+        "Основной каталог дверей с актуальными ценами, комплектацией и подходящей фурнитурой.",
       href: "/mezhkomnatnye-dveri",
       ctaLabel: "Смотреть каталог",
-      badge: "продаём на MVP",
+      badge: "доступно к заказу",
     },
     {
       id: "hidden-doors",
       title: "Скрытые двери",
       description:
-        "Дочерняя категория внутри межкомнатных дверей. Карточки открываются по тем же правилам универсального роутинга.",
+        "Двери скрытого монтажа для современных офисов и общественных пространств.",
       href: "/mezhkomnatnye-dveri/skrytye",
       ctaLabel: "Смотреть скрытые",
     },
@@ -109,9 +109,9 @@ export const homePageContent: HomePageContent = {
   benefits: [
     {
       id: "real-products",
-      title: "Живые данные из WooCommerce",
+      title: "Актуальный каталог",
       description:
-        "Каталог, карточки, цены, фурнитура и заказы уже идут через headless-связку Next + Woo.",
+        "Товары, цены, фурнитура и комплектации обновляются из единой админки магазина.",
     },
     {
       id: "door-configurator",
@@ -143,7 +143,7 @@ export const homePageContent: HomePageContent = {
       id: "checkout",
       title: "Оформите заказ",
       description:
-        "Позиции попадут в корзину и затем в заказ WooCommerce со статусом ручной обработки.",
+        "Позиции попадут в корзину, а после оформления менеджер получит состав заказа для подтверждения.",
     },
     {
       id: "manager-contact",
@@ -162,7 +162,7 @@ export const homePageContent: HomePageContent = {
     {
       id: "payment",
       title: "Оплата",
-      description: "На MVP заказ оформляется без онлайн-оплаты, детали уточняет менеджер.",
+      description: "Заказ оформляется без онлайн-оплаты: цену доставки и детали подтверждает менеджер.",
       href: "/klientam/oplata",
     },
     {
@@ -181,7 +181,7 @@ export const homePageContent: HomePageContent = {
   panelNotice: {
     title: "Настенные панели — проектный расчёт",
     description:
-      "Панели не продаются через корзину на MVP: стоимость зависит от размеров стены, раскладки, каркаса и монтажа. Позже для них появится отдельная заявка на расчёт.",
+      "Стеновые панели рассчитываются как проектное решение: стоимость зависит от размеров стены, раскладки, каркаса и монтажа.",
     href: "/stenovye-paneli",
     ctaLabel: "Подробнее о панелях",
   },

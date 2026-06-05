@@ -203,7 +203,7 @@ function AccessoryCard({ item, qty, onQtyChange }: {
 
                 <div className="flex-grow-1">
                     <h4 className="fs-6 mb-1">{item.shortLabel || item.name}</h4>
-                    <div className="small text-muted mb-2">SKU: {item.sku || "—"}</div>
+                    <div className="small text-muted mb-2">Артикул: {item.sku || "—"}</div>
                     <div className="fw-medium">{formatPrice(item.price)}</div>
                 </div>
             </div>
@@ -277,20 +277,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
         [product, selectedOptions, selectedAccessories],
     );
 
-    const cartCandidate: DoorCartCandidate = {
-        productId: product.id,
-        name: product.name,
-        sku: product.sku,
-        qty: 1,
-        basePrice: product.price,
-        selectedOptions,
-        selectedAccessories: selectedAccessoryItems.map((item) => ({
-            productId: item.id,
-            qty: selectedAccessories[item.id] ?? 0,
-        })),
-    };
-
-    const changeOption = (key: keyof SelectedOptions, value: string) => {
+        const changeOption = (key: keyof SelectedOptions, value: string) => {
         setSelectedOptions((current) => ({ ...current, [key]: value }));
         setAddedItemKey(null);
     };
@@ -319,7 +306,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
         <section className="mt-5 border-top pt-4">
             <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
                 <div>
-                    <p className="text-uppercase text-muted mb-2 small">Конфигуратор заказа</p>
+                    <p className="text-uppercase text-muted mb-2 small">Выбор комплектации</p>
                     <h2 className="fs-3 mb-0">Комплектация двери</h2>
                 </div>
 
@@ -339,7 +326,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
             </div>
 
             <div className="mb-5">
-                <p className="text-uppercase text-muted mb-2 small">Доп. товары</p>
+                <p className="text-uppercase text-muted mb-2 small">Фурнитура к двери</p>
                 <h2 className="fs-3 mb-4">Подходящая фурнитура</h2>
                 <AccessoriesGroup title="Ручки" items={product.accessories.handles} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
                 <AccessoriesGroup title="Петли" items={product.accessories.hinges} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
@@ -350,7 +337,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                 <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
                     <div>
                         <h3 className="fs-5 mb-1">Добавить комплектацию в корзину</h3>
-                        <p className="text-muted mb-0 small">Корзина сохраняется локально в браузере. Оформить заказ можно на странице checkout.</p>
+                        <p className="text-muted mb-0 small">После добавления в корзину можно перейти к оформлению заказа. Доставка и установка подтверждаются менеджером.</p>
                     </div>
                     <button type="button" className="btn btn-dark rounded-pill px-4" onClick={handleAddToCart} disabled={!isHydrated}>
                         {isHydrated ? "Добавить в корзину" : "Загружаем корзину…"}
@@ -366,12 +353,6 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                     </div>
                 ) : null}
 
-                <details className="mt-3">
-                    <summary className="small text-muted">Показать cart-ready payload</summary>
-                    <pre className="small bg-white border rounded-3 p-3 mt-2 mb-0 overflow-auto">
-                        {JSON.stringify({ cartCandidate, cartItemInput }, null, 2)}
-                    </pre>
-                </details>
             </div>
         </section>
     );

@@ -26,7 +26,7 @@ export default function CatalogFilters({
                 <div>
                     <h2 className="fs-5 mb-1">Фильтры каталога</h2>
                     <div className="small text-muted">
-                        Фильтрация работает через URL-параметры и BFF. Это основа для будущих SEO-фильтров.
+                        Выберите нужные характеристики — каталог обновится после применения фильтров.
                     </div>
                 </div>
 

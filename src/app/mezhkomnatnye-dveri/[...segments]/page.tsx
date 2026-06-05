@@ -93,13 +93,12 @@ function CategoryCatalogCard({ item }: { item: CatalogProductCard }) {
                 
                 <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
                     <span className="badge text-bg-light">{getDoorTypeLabel(item.categorySlugs)}</span>
-                    {item.publicArticleNo ? <span className="badge text-bg-secondary">Арт. UI {item.publicArticleNo}</span> : null}
+                    {item.publicArticleNo ? <span className="badge text-bg-secondary">Арт. {item.publicArticleNo}</span> : null}
                 </div>
                 
                 <h2 className="fs-5 mb-2">{item.name}</h2>
                 <div className="small text-muted mb-3">
-                    <div>SKU: {item.sku || "—"}</div>
-                    <div>Slug: {item.slug}</div>
+                    <div>Артикул: {item.sku || "—"}</div>
                 </div>
                 
                 <DoorAttributesList attributes={item.attributes} />
@@ -107,10 +106,19 @@ function CategoryCatalogCard({ item }: { item: CatalogProductCard }) {
             
             <div className="mt-auto pt-3 border-top d-flex justify-content-between align-items-center gap-3">
                 <strong className="fs-5">{formatPrice(item.price)}</strong>
-                <Link href={item.path} className="small text-decoration-none">Открыть карточку</Link>
+                <Link href={item.path} className="small text-decoration-none">Выбрать комплектацию</Link>
             </div>
         </article>
     );
+}
+
+
+function getDoorCategoryLead(routeCategory: "skrytye" | "protivopozharnye"): string {
+    if (routeCategory === "skrytye") {
+        return "Скрытые двери подходят для современных интерьеров, где важно сохранить чистую плоскость стены и аккуратную геометрию проёма.";
+    }
+
+    return "Противопожарные двери подбираются с учётом требований к объекту, огнестойкости, комплектации и условий эксплуатации.";
 }
 
 type PageParams = Promise<{ segments: string[] }>;
@@ -175,7 +183,7 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
             filters,
         });
     } catch (error) {
-        loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию из WooCommerce";
+        loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию. Попробуйте обновить страницу.";
     }
     
     return (
@@ -199,8 +207,9 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
                         
                         <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
                             <div>
-                                <p className="text-uppercase text-muted mb-2">Универсальный маршрут категории</p>
-                                <h1 className="mb-0">{getDoorCategoryLabelByRouteCategory(routeCategory)}</h1>
+                                <p className="text-uppercase text-muted mb-2">Категория дверей</p>
+                                <h1 className="mb-2">{getDoorCategoryLabelByRouteCategory(routeCategory)}</h1>
+                                <p className="text-muted mb-0" style={{ maxWidth: 720 }}>{getDoorCategoryLead(routeCategory)}</p>
                             </div>
                             {catalog ? <div className="text-muted">Найдено товаров: {catalog.total}</div> : null}
                         </div>
@@ -433,8 +442,8 @@ function AllFamilyConfigurations({ product }: { product: DoorProductDetails }) {
         <div className="border rounded-3 p-3 mb-4 bg-white">
             <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
                 <div>
-                    <h2 className="fs-5 mb-1">Все комплектации</h2>
-                    <div className="small text-muted">Полный список simple products внутри семейства.</div>
+                    <h2 className="fs-5 mb-1">Другие варианты этой модели</h2>
+                    <div className="small text-muted">Цвет, размер и количество полотен могут отличаться.</div>
                 </div>
                 <div className="small text-muted">Всего: {siblings.length}</div>
             </div>
@@ -456,7 +465,7 @@ function AllFamilyConfigurations({ product }: { product: DoorProductDetails }) {
                         <tr key={sibling.id} className={sibling.isCurrent ? "table-active" : undefined}>
                             <td>
                                 <div className="fw-medium">{sibling.name}</div>
-                                <div className="small text-muted">SKU: {sibling.sku || "—"}</div>
+                                <div className="small text-muted">Артикул: {sibling.sku || "—"}</div>
                             </td>
                             <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "color"))}</td>
                             <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "size"))}</td>
@@ -488,8 +497,8 @@ function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
             <div className="border rounded-3 p-3 mb-4 bg-white">
                 <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
                     <div>
-                        <h2 className="fs-5 mb-1">Матрица вариантов</h2>
-                        <div className="small text-muted">Семейство: {product.family.code}</div>
+                        <h2 className="fs-5 mb-1">Выберите вариант двери</h2>
+                        <div className="small text-muted">Доступные варианты этой модели</div>
                     </div>
                     <div className="small text-muted">Найдено вариантов: {product.family.siblings.length}</div>
                 </div>
@@ -502,7 +511,7 @@ function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
                 </div>
 
                 <div className="small text-muted border-top pt-3 mt-3">
-                    Серые варианты — это значения, которые есть в семействе, но не образуют точную комплектацию с текущими выбранными характеристиками.
+                    Серые варианты сейчас недоступны для выбранной комбинации характеристик.
                 </div>
             </div>
 
@@ -563,7 +572,7 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
                             <div className="col-12 col-lg-6">
                                 <div className="d-flex flex-wrap gap-2 mb-3">
                                     <span className="badge text-bg-light">{getDoorTypeLabel(product.categorySlugs)}</span>
-                                    {product.publicArticleNo ? <span className="badge text-bg-secondary">Арт. UI {product.publicArticleNo}</span> : null}
+                                    {product.publicArticleNo ? <span className="badge text-bg-secondary">Арт. {product.publicArticleNo}</span> : null}
                                 </div>
                                 
                                 <h1 className="mb-3">{product.name}</h1>
@@ -575,9 +584,8 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
                                 </div>
                                 
                                 <div className="small text-muted mb-4">
-                                    <div>SKU: {product.sku || "—"}</div>
-                                    <div>Slug: {product.slug}</div>
-                                    <div>Статус наличия: {product.stockStatus || "—"}</div>
+                                    <div>Артикул: {product.sku || "—"}</div>
+                                    <div>Наличие: {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</div>
                                 </div>
                                 
                                 {product.shortDescriptionHtml ? <div className="mb-4" dangerouslySetInnerHTML={{ __html: product.shortDescriptionHtml }} /> : null}
@@ -590,7 +598,7 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
                                 
                                 {product.categories.length > 0 ? (
                                     <div className="mb-4">
-                                        <h2 className="fs-6 text-uppercase text-muted mb-2">Категории Woo</h2>
+                                        <h2 className="fs-6 text-uppercase text-muted mb-2">Разделы каталога</h2>
                                         <div className="d-flex flex-wrap gap-2">
                                             {product.categories.map((category) => <span key={category.id} className="badge text-bg-light">{category.name}</span>)}
                                         </div>
