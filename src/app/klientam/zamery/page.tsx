@@ -1,12 +1,9 @@
-import {Container} from "react-bootstrap";
+import type { Metadata } from "next";
+import TrustPage from "@src/components/content/TrustPage";
+import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
 
-const Measurements = () => {
-    return (
-        <Container >
-            <h1 className="text-2xl text-center text-uppercase">Как правильно передать замеры</h1>
-            <p className="mb-2">Контент будет добавлен позже</p>
-        </Container>
-    );
-};
+export const metadata: Metadata = buildTrustPageMetadata("measurements");
 
-export default Measurements;
+export default function MeasurementsPage() {
+    return <TrustPage page={getTrustPageContent("measurements")} />;
+}

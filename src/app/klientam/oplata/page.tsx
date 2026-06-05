@@ -1,12 +1,9 @@
-import {Container} from "react-bootstrap";
+import type { Metadata } from "next";
+import TrustPage from "@src/components/content/TrustPage";
+import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
 
-const Payment = () => {
-    return (
-        <Container >
-            <h1 className="text-2xl text-center text-uppercase">Информация об оплате</h1>
-            <p className="mb-2">Контент будет добавлен позже</p>
-        </Container>
-    );
-};
+export const metadata: Metadata = buildTrustPageMetadata("payment");
 
-export default Payment;
+export default function PaymentPage() {
+    return <TrustPage page={getTrustPageContent("payment")} />;
+}

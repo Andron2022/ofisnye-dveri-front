@@ -1,12 +1,9 @@
-import {Container} from "react-bootstrap";
+import type { Metadata } from "next";
+import TrustPage from "@src/components/content/TrustPage";
+import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
 
-const Delivery = () => {
-    return (
-        <Container >
-            <h1 className="text-2xl text-center text-uppercase">Доставка</h1>
-            <p className="mb-2">Контент страницы будет добавлен позже</p>
-        </Container>
-    );
-};
+export const metadata: Metadata = buildTrustPageMetadata("delivery");
 
-export default Delivery;
+export default function DeliveryPage() {
+    return <TrustPage page={getTrustPageContent("delivery")} />;
+}

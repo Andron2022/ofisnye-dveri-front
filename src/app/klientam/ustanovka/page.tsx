@@ -1,12 +1,9 @@
-import {Container} from "react-bootstrap";
+import type { Metadata } from "next";
+import TrustPage from "@src/components/content/TrustPage";
+import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
 
-const Installation = () => {
-    return (
-        <Container >
-            <h1 className="text-2xl text-center text-uppercase">Как будет проходить установка</h1>
-            <p className="mb-2">Контент будет добавлен позже!</p>
-        </Container>
-    );
-};
+export const metadata: Metadata = buildTrustPageMetadata("installation");
 
-export default Installation;
+export default function InstallationPage() {
+    return <TrustPage page={getTrustPageContent("installation")} />;
+}

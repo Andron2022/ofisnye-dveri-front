@@ -1,12 +1,9 @@
-import {Container} from "react-bootstrap";
+import type { Metadata } from "next";
+import TrustPage from "@src/components/content/TrustPage";
+import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
 
-const OfferToContractors = () => {
-    return (
-        <Container >
-            <h1 className="text-2xl text-center text-uppercase">Сотрудничество с подрядными организациями</h1>
-            <p className="mb-2">Контент страницы будет добавлен позже</p>
-        </Container>
-    );
-};
+export const metadata: Metadata = buildTrustPageMetadata("contractors");
 
-export default OfferToContractors;
+export default function ContractorsPage() {
+    return <TrustPage page={getTrustPageContent("contractors")} />;
+}
