@@ -46,9 +46,22 @@ const FooterPage = () => {
               Интернет-магазин дверей для офисов и общественных пространств: каталог, комплектация, фурнитура и оформление заказа без онлайн-оплаты.
             </p>
             <div className="d-grid gap-2 text-muted small">
-              <span>Москва и Московская область</span>
-              <span>Доставка и установка рассчитываются менеджером</span>
-              <Link href="/kontakty" className="text-muted text-decoration-none">Контакты и шоурум</Link>
+              <div className="d-flex align-items-start gap-2">
+                <i className="pegk pe-7s-map-marker fs-20 flex-shrink-0" />
+                <span>Москва и Московская область</span>
+              </div>
+              <div className="d-flex align-items-start gap-2">
+                <i className="pegk pe-7s-mail fs-20 flex-shrink-0" />
+                <Link href="mailto:info@example.ru" className="text-muted text-decoration-none">info@example.ru</Link>
+              </div>
+              <div className="d-flex align-items-start gap-2">
+                <i className="pegk pe-7s-call fs-20 flex-shrink-0" />
+                <Link href="tel:+70000000000" className="text-muted text-decoration-none">+7 (000) 000-00-00</Link>
+              </div>
+              <div className="d-flex align-items-start gap-2">
+                <i className="pegk pe-7s-box2 fs-20 flex-shrink-0" />
+                <span>Доставка и установка рассчитываются менеджером</span>
+              </div>
             </div>
           </div>
 

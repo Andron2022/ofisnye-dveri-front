@@ -19,6 +19,8 @@ import type {
 } from "@src/lib/woo/types";
 import CatalogFilters from "../CatalogFilters";
 import { KallesCatalogShell } from "@src/components/storefront/KallesCatalog";
+import KallesDoorProductGallery from "@src/components/storefront/KallesDoorProductGallery";
+import KallesDoorProductTabs from "@src/components/storefront/KallesDoorProductTabs";
 import DoorProductConfigurator from "./DoorProductConfigurator";
 import {
     buildBreadcrumbListJsonLd,
@@ -191,15 +193,7 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
 //
 // Важно: у нас НЕ variable products Woo.
 // Каждый SEO-значимый вариант двери — отдельный simple product.
-// Поэтому переключатель не меняет атрибуты текущего товара на месте,
-// а ведёт на соседний товар того же door_family.
-//
-// Логика матрицы:
-// - показываем все значения, которые вообще есть в family;
-// - для каждого значения ищем точную комбинацию:
-//   выбранное значение по текущей оси + остальные значения как у текущего товара;
-// - если такой simple product есть — даём ссылку;
-// - если такой simple product не создан — показываем disabled.
+// Поэтому переключатели ведут на соседний товар того же door_family.
 // -----------------------------------------------------
 
 type SiblingAttributeKey = "color" | "size" | "leafCount";
@@ -301,6 +295,111 @@ function getSortedFamilySiblings(product: DoorProductDetails): DoorFamilySibling
     });
 }
 
+function getColorSwatchClass(value: string): string {
+    const lowerValue = value.toLowerCase();
+
+    if (lowerValue.includes("графит") || lowerValue.includes("сер") || lowerValue.includes("grey")) return "bg-secondary bg-opacity-50";
+    if (lowerValue.includes("бел") || lowerValue.includes("white")) return "bg-white";
+    if (lowerValue.includes("чер") || lowerValue.includes("black")) return "bg-dark";
+    if (lowerValue.includes("pink") || lowerValue.includes("роз")) return "bg_color_pink";
+    if (lowerValue.includes("дерев") || lowerValue.includes("дуб") || lowerValue.includes("wood")) return "bg-warning bg-opacity-25";
+
+    return "bg-light";
+}
+
+function VariantColorPicker({ product }: { product: DoorProductDetails }) {
+    const values = getFamilyAttributeValues(product, "color");
+    const currentValue = getCurrentAttributeValue(product, "color");
+    if (values.length === 0) return null;
+
+    return (
+        <div className="mb-2">
+            <h6 className="text-uppercase fw-bold mb-2">Color: <span>{getVariantValueLabel(currentValue)}</span></h6>
+            <div className="product-color-list mt-1 gap-2 d-flex align-items-center flex-wrap">
+                {values.map((value) => {
+                    const exactSibling = findExactSiblingForVariant({ product, changedKey: "color", changedValue: value });
+                    const isCurrentValue = value === currentValue;
+                    const className = `d-inline-block rounded-circle square-xs ${getColorSwatchClass(value)} ${isCurrentValue ? "active" : ""} ${exactSibling ? "" : "opacity-50"}`;
+
+                    if (!exactSibling) {
+                        return <span key={value} className={className} title={`${value}: недоступно`} />;
+                    }
+
+                    return (
+                        <Link
+                            key={`${value}-${exactSibling.id}`}
+                            href={exactSibling.path}
+                            className={className}
+                            aria-current={exactSibling.isCurrent ? "page" : undefined}
+                            title={value}
+                        />
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function VariantRadioPicker({ product, axis }: { product: DoorProductDetails; axis: Extract<SiblingAttributeKey, "size" | "leafCount"> }) {
+    const values = getFamilyAttributeValues(product, axis);
+    const currentValue = getCurrentAttributeValue(product, axis);
+    if (values.length === 0) return null;
+
+    const title = axis === "size" ? "Size" : "Полотна";
+
+    return (
+        <div className="pt-1 mb-2 pb-1">
+            <h6 className="text-uppercase fw-bold mt-2 mb-2">{title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
+            <div className="d-flex flex-wrap gap-2">
+                {values.map((value) => {
+                    const exactSibling = findExactSiblingForVariant({ product, changedKey: axis, changedValue: value });
+                    const isCurrentValue = value === currentValue;
+                    const id = `${axis}-${value}`.replace(/\s+/g, "-");
+
+                    return (
+                        <div key={`${axis}-${value}`} className="form-check me-2">
+                            {exactSibling ? (
+                                <Link
+                                    href={exactSibling.path}
+                                    className="text-decoration-none text-reset"
+                                    aria-current={exactSibling.isCurrent ? "page" : undefined}
+                                >
+                                    <input
+                                        className="form-check-input product-radio"
+                                        type="radio"
+                                        id={id}
+                                        name={axis}
+                                        checked={isCurrentValue}
+                                        readOnly
+                                    />
+                                    <label className="form-check-label" htmlFor={id}>{value}</label>
+                                </Link>
+                            ) : (
+                                <>
+                                    <input className="form-check-input product-radio" type="radio" id={id} name={axis} disabled />
+                                    <label className="form-check-label text-muted" htmlFor={id}>{value}</label>
+                                </>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function KallesSummaryVariantSelectors({ product }: { product: DoorProductDetails }) {
+    if (!product.family.code || product.family.siblings.length <= 1) return null;
+
+    return (
+        <div className="mb-3">
+            <VariantColorPicker product={product} />
+            <VariantRadioPicker product={product} axis="size" />
+            <VariantRadioPicker product={product} axis="leafCount" />
+        </div>
+    );
+}
+
 function VariantMatrixRow({ axis, product }: {
     axis: VariantAxisConfig;
     product: DoorProductDetails;
@@ -370,89 +469,122 @@ function CurrentFamilyCombination({ product }: { product: DoorProductDetails }) 
     );
 }
 
-function AllFamilyConfigurations({ product }: { product: DoorProductDetails }) {
-    const siblings = getSortedFamilySiblings(product);
-    if (siblings.length === 0) return null;
+function DoorFamilyTechnicalMatrix({ product }: { product: DoorProductDetails }) {
+    if (!product.family.code || product.family.siblings.length <= 1) return null;
 
     return (
-        <div className="border rounded-3 p-3 mb-4 bg-white">
-            <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
-                <div>
-                    <h2 className="fs-5 mb-1">Другие варианты этой модели</h2>
-                    <div className="small text-muted">Цвет, размер и количество полотен могут отличаться.</div>
-                </div>
-                <div className="small text-muted">Всего: {siblings.length}</div>
+        <section className="py-4">
+            <div className="container">
+                <details className="border rounded-3 p-3 bg-white">
+                    <summary className="fw-medium">Техническая проверка вариантов двери</summary>
+                    <div className="small text-muted mt-2 mb-3">Этот блок временно оставлен для проверки sibling-логики simple products.</div>
+                    <CurrentFamilyCombination product={product} />
+                    <div className="mt-3">
+                        {VARIANT_AXES.map((axis) => (
+                            <VariantMatrixRow key={axis.key} axis={axis} product={product} />
+                        ))}
+                    </div>
+                    <div className="small text-muted border-top pt-3 mt-3">
+                        Серые варианты сейчас недоступны для выбранной комбинации характеристик.
+                    </div>
+                </details>
             </div>
+        </section>
+    );
+}
 
-            <div className="table-responsive">
-                <table className="table table-sm align-middle mb-0">
-                    <thead>
-                    <tr>
-                        <th scope="col">Товар</th>
-                        <th scope="col">Цвет</th>
-                        <th scope="col">Размер</th>
-                        <th scope="col">Полотна</th>
-                        <th scope="col">Цена</th>
-                        <th scope="col" className="text-end">Переход</th>
-                    </tr>
-                    </thead>
-                    <tbody>
+function DoorFamilyCardsSection({ product }: { product: DoorProductDetails }) {
+    const siblings = getSortedFamilySiblings(product);
+    if (!product.family.code || siblings.length === 0) return null;
+
+    return (
+        <section className="py-5 bg-white">
+            <div className="container">
+                <h2 className="fs-4 text-center mb-4">Другие варианты этой коллекции</h2>
+                <div className="row g-3 row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-5">
                     {siblings.map((sibling) => (
-                        <tr key={sibling.id} className={sibling.isCurrent ? "table-active" : undefined}>
-                            <td>
-                                <div className="fw-medium">{sibling.name}</div>
-                                <div className="small text-muted">Артикул: {sibling.sku || "—"}</div>
-                            </td>
-                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "color"))}</td>
-                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "size"))}</td>
-                            <td>{getVariantValueLabel(getSiblingAttributeValue(sibling, "leafCount"))}</td>
-                            <td>{formatPrice(sibling.price)}</td>
-                            <td className="text-end">
-                                {sibling.isCurrent ? (
-                                    <span className="badge text-bg-dark">Открыто</span>
-                                ) : (
-                                    <Link href={sibling.path} className="btn btn-sm btn-outline-dark rounded-pill">
-                                        Открыть
-                                    </Link>
-                                )}
-                            </td>
-                        </tr>
+                        <div key={sibling.id} className="col">
+                            <article className={`topbar-product-card h-100 ${sibling.isCurrent ? "border border-dark p-2" : ""}`}>
+                                <Link href={sibling.path} className="d-block bg-light text-decoration-none text-reset overflow-hidden">
+                                    <div className="d-flex align-items-center justify-content-center" style={{ aspectRatio: "3 / 2" }}>
+                                        {sibling.image ? (
+                                            <img src={sibling.image} alt={sibling.name} className="w-100 h-100 object-fit-cover" />
+                                        ) : (
+                                            <span className="text-muted small">Нет фото</span>
+                                        )}
+                                    </div>
+                                </Link>
+                                <div className="pt-3">
+                                    <h3 className="fs-6 mb-2 fw-medium">
+                                        <Link href={sibling.path} className="main_link_acid_green text-decoration-none">{sibling.name}</Link>
+                                    </h3>
+                                    <div className="small text-muted mb-2">{getVariantValueLabel(getSiblingAttributeValue(sibling, "color"))} · {getVariantValueLabel(getSiblingAttributeValue(sibling, "size"))} · {getVariantValueLabel(getSiblingAttributeValue(sibling, "leafCount"))}</div>
+                                    <div className="d-flex justify-content-between align-items-center gap-2">
+                                        <span className="fw-medium">{formatPrice(sibling.price)}</span>
+                                        {sibling.isCurrent ? <span className="badge text-bg-dark">Открыто</span> : null}
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
                     ))}
-                    </tbody>
-                </table>
+                </div>
             </div>
+        </section>
+    );
+}
+
+function KallesRatingPlaceholder() {
+    return (
+        <div className="d-flex align-items-center gap-2 mb-3">
+            <div className="kalles-rating-result">
+                <span className="kalles-rating-result__pipe">
+                    <span className="kalles-rating-result__start" />
+                    <span className="kalles-rating-result__start" />
+                    <span className="kalles-rating-result__start" />
+                    <span className="kalles-rating-result__start" />
+                    <span className="kalles-rating-result__start active" />
+                </span>
+            </div>
+            <span className="text-muted fs-14">Подбор и комплектация под проект</span>
         </div>
     );
 }
 
-function DoorFamilyVariants({ product }: { product: DoorProductDetails }) {
-    if (!product.family.code || product.family.siblings.length <= 1) return null;
+function ProductMetaLinks() {
+    return (
+        <div className="mt-3 d-flex gap-3 text-nowrap flex-wrap row-gap-1">
+            <Link className="text-black fw-semibold" href="/klientam/zamery">Замер</Link>
+            <Link className="text-black fw-semibold mx-2" href="/klientam/dostavka">Доставка</Link>
+            <Link className="text-black fw-semibold" href="/klientam/ustanovka">Установка</Link>
+            <Link className="text-black fw-semibold mx-2" href="/kontakty">Задать вопрос</Link>
+        </div>
+    );
+}
+
+function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
+    const tagItems = [
+        ...(product.attributes.color ?? []).map((value) => `Цвет ${value}`),
+        ...(product.attributes.size ?? []).map((value) => `Размер ${value}`),
+        ...(product.attributes.leafCount ?? []).map((value) => `${value} полотна`),
+    ];
 
     return (
-        <>
-            <div className="border rounded-3 p-3 mb-4 bg-white">
-                <div className="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
-                    <div>
-                        <h2 className="fs-5 mb-1">Выберите вариант двери</h2>
-                        <div className="small text-muted">Доступные варианты этой модели</div>
-                    </div>
-                    <div className="small text-muted">Найдено вариантов: {product.family.siblings.length}</div>
-                </div>
-
-                <CurrentFamilyCombination product={product} />
-                <div className="mt-3">
-                    {VARIANT_AXES.map((axis) => (
-                        <VariantMatrixRow key={axis.key} axis={axis} product={product} />
-                    ))}
-                </div>
-
-                <div className="small text-muted border-top pt-3 mt-3">
-                    Серые варианты сейчас недоступны для выбранной комбинации характеристик.
-                </div>
-            </div>
-
-            <AllFamilyConfigurations product={product} />
-        </>
+        <div className="mt-3 small">
+            <p className="mb-1"><span>SKU :</span><span className="text-muted"> {product.sku || "—"}</span></p>
+            {product.publicArticleNo ? <p className="mb-1"><span>Арт. :</span><span className="text-muted"> {product.publicArticleNo}</span></p> : null}
+            <p className="mb-1"><span>Наличие :</span><span className="text-muted"> {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</span></p>
+            {product.categories.length > 0 ? (
+                <p className="mb-1">
+                    <span>Categories:</span>
+                    <span className="text-muted"> {product.categories.map((category, index) => (
+                        <span key={category.id}>{category.name}{index < product.categories.length - 1 ? ", " : ""}</span>
+                    ))}</span>
+                </p>
+            ) : null}
+            {tagItems.length > 0 ? (
+                <p className="mb-0"><span>Tags :</span><span className="text-muted"> {tagItems.join(", ")}</span></p>
+            ) : null}
+        </div>
     );
 }
 
@@ -474,85 +606,62 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
             <TopBanner />
             <Header />
             <main id="nt_content">
-                <section className="py-4 py-lg-5">
+                <section className="bg-light border-bottom py-3">
                     <div className="container">
-                        <nav className="small mb-3">
-                            <Link href="/mezhkomnatnye-dveri">Межкомнатные двери</Link>
-                            <span className="mx-2 text-muted">/</span>
+                        <nav className="small d-flex flex-wrap align-items-center gap-2">
+                            <Link href="/" className="text-decoration-none">Главная</Link>
+                            <span className="text-muted">/</span>
+                            <Link href="/mezhkomnatnye-dveri" className="text-decoration-none">Межкомнатные двери</Link>
+                            <span className="text-muted">/</span>
                             <span className="text-muted">{product.name}</span>
                         </nav>
-                        
-                        <div className="row g-4 g-lg-5 align-items-start">
-                            <div className="col-12 col-lg-6">
-                                <div className="border rounded-3 overflow-hidden bg-light mb-3">
-                                    {product.image ? (
-                                        <img src={product.image} alt={product.name} className="w-100 h-100 object-fit-cover" />
-                                    ) : (
-                                        <div className="d-flex align-items-center justify-content-center text-muted" style={{ minHeight: 360 }}>Нет изображения</div>
-                                    )}
-                                </div>
-                                
-                                {product.gallery.length > 1 ? (
-                                    <div className="row g-2">
-                                        {product.gallery.map((image) => (
-                                            <div key={image.id} className="col-4 col-md-3">
-                                                <div className="border rounded-3 overflow-hidden bg-light">
-                                                    <img src={image.src} alt={image.alt || image.name || product.name} className="w-100 h-100 object-fit-cover" style={{ aspectRatio: "1 / 1" }} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                            
-                            <div className="col-12 col-lg-6">
-                                <div className="d-flex flex-wrap gap-2 mb-3">
-                                    <span className="badge text-bg-light">{getDoorTypeLabel(product.categorySlugs)}</span>
-                                    {product.publicArticleNo ? <span className="badge text-bg-secondary">Арт. {product.publicArticleNo}</span> : null}
-                                </div>
-                                
-                                <h1 className="mb-3">{product.name}</h1>
-                                <div className="d-flex flex-wrap gap-3 align-items-center mb-3">
-                                    <strong className="fs-3">{formatPrice(product.price)}</strong>
-                                    {product.regularPrice && product.salePrice && product.regularPrice !== product.salePrice ? (
-                                        <span className="text-muted text-decoration-line-through">{formatPrice(product.regularPrice)}</span>
-                                    ) : null}
-                                </div>
-                                
-                                <div className="small text-muted mb-4">
-                                    <div>Артикул: {product.sku || "—"}</div>
-                                    <div>Наличие: {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</div>
-                                </div>
-                                
-                                {product.shortDescriptionHtml ? <div className="mb-4" dangerouslySetInnerHTML={{ __html: product.shortDescriptionHtml }} /> : null}
-                                <DoorFamilyVariants product={product} />
-                                
-                                <div className="border rounded-3 p-3 mb-4">
-                                    <h2 className="fs-5 mb-3">Характеристики</h2>
-                                    <DoorAttributesList attributes={product.attributes} />
-                                </div>
-                                
-                                {product.categories.length > 0 ? (
-                                    <div className="mb-4">
-                                        <h2 className="fs-6 text-uppercase text-muted mb-2">Разделы каталога</h2>
-                                        <div className="d-flex flex-wrap gap-2">
-                                            {product.categories.map((category) => <span key={category.id} className="badge text-bg-light">{category.name}</span>)}
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                        
-                        <DoorProductConfigurator product={product} />
-                        
-                        {product.descriptionHtml ? (
-                            <div className="mt-5 border-top pt-4">
-                                <h2 className="fs-4 mb-3">Описание</h2>
-                                <div dangerouslySetInnerHTML={{ __html: product.descriptionHtml }} />
-                            </div>
-                        ) : null}
                     </div>
                 </section>
+
+                <section className="py-4">
+                    <div className="container">
+                        <div className="row py-3 gx-xl-5 gy-4 align-items-start">
+                            <div className="col-12 col-lg-6">
+                                <KallesDoorProductGallery
+                                    productName={product.name}
+                                    fallbackImage={product.image}
+                                    images={product.gallery}
+                                />
+                            </div>
+
+                            <div className="col-12 col-lg-6">
+                                <h1 className="fs-3 fw-semibold mb-2">{product.name}</h1>
+                                <KallesRatingPlaceholder />
+
+                                <div className="d-flex flex-wrap gap-3 align-items-center mb-3">
+                                    <strong className="fs-2 fw-semibold">{formatPrice(product.price)}</strong>
+                                    {product.regularPrice && product.salePrice && product.regularPrice !== product.salePrice ? (
+                                        <span className="text-muted text-decoration-line-through fs-5">{formatPrice(product.regularPrice)}</span>
+                                    ) : null}
+                                </div>
+
+                                {product.shortDescriptionHtml ? (
+                                    <div className="text-muted mb-3" dangerouslySetInnerHTML={{ __html: product.shortDescriptionHtml }} />
+                                ) : (
+                                    <p className="text-muted mb-3">Подберите вариант двери, комплектацию и фурнитуру. Доставка и установка уточняются менеджером после отправки заказа.</p>
+                                )}
+
+                                <KallesSummaryVariantSelectors product={product} />
+                                <ProductMetaLinks />
+                                <ProductMetaBlock product={product} />
+
+                                <div className="d-flex flex-column flex-sm-row gap-2 mt-4">
+                                    <a href="#door-configurator" className="btn btn-info text-white rounded-pill px-5 flex-grow-1">Выбрать комплектацию</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <DoorFamilyTechnicalMatrix product={product} />
+                <DoorProductConfigurator product={product} />
+                <KallesDoorProductTabs descriptionHtml={product.descriptionHtml} attributes={product.attributes} />
+                <DoorFamilyCardsSection product={product} />
             </main>
             <FooterPage />
         </>
