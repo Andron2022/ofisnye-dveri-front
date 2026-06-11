@@ -46,7 +46,19 @@ function buildFieldErrorMap(errors: CheckoutFieldError[]): Partial<Record<Checko
     }, {});
 }
 
+function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
+    return (
+        <div className="mb-4">
+            <div className="small text-muted text-uppercase fw-semibold mb-1">{eyebrow}</div>
+            <h2 className="border-bottom pb-3 mb-0 fs-3">{title}</h2>
+            <div className="filter-title mb-0 bg-teal" style={{ width: "134px" }}></div>
+        </div>
+    );
+}
+
 function OptionSnapshotList({ options }: { options: CartOptionSnapshot[] }) {
+    if (options.length === 0) return null;
+
     return (
         <ul className="list-unstyled small text-muted mb-2">
             {options.map((option) => (
@@ -84,16 +96,34 @@ function CheckoutItemRow({ item }: { item: CartItem }) {
     return (
         <div className="border-bottom py-3">
             <div className="d-flex justify-content-between gap-3 align-items-start">
-                <div>
-                    <div className="fw-medium">{item.name} × {item.quantity}</div>
-                    <div className="small text-muted mb-2">
-                        SKU: {item.sku || "—"}
-                        {item.publicArticleNo ? ` · Арт. UI ${item.publicArticleNo}` : ""}
+                <div className="d-flex gap-3 align-items-start">
+                    <Link
+                        href={item.path}
+                        className="bg-light overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center"
+                        style={{ width: 72, height: 72 }}
+                    >
+                        {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-100 h-100 object-fit-cover" />
+                        ) : (
+                            <span className="small text-muted text-center px-2">Нет фото</span>
+                        )}
+                    </Link>
+                    <div>
+                        <div className="fw-semibold">
+                            <Link href={item.path} className="text-body text-decoration-none main_link_acid_green">
+                                {item.name}
+                            </Link>
+                            <span className="text-muted"> × {item.quantity}</span>
+                        </div>
+                        <div className="small text-muted mb-2">
+                            Артикул: {item.sku || "—"}
+                            {item.publicArticleNo ? ` · ${item.publicArticleNo}` : ""}
+                        </div>
+                        <OptionSnapshotList options={item.selectedOptions} />
+                        <AccessorySnapshotList accessories={item.selectedAccessories} />
                     </div>
-                    <OptionSnapshotList options={item.selectedOptions} />
-                    <AccessorySnapshotList accessories={item.selectedAccessories} />
                 </div>
-                <div className="fw-medium text-nowrap text-end">
+                <div className="fw-semibold text-nowrap text-end">
                     {formatPrice(item.lineTotal)}
                 </div>
             </div>
@@ -211,45 +241,43 @@ const Checkout = () => {
             <TopBanner />
             <Header />
 
-            <div>
-                <div
-                    style={{ backgroundImage: `url(${cart.src})`, backgroundPosition: "center", backgroundSize: "cover" }}
-                    className="position-relative"
-                >
-                    <div className="position-absolute top-0 start-0 right-0 bottom-0 bg-dark w-100 opacity-50"></div>
-                    <div className="container">
-                        <div className="text-white text-center py-5 position-relative">
-                            <h1 className="fs-3 fw-medium mb-0">Оформление заказа</h1>
-                        </div>
+            <div
+                style={{ backgroundImage: `url(${cart.src})`, backgroundPosition: "center", backgroundSize: "cover" }}
+                className="position-relative"
+            >
+                <div className="position-absolute top-0 start-0 right-0 bottom-0 bg-dark w-100 opacity-50"></div>
+                <div className="container">
+                    <div className="text-white text-center py-5 position-relative">
+                        <h1 className="fs-3 fw-medium mb-2">Оформление заказа</h1>
+                        <p className="mb-0 small text-white-50">Контакты, доставка и подтверждение состава заказа</p>
                     </div>
                 </div>
             </div>
 
             <main id="nt_content">
-                <section>
+                <section className="py-5">
                     <div className="container">
-                        <div className="my-5">
-                            {!isHydrated ? (
-                                <div className="alert alert-light border" role="status">
-                                    Загружаем корзину…
-                                </div>
-                            ) : null}
+                        {!isHydrated ? (
+                            <div className="alert alert-light border" role="status">
+                                Загружаем корзину…
+                            </div>
+                        ) : null}
 
-                            {isHydrated && items.length === 0 ? (
-                                <div className="border rounded-3 p-4 p-lg-5 text-center bg-light">
-                                    <h1 className="fs-3 mb-3">Корзина пуста</h1>
-                                    <p className="text-muted mb-4">Добавь товар в корзину перед оформлением заказа.</p>
-                                    <Link href="/mezhkomnatnye-dveri" className="btn btn-dark rounded-pill px-4">
-                                        Перейти в каталог дверей
-                                    </Link>
-                                </div>
-                            ) : null}
+                        {isHydrated && items.length === 0 ? (
+                            <div className="border p-4 p-lg-5 text-center bg-light">
+                                <h1 className="fs-3 mb-3">Корзина пуста</h1>
+                                <p className="text-muted mb-4">Добавь товар в корзину перед оформлением заказа.</p>
+                                <Link href="/mezhkomnatnye-dveri" className="btn btn-teal rounded-pill px-5 py-3 fw-semibold">
+                                    Перейти в каталог дверей
+                                </Link>
+                            </div>
+                        ) : null}
 
-                            {isHydrated && items.length > 0 ? (
-                                <form onSubmit={handleSubmit} className="row g-5" noValidate>
-                                    <div className="col-lg-7">
-                                        <h2 className="border-bottom pb-3 mb-0 fs-3">Контактные данные</h2>
-                                        <div className="filter-title mb-4 bg-teal" style={{ width: "134px" }}></div>
+                        {isHydrated && items.length > 0 ? (
+                            <form onSubmit={handleSubmit} className="row g-5 align-items-start" noValidate>
+                                <div className="col-lg-7">
+                                    <div className="border p-4 p-lg-5 bg-white">
+                                        <SectionTitle eyebrow="Шаг 1" title="Контактные данные" />
 
                                         <div className="row g-3">
                                             <div className="col-md-6">
@@ -351,8 +379,7 @@ const Checkout = () => {
                                         </div>
 
                                         <div className="mt-5 pt-md-3">
-                                            <h2 className="border-bottom pb-3 mb-0 fs-3">Доставка</h2>
-                                            <div className="filter-title mb-4 bg-teal" style={{ width: "134px" }}></div>
+                                            <SectionTitle eyebrow="Шаг 2" title="Доставка" />
 
                                             <div className="row g-3">
                                                 <div className="col-md-6">
@@ -410,8 +437,7 @@ const Checkout = () => {
                                         </div>
 
                                         <div className="mt-5 pt-md-3">
-                                            <h2 className="border-bottom pb-3 mb-0 fs-3">Комментарий к заказу</h2>
-                                            <div className="filter-title mb-4 bg-teal" style={{ width: "134px" }}></div>
+                                            <SectionTitle eyebrow="Шаг 3" title="Комментарий к заказу" />
                                             <textarea
                                                 className="form-control"
                                                 style={{ borderRadius: "20px" }}
@@ -427,87 +453,91 @@ const Checkout = () => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div className="col-lg-5">
-                                        <div className="checkout-order border rounded-3 p-4 bg-white">
-                                            <h2 className="border-bottom pb-3 mb-0 fs-3">Ваш заказ</h2>
-                                            <div className="filter-title mb-4 bg-teal" style={{ width: "134px" }}></div>
+                                <div className="col-lg-5">
+                                    <div className="checkout-order border p-4 p-lg-5 bg-white position-sticky" style={{ top: 24 }}>
+                                        <SectionTitle eyebrow="Ваш заказ" title="Состав заказа" />
 
-                                            <div className="small text-muted mb-3">
-                                                {fullName ? `Покупатель: ${fullName}` : "Заполните контактные данные"}
+                                        <div className="small text-muted mb-3">
+                                            {fullName ? `Покупатель: ${fullName}` : "Заполните контактные данные"}
+                                        </div>
+
+                                        {items.map((item) => (
+                                            <CheckoutItemRow key={item.itemKey} item={item} />
+                                        ))}
+
+                                        <div className="d-flex justify-content-between fw-medium border-bottom mb-0 py-3">
+                                            <span>Сумма без доставки</span>
+                                            <strong>{formatPrice(totals.subtotal)}</strong>
+                                        </div>
+                                        <div className="d-flex justify-content-between fw-medium border-bottom mb-0 py-3">
+                                            <span>Доставка</span>
+                                            <span className="text-muted">Уточнит менеджер</span>
+                                        </div>
+                                        <div className="d-flex justify-content-between fw-bold mb-0 py-3 fs-5">
+                                            <span>Итого к подтверждению</span>
+                                            <span>{formatPrice(totals.subtotal)}</span>
+                                        </div>
+
+                                        {totals.hasUnknownPrices ? (
+                                            <div className="alert alert-warning small mb-3">
+                                                В корзине есть позиции с ценой по запросу. Оформление такого заказа требует предварительного уточнения с менеджером.
                                             </div>
+                                        ) : null}
 
-                                            {items.map((item) => (
-                                                <CheckoutItemRow key={item.itemKey} item={item} />
-                                            ))}
-
-                                            <div className="d-flex justify-content-between fw-medium border-bottom mb-0 py-3">
-                                                <span>Сумма без доставки</span>
-                                                <strong>{formatPrice(totals.subtotal)}</strong>
+                                        {getFieldError("items") ? (
+                                            <div className="alert alert-warning small mb-3">
+                                                {getFieldError("items")}
                                             </div>
-                                            <div className="d-flex justify-content-between fw-medium border-bottom mb-0 py-3">
-                                                <span>Доставка</span>
-                                                <span className="text-muted">Уточнит менеджер</span>
+                                        ) : null}
+
+                                        <div className="alert alert-light border small mb-3">
+                                            Онлайн-оплаты сейчас нет. После отправки заказа менеджер проверит состав, подтвердит доставку и согласует способ оплаты.
+                                        </div>
+
+                                        <div className="form-check mb-3">
+                                            <input
+                                                className={getFieldError("termsAccepted") ? "form-check-input is-invalid" : "form-check-input"}
+                                                type="checkbox"
+                                                id="termsAccepted"
+                                                checked={customer.termsAccepted}
+                                                onChange={handleChange}
+                                                aria-invalid={Boolean(getFieldError("termsAccepted"))}
+                                                required
+                                            />
+                                            <label className="form-check-label small" htmlFor="termsAccepted">
+                                                Я согласен на обработку данных для оформления заказа *
+                                            </label>
+                                            {getFieldError("termsAccepted") ? <div className="invalid-feedback">{getFieldError("termsAccepted")}</div> : null}
+                                        </div>
+
+                                        {errorMessage ? (
+                                            <div className="alert alert-danger small mb-3" role="alert">
+                                                {errorMessage}
                                             </div>
-                                            <div className="d-flex justify-content-between fw-bold mb-0 py-3 fs-5">
-                                                <span>Итого к подтверждению</span>
-                                                <span>{formatPrice(totals.subtotal)}</span>
-                                            </div>
+                                        ) : null}
 
-                                            {totals.hasUnknownPrices ? (
-                                                <div className="alert alert-warning small mb-3">
-                                                    В корзине есть позиции с ценой по запросу. Оформление такого заказа требует предварительного уточнения с менеджером.
-                                                </div>
-                                            ) : null}
+                                        <button
+                                            type="submit"
+                                            className="btn btn-teal my-2 px-5 py-3 fw-bold w-100 rounded-pill text-uppercase"
+                                            disabled={!canSubmit}
+                                        >
+                                            {isSubmitting ? "Отправляем заказ…" : "Отправить заказ"}
+                                        </button>
 
-                                            {getFieldError("items") ? (
-                                                <div className="alert alert-warning small mb-3">
-                                                    {getFieldError("items")}
-                                                </div>
-                                            ) : null}
+                                        <Link href="/shopping-cart" className="btn btn-outline-secondary rounded-pill w-100 mt-2">
+                                            Вернуться в корзину
+                                        </Link>
 
-                                            <div className="alert alert-light border small mb-3">
-                                                Онлайн-оплаты сейчас нет. После отправки заказа менеджер проверит состав, подтвердит доставку и согласует способ оплаты.
-                                            </div>
-
-                                            <div className="form-check mb-3">
-                                                <input
-                                                    className={getFieldError("termsAccepted") ? "form-check-input is-invalid" : "form-check-input"}
-                                                    type="checkbox"
-                                                    id="termsAccepted"
-                                                    checked={customer.termsAccepted}
-                                                    onChange={handleChange}
-                                                    aria-invalid={Boolean(getFieldError("termsAccepted"))}
-                                                    required
-                                                />
-                                                <label className="form-check-label small" htmlFor="termsAccepted">
-                                                    Я согласен на обработку данных для оформления заказа *
-                                                </label>
-                                                {getFieldError("termsAccepted") ? <div className="invalid-feedback">{getFieldError("termsAccepted")}</div> : null}
-                                            </div>
-
-                                            {errorMessage ? (
-                                                <div className="alert alert-danger small mb-3" role="alert">
-                                                    {errorMessage}
-                                                </div>
-                                            ) : null}
-
-                                            <button
-                                                type="submit"
-                                                className="btn btn-teal my-2 px-5 py-3 fw-bold w-100 rounded-pill"
-                                                disabled={!canSubmit}
-                                            >
-                                                {isSubmitting ? "Отправляем заказ…" : "Отправить заказ"}
-                                            </button>
-
-                                            <Link href="/shopping-cart" className="btn btn-outline-secondary rounded-pill w-100 mt-2">
-                                                Вернуться в корзину
-                                            </Link>
+                                        <div className="d-flex flex-wrap gap-2 mt-4 small text-muted">
+                                            <span className="border rounded-pill px-3 py-1">Без онлайн-оплаты</span>
+                                            <span className="border rounded-pill px-3 py-1">Проверка менеджером</span>
                                         </div>
                                     </div>
-                                </form>
-                            ) : null}
-                        </div>
+                                </div>
+                            </form>
+                        ) : null}
                     </div>
                 </section>
             </main>

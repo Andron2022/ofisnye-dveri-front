@@ -10,7 +10,7 @@ const HomeSection = () => {
                 <div className=" container">
                     <div className="text-white text-center py-5 position-relative">
                         <h4 className="fs-20 fw-medium">
-                            SHOPPING CART</h4>
+                            Корзина</h4>
                     </div>
                 </div>
             </div>
