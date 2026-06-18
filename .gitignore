@@ -42,5 +42,8 @@ next-env.d.ts
 #repomix
 repomix-output*.md
 
-#archive project
+# archive project
 /*.zip
+
+# images project
+/gallery/

@@ -6,11 +6,23 @@ import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
 import type { TrustPageContent, TrustPageLink, TrustPageMap } from "@src/lib/content/trust-pages";
 
+function getMapUrl(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+
+    const trimmedValue = value.trim();
+    const iframeSrcMatch = trimmedValue.match(/src=["']([^"']+)["']/i);
+    const candidate = iframeSrcMatch?.[1] ?? trimmedValue;
+
+    return candidate.replace(/&amp;/g, "&");
+}
+
 function isTrustedMapUrl(value: string | undefined): value is string {
-    if (!value) return false;
+    const mapUrl = getMapUrl(value);
+
+    if (!mapUrl) return false;
 
     try {
-        const url = new URL(value);
+        const url = new URL(mapUrl);
         const hostname = url.hostname.toLowerCase();
 
         return url.protocol === "https:"
@@ -22,6 +34,14 @@ function isTrustedMapUrl(value: string | undefined): value is string {
     } catch {
         return false;
     }
+}
+
+function resolveMapEmbedUrl(map: TrustPageMap): string | undefined {
+    const rawEmbedUrl = map.embedUrl ?? (map.embedUrlEnvKey ? process.env[map.embedUrlEnvKey] : undefined);
+
+    if (!isTrustedMapUrl(rawEmbedUrl)) return undefined;
+
+    return getMapUrl(rawEmbedUrl);
 }
 
 function ActionLink({ link, variant }: { link: TrustPageLink; variant: "primary" | "secondary" }) {
@@ -37,8 +57,32 @@ function ActionLink({ link, variant }: { link: TrustPageLink; variant: "primary"
 }
 
 function PageHero({ page }: { page: TrustPageContent }) {
+    const isContactsPage = page.id === "contacts";
+    const heroStyle = page.heroImage
+        ? {
+            backgroundImage: `linear-gradient(90deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74)), url(${page.heroImage})`,
+            backgroundPosition: "center",
+            backgroundSize: "cover",
+        }
+        : undefined;
+
+    if (isContactsPage) {
+        return (
+            <section className="py-5 py-lg-6 bg-light border-bottom" style={heroStyle}>
+                <div className="container">
+                    <div className="row justify-content-center">
+                        <div className="col-lg-8 text-center">
+                            <h1 className="display-6 fw-semibold mb-4">{page.title}</h1>
+                            <p className="lead text-muted mb-0">{page.description}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
     return (
-        <section className="py-5 py-lg-6 bg-light border-bottom">
+        <section className="py-5 py-lg-6 bg-light border-bottom" style={heroStyle}>
             <div className="container">
                 <div className="row align-items-end g-4">
                     <div className="col-lg-8">
@@ -78,25 +122,31 @@ function FactsGrid({ page }: { page: TrustPageContent }) {
     );
 }
 
+function SectionCard({ section }: { section: TrustPageContent["sections"][number] }) {
+    return (
+        <article className="h-100 border rounded-4 bg-white p-4 p-lg-5">
+            <h2 className="h4 mb-3">{section.title}</h2>
+            {section.description ? <p className="text-muted mb-4">{section.description}</p> : null}
+            <ul className="list-unstyled d-grid gap-3 mb-0">
+                {section.items.map((item) => (
+                    <li key={item} className="d-flex gap-3">
+                        <span className="d-inline-flex align-items-center justify-content-center bg-dark text-white rounded-circle flex-shrink-0 mt-1" style={{ width: 22, height: 22, fontSize: 12 }}>
+                            ✓
+                        </span>
+                        <span className="text-muted">{item}</span>
+                    </li>
+                ))}
+            </ul>
+        </article>
+    );
+}
+
 function SectionCards({ page }: { page: TrustPageContent }) {
     return (
         <div className="row g-4">
             {page.sections.map((section) => (
                 <div key={section.id} className="col-lg-6">
-                    <article className="h-100 border rounded-4 bg-white p-4 p-lg-5">
-                        <h2 className="h4 mb-3">{section.title}</h2>
-                        {section.description ? <p className="text-muted mb-4">{section.description}</p> : null}
-                        <ul className="list-unstyled d-grid gap-3 mb-0">
-                            {section.items.map((item) => (
-                                <li key={item} className="d-flex gap-3">
-                                    <span className="d-inline-flex align-items-center justify-content-center bg-dark text-white rounded-circle flex-shrink-0 mt-1" style={{ width: 22, height: 22, fontSize: 12 }}>
-                                        ✓
-                                    </span>
-                                    <span className="text-muted">{item}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </article>
+                    <SectionCard section={section} />
                 </div>
             ))}
         </div>
@@ -157,9 +207,55 @@ function ContactCards({ page }: { page: TrustPageContent }) {
     );
 }
 
+function ContactInformationCard({ page }: { page: TrustPageContent }) {
+    const contactInformation = page.contactInformation;
+
+    if (!contactInformation?.items.length) return null;
+
+    return (
+        <article className="h-100 border rounded-4 bg-white p-4 p-lg-5 shadow-sm">
+            <div className="d-grid gap-4">
+                {contactInformation.items.map((item, index) => (
+                    <div
+                        key={`${item.label}-${item.value}`}
+                        className={index === contactInformation.items.length - 1 ? "" : "pb-4 border-bottom"}
+                    >
+                        <div className="fw-semibold mb-1">{item.label}</div>
+                        {item.href ? (
+                            <Link href={item.href} className="text-muted text-decoration-none lh-base">
+                                {item.value}
+                            </Link>
+                        ) : (
+                            <div className="text-muted lh-base">{item.value}</div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </article>
+    );
+}
+
+function ContactsContentGrid({ page }: { page: TrustPageContent }) {
+    if (page.id !== "contacts" || !page.contactInformation) return null;
+
+    return (
+        <div className="row g-4 align-items-stretch">
+            <div className="col-lg-5">
+                <ContactInformationCard page={page} />
+            </div>
+            <div className="col-lg-7">
+                <div className="d-grid gap-4 h-100">
+                    {page.sections.map((section) => (
+                        <SectionCard key={section.id} section={section} />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function MapBlock({ map }: { map: TrustPageMap }) {
-    const embedUrl = process.env[map.embedUrlEnvKey];
-    const canRenderMap = isTrustedMapUrl(embedUrl);
+    const embedUrl = resolveMapEmbedUrl(map);
 
     return (
         <section className="pb-5">
@@ -167,15 +263,25 @@ function MapBlock({ map }: { map: TrustPageMap }) {
                 <div className="border rounded-4 bg-white overflow-hidden shadow-sm">
                     <div className="row g-0 align-items-stretch">
                         <div className="col-lg-4 p-4 p-lg-5 bg-light border-end">
-                            <p className="text-uppercase text-muted fs-12 mb-2">Карта</p>
+                            <p className="text-uppercase text-muted fs-12 mb-2">Маршрут</p>
                             <h2 className="h4 mb-3">{map.title}</h2>
-                            <p className="text-muted mb-0">{map.description}</p>
+                            <p className="text-muted mb-4">{map.description}</p>
 
+                            {map.navigatorHref ? (
+                                <Link
+                                    href={map.navigatorHref}
+                                    className="btn btn-dark rounded-0 px-4 py-3 w-100"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {map.navigatorLabel ?? "Открыть маршрут"}
+                                </Link>
+                            ) : null}
                         </div>
 
                         <div className="col-lg-8">
                             <div className="ratio ratio-16x9 bg-light h-100">
-                                {canRenderMap ? (
+                                {embedUrl ? (
                                     <iframe
                                         src={embedUrl}
                                         title={map.title}
@@ -189,7 +295,7 @@ function MapBlock({ map }: { map: TrustPageMap }) {
                                         <div>
                                             <div className="h5 mb-2">Карта скоро будет добавлена</div>
                                             <p className="text-muted mb-0">
-                                                Здесь можно разместить интерактивную карту Яндекс.Карт или Google Maps.
+                                                Здесь можно разместить iframe-ссылку Яндекс.Карт или Google Maps.
                                             </p>
                                         </div>
                                     </div>
@@ -244,9 +350,15 @@ export default function TrustPage({ page }: { page: TrustPageContent }) {
                             </div>
                         </div>
 
-                        <FactsGrid page={page} />
-                        <ContactCards page={page} />
-                        <SectionCards page={page} />
+                        {page.id === "contacts" ? (
+                            <ContactsContentGrid page={page} />
+                        ) : (
+                            <>
+                                <FactsGrid page={page} />
+                                <ContactCards page={page} />
+                                <SectionCards page={page} />
+                            </>
+                        )}
                     </div>
                 </section>
 

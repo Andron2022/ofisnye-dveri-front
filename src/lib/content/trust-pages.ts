@@ -50,10 +50,18 @@ export type TrustPageContactItem = {
     href?: string;
 };
 
+export type TrustPageContactInformation = {
+    title: string;
+    items: TrustPageContactItem[];
+};
+
 export type TrustPageMap = {
     title: string;
     description: string;
-    embedUrlEnvKey: "NEXT_PUBLIC_CONTACT_MAP_EMBED_URL";
+    embedUrl?: string;
+    embedUrlEnvKey?: "NEXT_PUBLIC_CONTACT_MAP_EMBED_URL";
+    navigatorHref?: string;
+    navigatorLabel?: string;
 };
 
 export type TrustPageContent = {
@@ -62,6 +70,7 @@ export type TrustPageContent = {
     eyebrow: string;
     title: string;
     description: string;
+    heroImage?: string;
     metaTitle: string;
     metaDescription: string;
     lead: string;
@@ -69,6 +78,7 @@ export type TrustPageContent = {
     sections: TrustPageSection[];
     steps?: TrustPageStep[];
     contactItems?: TrustPageContactItem[];
+    contactInformation?: TrustPageContactInformation;
     map?: TrustPageMap;
     primaryCta?: TrustPageLink;
     secondaryCta?: TrustPageLink;
@@ -132,27 +142,30 @@ export const trustPages: Record<TrustPageId, TrustPageContent> = {
         id: "contacts",
         path: "/kontakty",
         eyebrow: "Связь",
-        title: "Контакты и консультация менеджера",
+        title: "Контакты",
         description: "Свяжитесь с нами, чтобы уточнить наличие, комплектацию, доставку, установку или проектный расчёт.",
+        heroImage: "https://ofisne-dveri.local/wp-content/uploads/2026/06/portfolio-01-hero-16x7-2.png",
         metaTitle: "Контакты",
-        metaDescription: "Контакты магазина Офисные двери: консультация менеджера, регион работы Москва и Московская область, блок для карты Яндекс или Google.",
+        metaDescription: "Контакты магазина Офисные двери: консультация менеджера, адрес, график работы и карта проезда.",
         lead: "Заказ оформляется без онлайн-оплаты: после отправки корзины менеджер связывается с вами, проверяет состав заказа и уточняет условия доставки и установки.",
-        facts: [
-            { label: "Регион", value: "Москва и Московская область" },
-            { label: "Заказы", value: "Через корзину и ручное подтверждение" },
-            { label: "Панели", value: "Отдельная заявка на расчёт позже" },
-        ],
-        contactItems: [
-            { label: "Телефон", value: "+7 (000) 000-00-00", href: "tel:+70000000000" },
-            { label: "Email", value: "info@example.ru", href: "mailto:info@example.ru" },
-            { label: "Регион работы", value: "Москва и Московская область" },
-            { label: "График", value: "Уточняется перед запуском" },
-            { label: "Шоурум / офис", value: "Адрес будет добавлен перед production" },
-        ],
+        contactInformation: {
+            title: "Контакты",
+            items: [
+                { label: "Компания", value: "ПК «Денежкин камень»" },
+                { label: "Адрес фактический", value: "140000, Московская обл., г. Люберцы, Октябрьский проспект, дом 241" },
+                { label: "Адрес юридический", value: "140070, Московская область, г. Люберцы, пгт. Томилино, ул. Гаршина, д. 8, эт/пом 1/2" },
+                { label: "Режим работы", value: "ПН — ПТ, 9:00 — 18:00" },
+                { label: "Заявка на расчёт", value: "Круглосуточно. По любому каналу связи." },
+                { label: "Телефон отдела продаж", value: "8 (499) 322-22-33", href: "tel:+74993222233" },
+                { label: "E-mail", value: "m0stone@ya.ru", href: "mailto:m0stone@ya.ru" },
+            ],
+        },
         map: {
             title: "Карта проезда",
-            description: "Для production сюда можно вставить iframe-ссылку Яндекс.Карт или Google Maps через переменную окружения.",
+            description: "Откройте маршрут в навигаторе или воспользуйтесь интерактивной картой на странице.",
             embedUrlEnvKey: "NEXT_PUBLIC_CONTACT_MAP_EMBED_URL",
+            navigatorHref: "https://yandex.ru/navi/-/CDdi5HOL",
+            navigatorLabel: "Открыть маршрут в навигаторе",
         },
         sections: [
             {
@@ -174,9 +187,6 @@ export const trustPages: Record<TrustPageId, TrustPageContent> = {
                 ],
             },
         ],
-        primaryCta: { label: "Смотреть двери", href: "/mezhkomnatnye-dveri" },
-        secondaryCta: { label: "Оформить заказ из корзины", href: "/shopping-cart" },
-        relatedLinks: customerLinks,
     },
 
     measurements: {
