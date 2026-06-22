@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { siteNavigation } from "@src/lib/navigation/site-menu";
-
-function getNavigationItem(id: string) {
-  return siteNavigation.find((item) => item.id === id);
-}
+import { useFooterNavigation } from "@src/lib/navigation/NavigationProvider";
+import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
 
 function FooterLinks({ title, items }: {
   title: string;
-  items: Array<{ id: string; label: string; href?: string; note?: string }>;
+  items: SiteNavigationItem[];
 }) {
   return (
     <div>
@@ -28,11 +25,16 @@ function FooterLinks({ title, items }: {
   );
 }
 
+function getFooterColumn(item: SiteNavigationItem): { title: string; items: SiteNavigationItem[] } {
+  return {
+    title: item.label,
+    items: item.children?.length ? item.children : [item],
+  };
+}
+
 const FooterPage = () => {
-  const productItems = getNavigationItem("produktsiya")?.children ?? [];
-  const companyItems = getNavigationItem("kompaniya")?.children ?? [];
-  const customerItems = getNavigationItem("klientam")?.children ?? [];
-  const partnerItems = getNavigationItem("partneram")?.children ?? [];
+  const footerNavigation = useFooterNavigation();
+  const columns = footerNavigation.map(getFooterColumn).slice(0, 4);
 
   return (
     <footer className="footer bg-light border-top">
@@ -52,11 +54,11 @@ const FooterPage = () => {
               </div>
               <div className="d-flex align-items-start gap-2">
                 <i className="pegk pe-7s-mail fs-20 flex-shrink-0" />
-                <Link href="mailto:info@example.ru" className="text-muted text-decoration-none">info@example.ru</Link>
+                <Link href="mailto:m0stone@ya.ru" className="text-muted text-decoration-none">m0stone@ya.ru</Link>
               </div>
               <div className="d-flex align-items-start gap-2">
                 <i className="pegk pe-7s-call fs-20 flex-shrink-0" />
-                <Link href="tel:+70000000000" className="text-muted text-decoration-none">+7 (000) 000-00-00</Link>
+                <Link href="tel:+74993222233" className="text-muted text-decoration-none">8 (499) 322-22-33</Link>
               </div>
               <div className="d-flex align-items-start gap-2">
                 <i className="pegk pe-7s-box2 fs-20 flex-shrink-0" />
@@ -65,27 +67,11 @@ const FooterPage = () => {
             </div>
           </div>
 
-          <div className="col-6 col-lg-2">
-            <FooterLinks title="Продукция" items={productItems} />
-          </div>
-
-          <div className="col-6 col-lg-2">
-            <FooterLinks title="Компания" items={[...companyItems, { id: "kontakty", label: "Контакты", href: "/kontakty" }]} />
-          </div>
-
-          <div className="col-6 col-lg-2">
-            <FooterLinks title="Клиентам" items={customerItems} />
-          </div>
-
-          <div className="col-6 col-lg-2">
-            <FooterLinks
-              title="Партнёрам"
-              items={[
-                ...partnerItems,
-                { id: "novosti-i-stati", label: "Новости и статьи", href: "/novosti-i-stati" },
-              ]}
-            />
-          </div>
+          {columns.map((column) => (
+            <div key={column.title} className="col-6 col-lg-2">
+              <FooterLinks title={column.title} items={column.items} />
+            </div>
+          ))}
         </div>
 
         <div className="border-top mt-5 pt-4 d-flex flex-column flex-md-row justify-content-between gap-3 text-muted small">

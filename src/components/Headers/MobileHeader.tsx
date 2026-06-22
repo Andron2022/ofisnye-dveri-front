@@ -4,8 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "@src/lib/cart/CartProvider";
-import { siteNavigation } from "@src/lib/navigation/site-menu";
 import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
+import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
 
 type MobileHeaderProps = {
     headerShow: boolean;
@@ -96,6 +96,8 @@ function MobileNavGroup({ item, onNavigate }: { item: SiteNavigationItem; onNavi
 }
 
 const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
+    const navigationItems = useHeaderNavigation();
+
     return (
         <React.Fragment>
             {headerShow ? (
@@ -130,7 +132,7 @@ const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
 
                     <nav aria-label="Мобильное меню">
                         <ul className="list-unstyled mb-4">
-                            {siteNavigation.map((item) => (
+                            {navigationItems.map((item) => (
                                 <MobileNavGroup
                                     key={item.id}
                                     item={item}

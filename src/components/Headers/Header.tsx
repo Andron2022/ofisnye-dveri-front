@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MobileHeader from "@src/components/Headers/MobileHeader";
 import { useCart } from "@src/lib/cart/CartProvider";
-import { siteNavigation } from "@src/lib/navigation/site-menu";
 import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
+import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
 
 // -----------------------------------------------------
 // MVP Header.
@@ -18,8 +18,8 @@ import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
 // - счётчик корзины берётся из CartProvider;
 // - wishlist/account/search скрыты до реализации реальных сценариев.
 //
-// Меню читается из общего fallback-конфига siteNavigation.
-// Позже этот источник можно заменить на BFF/WP menu без переписывания Header UI.
+// Меню приходит из NavigationProvider: сначала WP Navigation Editor,
+// затем fallback-конфиг siteNavigation, если WP недоступен или slug не задан.
 // -----------------------------------------------------
 
 function isItemActive(item: SiteNavigationItem, pathname: string | null): boolean {
@@ -102,6 +102,7 @@ function DesktopNavItem({ item }: { item: SiteNavigationItem }) {
 }
 
 const Header = () => {
+    const navigationItems = useHeaderNavigation();
     const [headerShow, setHeaderShow] = useState(false);
     const [isStickyActive, setIsStickyActive] = useState(false);
     const lastScrollTopRef = useRef(0);
@@ -179,7 +180,7 @@ const Header = () => {
                         <div className="collapse navbar-collapse" id="navbarSupportedContent">
                             <div className="d-none d-lg-block mx-auto">
                                 <ul className="navbar-nav mx-auto mb-2 mb-lg-0">
-                                    {siteNavigation.map((item) => (
+                                    {navigationItems.map((item) => (
                                         <DesktopNavItem key={item.id} item={item} />
                                     ))}
                                 </ul>

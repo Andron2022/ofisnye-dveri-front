@@ -47,7 +47,7 @@
 //     {/*<p>*/}
 //     {/*  {JSON.stringify(fontSans, null, 2)}*/}
 //     {/*</p>*/}
-//     <Providers>{children}</Providers>
+//     <Providers navigation={navigation}>{children}</Providers>
 //       </body>
 //     </html>
 //   );
@@ -63,6 +63,7 @@ import {Metadata} from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import Providers from "@src/app/providers";
 import { buildMetadataBase, SITE_NAME } from "@src/lib/seo/site";
+import { getWpDrivenNavigation } from "@src/lib/wp/menu";
 
 const fontSans = Inter({
   subsets: ["latin", "cyrillic"],
@@ -101,14 +102,16 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default async function Layout({ children }: LayoutProps) {
+  const navigation = await getWpDrivenNavigation();
+
   return (
     <html lang="ru">
     <body>
     {/*<p>*/}
     {/*  {JSON.stringify(fontSans, null, 2)}*/}
     {/*</p>*/}
-    <Providers>{children}</Providers>
+    <Providers navigation={navigation}>{children}</Providers>
       </body>
     </html>
   );

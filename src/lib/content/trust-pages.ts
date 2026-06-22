@@ -74,6 +74,7 @@ export type TrustPageContent = {
     metaTitle: string;
     metaDescription: string;
     lead: string;
+    contentHtml?: string;
     facts?: TrustPageFact[];
     sections: TrustPageSection[];
     steps?: TrustPageStep[];

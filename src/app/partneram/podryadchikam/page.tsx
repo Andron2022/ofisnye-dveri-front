@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import TrustPage from "@src/components/content/TrustPage";
-import { buildTrustPageMetadata, getTrustPageContent } from "@src/lib/content/trust-pages";
+import {
+    buildTrustPageMetadataWithWp,
+    getTrustPageContentWithWp,
+} from "@src/lib/wp/content";
 
-export const metadata: Metadata = buildTrustPageMetadata("contractors");
+export async function generateMetadata(): Promise<Metadata> {
+    return buildTrustPageMetadataWithWp("contractors");
+}
 
-export default function ContractorsPage() {
-    return <TrustPage page={getTrustPageContent("contractors")} />;
+export default async function ContractorsPage() {
+    const page = await getTrustPageContentWithWp("contractors");
+
+    return <TrustPage page={page} />;
 }

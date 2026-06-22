@@ -105,6 +105,21 @@ function PageHero({ page }: { page: TrustPageContent }) {
     );
 }
 
+function WpPageContent({ page }: { page: TrustPageContent }) {
+    if (!page.contentHtml) return null;
+
+    return (
+        <div className="row justify-content-center mb-5">
+            <div className="col-lg-9">
+                <article
+                    className="border rounded-4 bg-white p-4 p-lg-5 shadow-sm wp-content"
+                    dangerouslySetInnerHTML={{ __html: page.contentHtml }}
+                />
+            </div>
+        </div>
+    );
+}
+
 function FactsGrid({ page }: { page: TrustPageContent }) {
     if (!page.facts?.length) return null;
 
@@ -349,6 +364,8 @@ export default function TrustPage({ page }: { page: TrustPageContent }) {
                                 <p className="text-muted fs-5 mb-0">{page.lead}</p>
                             </div>
                         </div>
+
+                        <WpPageContent page={page} />
 
                         {page.id === "contacts" ? (
                             <ContactsContentGrid page={page} />
