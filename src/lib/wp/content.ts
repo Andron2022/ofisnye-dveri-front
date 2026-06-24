@@ -7,11 +7,21 @@ import {
     getTrustPageContent,
     trustPages,
 } from "@src/lib/content/trust-pages";
-import type { TrustPageContent, TrustPageId } from "@src/lib/content/trust-pages";
-import { wpPublicGetList } from "@src/lib/wp/client";
+import type {
+    TrustPageContactInformation,
+    TrustPageContactItem,
+    TrustPageContent,
+    TrustPageId,
+    TrustPageSection,
+} from "@src/lib/content/trust-pages";
+import { wpPublicGet, wpPublicGetList } from "@src/lib/wp/client";
 import { getRenderedText, getRenderedValue, stripHtml, truncateText } from "@src/lib/wp/format";
 import type {
+    WpAcfImageObject,
+    WpAcfImageValue,
     WpBaseContentItem,
+    WpEmbeddedMedia,
+    WpPageAcf,
     WpPageRestItem,
     WpPortfolioProjectRestItem,
     WpPostRestItem,
@@ -20,6 +30,7 @@ import type {
 
 const CONTENT_REVALIDATE_SECONDS = 300;
 const DEFAULT_EXCERPT_LENGTH = 180;
+const SERVICE_CARD_LIMIT = 6;
 
 export type WpContentPreview = {
     id: number;
@@ -118,13 +129,234 @@ function getTrustPageSlug(id: TrustPageId): string {
     return fallback.path.split("/").filter(Boolean).at(-1) ?? fallback.path.replace(/^\//, "");
 }
 
-function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: WpPageRestItem): TrustPageContent {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getPageAcf(wpPage: WpPageRestItem): WpPageAcf {
+    return isPlainObject(wpPage.acf) ? wpPage.acf as WpPageAcf : {};
+}
+
+function asString(value: unknown): string {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function asNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value.trim());
+    return null;
+}
+
+function splitTextareaItems(value: unknown): string[] {
+    return asString(value)
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function buildSectionFromAcfCard(acf: WpPageAcf, index: number): TrustPageSection | null {
+    const title = asString(acf[`service_card_${index}_title`]);
+    const description = asString(acf[`service_card_${index}_description`]);
+    const items = splitTextareaItems(acf[`service_card_${index}_items`]);
+
+    if (!title && !description && items.length === 0) return null;
+
+    return {
+        id: `service-card-${index}`,
+        title: title || `Блок ${index}`,
+        description: description || undefined,
+        items,
+    };
+}
+
+function getServiceCardsFromAcf(acf: WpPageAcf): TrustPageSection[] {
+    return Array.from({ length: SERVICE_CARD_LIMIT }, (_, index) => buildSectionFromAcfCard(acf, index + 1))
+        .filter((section): section is TrustPageSection => Boolean(section));
+}
+
+function normalizePhoneHref(value: string): string {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) return "";
+
+    if (digits.length === 11 && digits.startsWith("8")) {
+        return `tel:+7${digits.slice(1)}`;
+    }
+
+    return digits.startsWith("+") ? `tel:${digits}` : `tel:+${digits}`;
+}
+
+function buildContactItemHref(label: string, value: string): string | undefined {
+    const normalizedLabel = label.toLowerCase();
+
+    if (normalizedLabel.includes("тел")) {
+        return normalizePhoneHref(value);
+    }
+
+    if (normalizedLabel.includes("mail") || normalizedLabel.includes("e-mail") || normalizedLabel.includes("email")) {
+        return value.includes("@") ? `mailto:${value.trim()}` : undefined;
+    }
+
+    return undefined;
+}
+
+function getContactInformationFromAcf(acf: WpPageAcf, fallback: TrustPageContent): TrustPageContactInformation | undefined {
+    const lines = splitTextareaItems(acf.contacts_card_information);
+    if (!lines.length) return fallback.contactInformation;
+
+    const items: TrustPageContactItem[] = lines.map((line, index) => {
+        const colonIndex = line.indexOf(":");
+
+        if (colonIndex > 0) {
+            const label = line.slice(0, colonIndex).trim();
+            const value = line.slice(colonIndex + 1).trim();
+
+            return {
+                label,
+                value,
+                href: buildContactItemHref(label, value),
+            };
+        }
+
+        const label = index === 0 ? "Компания" : "Информация";
+
+        return {
+            label,
+            value: line,
+        };
+    });
+
+    return {
+        title: fallback.contactInformation?.title ?? "Контакты",
+        items,
+    };
+}
+
+function getContactSectionsFromAcf(acf: WpPageAcf, fallback: TrustPageContent): TrustPageSection[] {
+    const section1Title = asString(acf.contacts_section_1_title);
+    const section1Items = splitTextareaItems(acf.contacts_section_1_items);
+    const section2Title = asString(acf.contacts_section_2_title);
+    const section2Items = splitTextareaItems(acf.contacts_section_2_items);
+
+    const sections = [
+        section1Title || section1Items.length
+            ? {
+                id: "contacts-section-1",
+                title: section1Title || fallback.sections[0]?.title || "Что подготовить перед обращением",
+                items: section1Items.length ? section1Items : fallback.sections[0]?.items ?? [],
+            }
+            : null,
+        section2Title || section2Items.length
+            ? {
+                id: "contacts-section-2",
+                title: section2Title || fallback.sections[1]?.title || "С чем поможет менеджер",
+                items: section2Items.length ? section2Items : fallback.sections[1]?.items ?? [],
+            }
+            : null,
+    ].filter((section): section is TrustPageSection => Boolean(section));
+
+    return sections.length ? sections : fallback.sections;
+}
+
+function getImageUrlFromObject(image: WpAcfImageObject): string | undefined {
+    const preferredSizes = ["large", "medium_large", "full"];
+
+    for (const size of preferredSizes) {
+        const value = image.sizes?.[size];
+        if (typeof value === "string" && value.trim()) return value.trim();
+    }
+
+    return image.url || image.source_url;
+}
+
+async function getWpMediaById(id: number): Promise<WpEmbeddedMedia | null> {
+    try {
+        return await wpPublicGet<WpEmbeddedMedia>(`media/${id}`, {}, CONTENT_REVALIDATE_SECONDS);
+    } catch (error) {
+        console.error(`Failed to load WP media: ${id}`, error);
+        return null;
+    }
+}
+
+async function resolveAcfImageUrl(value: WpAcfImageValue): Promise<string | undefined> {
+    if (!value) return undefined;
+
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+        const maybeId = asNumber(trimmed);
+        if (!maybeId) return undefined;
+
+        const media = await getWpMediaById(maybeId);
+        return media?.source_url;
+    }
+
+    if (typeof value === "number") {
+        const media = await getWpMediaById(value);
+        return media?.source_url;
+    }
+
+    if (isPlainObject(value)) {
+        const objectUrl = getImageUrlFromObject(value as WpAcfImageObject);
+        if (objectUrl) return objectUrl;
+
+        const id = asNumber((value as WpAcfImageObject).id ?? (value as WpAcfImageObject).ID);
+        if (!id) return undefined;
+
+        const media = await getWpMediaById(id);
+        return media?.source_url;
+    }
+
+    return undefined;
+}
+
+async function mergeContactsPageWithAcf(fallback: TrustPageContent, wpPage: WpPageRestItem): Promise<TrustPageContent> {
+    const acf = getPageAcf(wpPage);
+    const title = getTitle(wpPage) || fallback.title;
+    const description = asString(acf.contacts_description) || getExcerpt(wpPage) || fallback.description;
+    const lead = asString(acf.contacts_lead) || fallback.lead;
+    const heroImage = await resolveAcfImageUrl(acf.contacts_hero_image) ?? getFeaturedImage(wpPage) ?? fallback.heroImage;
+    const navigatorHref = asString(acf.contacts_navigator_href) || asString(acf["link-route"]) || fallback.map?.navigatorHref;
+    const navigatorLabel = asString(acf.contacts_navigator_label) || fallback.map?.navigatorLabel;
+
+    return {
+        ...fallback,
+        title,
+        description,
+        lead,
+        contentHtml: getRenderedValue(wpPage.content) || fallback.contentHtml,
+        heroImage,
+        metaTitle: title,
+        metaDescription: truncateText(description || fallback.metaDescription, 220),
+        contactInformation: getContactInformationFromAcf(acf, fallback),
+        sections: getContactSectionsFromAcf(acf, fallback),
+        map: fallback.map
+            ? {
+                ...fallback.map,
+                title: asString(acf.contacts_map_title) || fallback.map.title,
+                description: asString(acf.contacts_map_description) || fallback.map.description,
+                embedUrl: asString(acf.contacts_map_embed_url) || fallback.map.embedUrl,
+                navigatorHref,
+                navigatorLabel,
+            }
+            : fallback.map,
+    };
+}
+
+async function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: WpPageRestItem): Promise<TrustPageContent> {
+    if (fallback.id === "contacts") {
+        return mergeContactsPageWithAcf(fallback, wpPage);
+    }
+
+    const acf = getPageAcf(wpPage);
     const title = getTitle(wpPage) || fallback.title;
     const excerpt = getExcerpt(wpPage);
     const contentText = getRenderedText(wpPage.content);
     const description = excerpt || fallback.description;
-    const lead = excerpt || truncateText(contentText, 240) || fallback.lead;
+    const lead = asString(acf.lead_text) || fallback.lead;
     const contentHtml = getRenderedValue(wpPage.content);
+    const heroImage = await resolveAcfImageUrl(acf.hero_background_image) ?? getFeaturedImage(wpPage) ?? fallback.heroImage;
+    const serviceCards = getServiceCardsFromAcf(acf);
 
     return {
         ...fallback,
@@ -132,7 +364,14 @@ function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: WpPage
         description,
         lead,
         contentHtml: contentHtml || fallback.contentHtml,
-        heroImage: getFeaturedImage(wpPage) ?? fallback.heroImage,
+        heroImage,
+        sections: serviceCards.length ? serviceCards : fallback.sections,
+        facts: undefined,
+        steps: undefined,
+        contactItems: undefined,
+        primaryCta: undefined,
+        secondaryCta: undefined,
+        relatedLinks: undefined,
         metaTitle: title,
         metaDescription: truncateText(description || fallback.metaDescription, 220),
     };

@@ -60,45 +60,22 @@ function PageHero({ page }: { page: TrustPageContent }) {
     const isContactsPage = page.id === "contacts";
     const heroStyle = page.heroImage
         ? {
-            backgroundImage: `linear-gradient(90deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74)), url(${page.heroImage})`,
+            backgroundImage: `linear-gradient(90deg, rgba(255,255,255,0.9), rgba(255,255,255,0.76)), url(${page.heroImage})`,
             backgroundPosition: "center",
             backgroundSize: "cover",
         }
         : undefined;
 
-    if (isContactsPage) {
-        return (
-            <section className="py-5 py-lg-6 bg-light border-bottom" style={heroStyle}>
-                <div className="container">
-                    <div className="row justify-content-center">
-                        <div className="col-lg-8 text-center">
-                            <h1 className="display-6 fw-semibold mb-4">{page.title}</h1>
-                            <p className="lead text-muted mb-0">{page.description}</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        );
-    }
-
     return (
         <section className="py-5 py-lg-6 bg-light border-bottom" style={heroStyle}>
             <div className="container">
-                <div className="row align-items-end g-4">
-                    <div className="col-lg-8">
-                        <p className="text-uppercase text-muted fs-12 mb-3">{page.eyebrow}</p>
+                <div className="row justify-content-center">
+                    <div className="col-lg-8 text-center">
                         <h1 className="display-6 fw-semibold mb-4">{page.title}</h1>
-                        <p className="lead text-muted mb-0">{page.description}</p>
+                        <p className="lead text-muted mb-0">
+                            {isContactsPage ? page.description : page.lead}
+                        </p>
                     </div>
-
-                    {(page.primaryCta || page.secondaryCta) ? (
-                        <div className="col-lg-4">
-                            <div className="d-flex flex-column flex-sm-row flex-lg-column gap-3 align-items-stretch align-items-sm-start align-items-lg-stretch">
-                                {page.primaryCta ? <ActionLink link={page.primaryCta} variant="primary" /> : null}
-                                {page.secondaryCta ? <ActionLink link={page.secondaryCta} variant="secondary" /> : null}
-                            </div>
-                        </div>
-                    ) : null}
                 </div>
             </div>
         </section>
@@ -142,16 +119,18 @@ function SectionCard({ section }: { section: TrustPageContent["sections"][number
         <article className="h-100 border rounded-4 bg-white p-4 p-lg-5">
             <h2 className="h4 mb-3">{section.title}</h2>
             {section.description ? <p className="text-muted mb-4">{section.description}</p> : null}
-            <ul className="list-unstyled d-grid gap-3 mb-0">
-                {section.items.map((item) => (
-                    <li key={item} className="d-flex gap-3">
-                        <span className="d-inline-flex align-items-center justify-content-center bg-dark text-white rounded-circle flex-shrink-0 mt-1" style={{ width: 22, height: 22, fontSize: 12 }}>
-                            ✓
-                        </span>
-                        <span className="text-muted">{item}</span>
-                    </li>
-                ))}
-            </ul>
+            {section.items.length ? (
+                <ul className="list-unstyled d-grid gap-3 mb-0">
+                    {section.items.map((item) => (
+                        <li key={item} className="d-flex gap-3">
+                            <span className="d-inline-flex align-items-center justify-content-center bg-dark text-white rounded-circle flex-shrink-0 mt-1" style={{ width: 22, height: 22, fontSize: 12 }}>
+                                ✓
+                            </span>
+                            <span className="text-muted">{item}</span>
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
         </article>
     );
 }
@@ -160,7 +139,7 @@ function SectionCards({ page }: { page: TrustPageContent }) {
     return (
         <div className="row g-4">
             {page.sections.map((section) => (
-                <div key={section.id} className="col-lg-6">
+                <div key={section.id} className="col-md-6">
                     <SectionCard section={section} />
                 </div>
             ))}
@@ -359,29 +338,25 @@ export default function TrustPage({ page }: { page: TrustPageContent }) {
 
                 <section className="py-5">
                     <div className="container">
-                        <div className="row justify-content-center mb-5">
-                            <div className="col-lg-9 text-center">
-                                <p className="text-muted fs-5 mb-0">{page.lead}</p>
+                        {page.id === "contacts" ? (
+                            <div className="row justify-content-center mb-5">
+                                <div className="col-lg-9 text-center">
+                                    <p className="text-muted fs-5 mb-0">{page.lead}</p>
+                                </div>
                             </div>
-                        </div>
+                        ) : null}
 
                         <WpPageContent page={page} />
 
                         {page.id === "contacts" ? (
                             <ContactsContentGrid page={page} />
                         ) : (
-                            <>
-                                <FactsGrid page={page} />
-                                <ContactCards page={page} />
-                                <SectionCards page={page} />
-                            </>
+                            <SectionCards page={page} />
                         )}
                     </div>
                 </section>
 
-                <StepsSection page={page} />
                 {page.map ? <MapBlock map={page.map} /> : null}
-                <RelatedLinks page={page} />
             </main>
 
             <FooterPage />

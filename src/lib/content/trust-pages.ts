@@ -19,7 +19,8 @@ export type TrustPageId =
     | "delivery"
     | "installation"
     | "contractors"
-    | "architects";
+    | "architects"
+    | "warranty";
 
 export type TrustPageLink = {
     label: string;
@@ -429,6 +430,45 @@ export const trustPages: Record<TrustPageId, TrustPageContent> = {
         primaryCta: { label: "Связаться", href: "/kontakty" },
         secondaryCta: { label: "Смотреть каталог", href: "/mezhkomnatnye-dveri" },
         relatedLinks: partnerLinks.filter((link) => link.href !== "/partneram/arkhitektoram"),
+    },
+
+    warranty: {
+        id: "warranty",
+        path: "/garantiya",
+        eyebrow: "Клиентам",
+        title: "Гарантия на двери и фурнитуру",
+        description: "Гарантийные условия зависят от типа товара, комплектации и соблюдения правил хранения, монтажа и эксплуатации.",
+        metaTitle: "Гарантия",
+        metaDescription: "Гарантия на межкомнатные двери, фурнитуру и комплектующие: что проверить при получении и как сохранить гарантийные условия.",
+        lead: "Перед подтверждением заказа менеджер уточняет состав комплектации и условия эксплуатации, чтобы гарантийные обязательства были понятны до покупки.",
+        facts: [
+            { label: "Проверка", value: "При получении товара" },
+            { label: "Условия", value: "Зависят от товара и монтажа" },
+            { label: "Документы", value: "Сохраняются после покупки" },
+        ],
+        sections: [
+            {
+                id: "what-covered",
+                title: "На что обращаем внимание",
+                items: [
+                    "Целостность упаковки и отсутствие видимых повреждений при получении.",
+                    "Соответствие выбранной комплектации, размера, цвета и фурнитуры.",
+                    "Соблюдение условий хранения, установки и дальнейшей эксплуатации.",
+                ],
+            },
+            {
+                id: "how-to-apply",
+                title: "Как обратиться по гарантии",
+                items: [
+                    "Свяжитесь с менеджером и опишите ситуацию.",
+                    "Подготовьте номер заказа, фото товара и документы по покупке.",
+                    "Мы проверим обращение и подскажем дальнейшие действия.",
+                ],
+            },
+        ],
+        primaryCta: { label: "Связаться с менеджером", href: "/kontakty" },
+        secondaryCta: { label: "Перейти в каталог", href: "/mezhkomnatnye-dveri" },
+        relatedLinks: customerLinks,
     },
 };
 

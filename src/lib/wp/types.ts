@@ -33,6 +33,38 @@ export type WpEmbedded = {
     "wp:term"?: WpTerm[][];
 };
 
+export type WpAcfImageObject = {
+    id?: number;
+    ID?: number;
+    url?: string;
+    source_url?: string;
+    alt?: string;
+    alt_text?: string;
+    title?: string | WpRenderedField;
+    sizes?: Record<string, string | number | undefined>;
+};
+
+export type WpAcfImageValue = number | string | WpAcfImageObject | null | undefined;
+
+export type WpPageAcf = Record<string, unknown> & {
+    hero_background_image?: WpAcfImageValue;
+    lead_text?: string;
+    contacts_hero_image?: WpAcfImageValue;
+    contacts_description?: string;
+    contacts_lead?: string;
+    contacts_card_information?: string;
+    contacts_section_1_title?: string;
+    contacts_section_1_items?: string;
+    contacts_section_2_title?: string;
+    contacts_section_2_items?: string;
+    contacts_map_title?: string;
+    contacts_map_description?: string;
+    contacts_map_embed_url?: string;
+    contacts_navigator_href?: string;
+    contacts_navigator_label?: string;
+    "link-route"?: string;
+};
+
 export type WpBaseContentItem = {
     id: number;
     date?: string;
@@ -52,6 +84,7 @@ export type WpBaseContentItem = {
 
 export type WpPageRestItem = WpBaseContentItem & {
     type: "page";
+    acf?: WpPageAcf | unknown[];
 };
 
 export type WpPostRestItem = WpBaseContentItem & {
