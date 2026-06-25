@@ -1,7 +1,7 @@
 // src/app/sitemap.ts
 
 import type { MetadataRoute } from "next";
-import { getDoorSitemapProducts } from "@src/lib/woo/products";
+import { getDoorSitemapCategories, getDoorSitemapProducts } from "@src/lib/woo/products";
 import { buildAbsoluteUrl, getDoorCategorySeo } from "@src/lib/seo/site";
 import { getWpContentSitemapEntries } from "@src/lib/wp/content";
 
@@ -10,8 +10,6 @@ export const revalidate = 3600;
 const STATIC_SEO_PATHS = [
     "/",
     getDoorCategorySeo().path,
-    getDoorCategorySeo("skrytye").path,
-    getDoorCategorySeo("protivopozharnye").path,
     "/stenovye-paneli",
 ];
 
@@ -47,6 +45,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const staticUrls = STATIC_SEO_PATHS.map((path, index) => mapStaticPath(path, index === 0 ? 1 : 0.8));
 
     const allUrls: MetadataRoute.Sitemap = [...staticUrls];
+
+    try {
+        const categories = await getDoorSitemapCategories();
+
+        allUrls.push(
+            ...categories.map((category) => ({
+                url: buildAbsoluteUrl(category.path),
+                lastModified: new Date(),
+                changeFrequency: "weekly" as const,
+                priority: category.path === getDoorCategorySeo().path ? 0.8 : 0.75,
+            })),
+        );
+    } catch (error) {
+        console.error("Failed to build door category sitemap entries", error);
+    }
 
     try {
         const products = await getDoorSitemapProducts();

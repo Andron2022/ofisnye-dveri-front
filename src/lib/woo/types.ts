@@ -56,6 +56,8 @@ export type WooProductCategoryTerm = {
     name: string;
     slug: string;
     parent: number;
+    description?: string;
+    menu_order?: number;
     count?: number;
 };
 
@@ -125,6 +127,22 @@ export type CatalogProductCard = {
     path: string;
 };
 
+export type DoorRouteCategory = string;
+
+export type DoorCategoryInfo = {
+    id: number;
+    name: string;
+    slug: string;
+    routeSlug: string;
+    path: string;
+    description: string | null;
+    count: number;
+};
+
+export type DoorCategoryNode = DoorCategoryInfo & {
+    children: DoorCategoryNode[];
+};
+
 export type CatalogResult = {
     type: CatalogType;
     categorySlug: string;
@@ -134,6 +152,8 @@ export type CatalogResult = {
     totalPages: number;
     items: CatalogProductCard[];
     filters: CatalogFiltersState;
+    categoryTree?: DoorCategoryNode;
+    currentCategory?: DoorCategoryInfo;
 };
 
 export type DoorFeedProduct = {
@@ -150,12 +170,11 @@ export type DoorFeedProduct = {
     image: string | null;
     categories: WooProductCategory[];
     categorySlugs: string[];
+    routeCategory: DoorCategoryInfo | null;
     shortDescriptionHtml: string | null;
     descriptionHtml: string | null;
     attributes: DoorCatalogAttributes;
 };
-
-export type DoorRouteCategory = "skrytye" | "protivopozharnye";
 
 export type DoorOptionChoice = {
     id: string;
@@ -250,6 +269,7 @@ export type DoorProductDetails = {
     gallery: WooProductImage[];
     categories: WooProductCategory[];
     categorySlugs: string[];
+    routeCategory: DoorCategoryInfo | null;
     shortDescriptionHtml: string | null;
     descriptionHtml: string | null;
     attributes: DoorCatalogAttributes;

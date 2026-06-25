@@ -12,6 +12,8 @@ import type {
     CatalogType,
     DoorAccessoryCard,
     DoorCatalogAttributes,
+    DoorCategoryInfo,
+    DoorCategoryNode,
     DoorFamilyInfo,
     DoorFamilySibling,
     DoorFeedProduct,
@@ -29,14 +31,18 @@ const ROOT_CATEGORY_BY_TYPE: Record<CatalogType, string> = {
     panels: "stenovye-paneli",
 };
 
-const DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG: Record<DoorRouteCategory, string> = {
-    skrytye: "skrytye-dveri",
-    protivopozharnye: "protivopozharnye-dveri",
-};
+const DOOR_ROOT_CATEGORY_SLUG = ROOT_CATEGORY_BY_TYPE.doors;
 
-const WOO_CATEGORY_SLUG_TO_DOOR_ROUTE_CATEGORY: Record<string, DoorRouteCategory> = {
+const WOO_CATEGORY_SLUG_TO_ROUTE_SLUG_ALIAS: Record<string, string> = {
     "skrytye-dveri": "skrytye",
     "protivopozharnye-dveri": "protivopozharnye",
+};
+
+type DoorRouteContext = {
+    categories: WooProductCategoryTerm[];
+    rootCategory: WooProductCategoryTerm;
+    categoryTree: DoorCategoryNode;
+    flatCategoryNodes: DoorCategoryNode[];
 };
 
 // -----------------------------------------------------
@@ -68,50 +74,50 @@ function getMetaStringByKeys(metaData: WooMetaDataItem[] | undefined, keys: stri
 
 function getMetaNumberByKeys(metaData: WooMetaDataItem[] | undefined, keys: string[], fallback = 0): number {
     const value = getMetaValueByKeys(metaData, keys);
-    
+
     if (typeof value === "number" && Number.isFinite(value)) return value;
-    
+
     if (typeof value === "string") {
         const parsed = Number(value.replace(",", ".").trim());
         if (Number.isFinite(parsed)) return parsed;
     }
-    
+
     return fallback;
 }
 
 function getMetaBooleanByKeys(metaData: WooMetaDataItem[] | undefined, keys: string[], fallback = false): boolean {
     const value = getMetaValueByKeys(metaData, keys);
-    
+
     if (typeof value === "boolean") return value;
     if (typeof value === "number") return value === 1;
-    
+
     if (typeof value === "string") {
         const normalized = value.trim().toLowerCase();
         if (["1", "true", "yes", "on"].includes(normalized)) return true;
         if (["0", "false", "no", "off"].includes(normalized)) return false;
     }
-    
+
     return fallback;
 }
 
 function getMetaNumberArrayByKeys(metaData: WooMetaDataItem[] | undefined, keys: string[]): number[] {
     const value = getMetaValueByKeys(metaData, keys);
-    
+
     if (Array.isArray(value)) {
         return value
             .map((item) => Number(item))
             .filter((item) => Number.isInteger(item) && item > 0);
     }
-    
+
     if (typeof value === "number" && Number.isInteger(value) && value > 0) return [value];
-    
+
     if (typeof value === "string" && value.trim() !== "") {
         return value
             .split(",")
             .map((item) => Number(item.trim()))
             .filter((item) => Number.isInteger(item) && item > 0);
     }
-    
+
     return [];
 }
 
@@ -188,7 +194,7 @@ function mapDoorAttributes(product: WooProduct): DoorCatalogAttributes {
 
 function normalizeMediaUrl(url: string | undefined): string | null {
     if (!url) return null;
-    
+
     try {
         return encodeURI(url);
     } catch {
@@ -204,7 +210,7 @@ function getPublicArticleNo(product: WooProduct): string | null {
     if (typeof product.public_article_no === "string" && product.public_article_no.trim() !== "") {
         return product.public_article_no;
     }
-    
+
     return getMetaStringByKeys(product.meta_data, ["public_article_no"]);
 }
 
@@ -212,48 +218,187 @@ function getHtmlOrNull(value: string | undefined): string | null {
     return value && value.trim() !== "" ? value : null;
 }
 
-function getDoorRouteCategoryFromWooCategorySlugs(categorySlugs: string[]): DoorRouteCategory | null {
-    for (const slug of categorySlugs) {
-        const routeCategory = WOO_CATEGORY_SLUG_TO_DOOR_ROUTE_CATEGORY[slug];
-        if (routeCategory) return routeCategory;
+function normalizeCategoryDescription(value: string | undefined): string | null {
+    const cleaned = value?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return cleaned || null;
+}
+
+function trimDoorCategorySuffix(slug: string): string {
+    return slug.endsWith("-dveri") ? slug.slice(0, -"-dveri".length) : slug;
+}
+
+function buildDoorRouteSlugFromWooCategorySlug(slug: string): string {
+    return WOO_CATEGORY_SLUG_TO_ROUTE_SLUG_ALIAS[slug] ?? trimDoorCategorySuffix(slug);
+}
+
+function buildDoorCategoryPathFromSegments(routeSegments: string[]): string {
+    if (routeSegments.length === 0) return "/mezhkomnatnye-dveri";
+    return `/mezhkomnatnye-dveri/${routeSegments.join("/")}`;
+}
+
+export function buildDoorCategoryPath(routeCategory?: DoorRouteCategory | null): string {
+    if (!routeCategory) return "/mezhkomnatnye-dveri";
+    return buildDoorCategoryPathFromSegments([routeCategory]);
+}
+
+function mapDoorCategoryInfo(category: WooProductCategoryTerm, routeSegments: string[]): DoorCategoryInfo {
+    const routeSlug = routeSegments[routeSegments.length - 1] ?? buildDoorRouteSlugFromWooCategorySlug(category.slug);
+
+    return {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        routeSlug,
+        path: buildDoorCategoryPathFromSegments(routeSegments),
+        description: normalizeCategoryDescription(category.description),
+        count: category.count ?? 0,
+    };
+}
+
+function sortCategoriesForNavigation(items: WooProductCategoryTerm[]): WooProductCategoryTerm[] {
+    return [...items].sort((a, b) => {
+        const orderA = a.menu_order ?? 0;
+        const orderB = b.menu_order ?? 0;
+
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name, "ru");
+    });
+}
+
+function buildDoorCategoryNode(
+    category: WooProductCategoryTerm,
+    categories: WooProductCategoryTerm[],
+    routeSegments: string[],
+): DoorCategoryNode {
+    const directChildren = sortCategoriesForNavigation(categories.filter((item) => item.parent === category.id));
+
+    return {
+        ...mapDoorCategoryInfo(category, routeSegments),
+        children: directChildren.map((child) => buildDoorCategoryNode(
+            child,
+            categories,
+            [...routeSegments, buildDoorRouteSlugFromWooCategorySlug(child.slug)],
+        )),
+    };
+}
+
+function buildDoorCategoryTree(categories: WooProductCategoryTerm[], rootCategory: WooProductCategoryTerm): DoorCategoryNode {
+    return buildDoorCategoryNode(rootCategory, categories, []);
+}
+
+function flattenDoorCategoryTree(root: DoorCategoryNode): DoorCategoryNode[] {
+    return [root, ...root.children.flatMap((child) => flattenDoorCategoryTree(child))];
+}
+
+function createDoorRouteContext(
+    categories: WooProductCategoryTerm[],
+    rootCategory: WooProductCategoryTerm,
+): DoorRouteContext {
+    const categoryTree = buildDoorCategoryTree(categories, rootCategory);
+
+    return {
+        categories,
+        rootCategory,
+        categoryTree,
+        flatCategoryNodes: flattenDoorCategoryTree(categoryTree),
+    };
+}
+
+function findDoorCategoryNodeByWooSlug(context: DoorRouteContext, wooCategorySlug: string): DoorCategoryNode | null {
+    return context.flatCategoryNodes.find((category) => category.slug === wooCategorySlug) ?? null;
+}
+
+function findDoorCategoryNodeByRouteSegments(root: DoorCategoryNode, routeSegments: string[]): DoorCategoryNode | null {
+    if (routeSegments.length === 0) return root;
+
+    let current: DoorCategoryNode = root;
+
+    for (const segment of routeSegments) {
+        const next = current.children.find((child) => child.routeSlug === segment);
+        if (!next) return null;
+        current = next;
     }
-    
-    return null;
+
+    return current;
+}
+
+function findDoorCategoryNodeBySlugOrRouteValue(context: DoorRouteContext, value: string): DoorCategoryNode | null {
+    if (value === context.rootCategory.slug) return context.categoryTree;
+
+    return context.flatCategoryNodes.find((category) => (
+        category.slug === value || category.routeSlug === value || category.path === buildDoorCategoryPath(value)
+    )) ?? null;
+}
+
+function categoryBelongsToRootTree(context: DoorRouteContext, categoryId: number): boolean {
+    return context.flatCategoryNodes.some((category) => category.id === categoryId);
+}
+
+function getCategoryDepth(categoriesById: Map<number, WooProductCategoryTerm>, rootId: number, categoryId: number): number {
+    let depth = 0;
+    let current = categoriesById.get(categoryId);
+
+    while (current && current.id !== rootId && current.parent !== 0) {
+        depth += 1;
+        current = categoriesById.get(current.parent);
+    }
+
+    return depth;
+}
+
+function getPreferredDoorCategoryNodeForProduct(product: WooProduct, context: DoorRouteContext): DoorCategoryNode | null {
+    const categoriesById = new Map(context.categories.map((category) => [category.id, category]));
+    const productCategoryIds = new Set(product.categories.map((category) => category.id));
+
+    return context.flatCategoryNodes
+        .filter((category) => category.id !== context.rootCategory.id)
+        .filter((category) => productCategoryIds.has(category.id))
+        .sort((a, b) => {
+            const depthDiff = getCategoryDepth(categoriesById, context.rootCategory.id, b.id)
+                - getCategoryDepth(categoriesById, context.rootCategory.id, a.id);
+
+            if (depthDiff !== 0) return depthDiff;
+            return a.name.localeCompare(b.name, "ru");
+        })[0] ?? null;
 }
 
 export function getDoorCategoryLabelByRouteCategory(routeCategory?: DoorRouteCategory): string {
     if (routeCategory === "skrytye") return "Скрытые двери";
     if (routeCategory === "protivopozharnye") return "Противопожарные двери";
-    return "Межкомнатные двери";
+    if (!routeCategory) return "Межкомнатные двери";
+
+    return routeCategory
+        .split("-")
+        .filter(Boolean)
+        .map((part) => part[0]?.toUpperCase() + part.slice(1))
+        .join(" ");
 }
 
 export function getDoorTypeLabel(categorySlugs: string[]): string {
-    const routeCategory = getDoorRouteCategoryFromWooCategorySlugs(categorySlugs);
-    
-    if (routeCategory === "skrytye") return "Скрытая";
-    if (routeCategory === "protivopozharnye") return "Противопожарная";
+    if (categorySlugs.includes("skrytye-dveri")) return "Скрытая";
+    if (categorySlugs.includes("protivopozharnye-dveri")) return "Противопожарная";
     return "Межкомнатная";
 }
 
 export function buildDoorProductPath({
                                          slug,
-                                         categorySlugs,
+                                         routeCategoryPath,
                                      }: {
     slug: string;
-    categorySlugs: string[];
+    categorySlugs?: string[];
+    routeCategoryPath?: string | null;
 }): string {
-    const routeCategory = getDoorRouteCategoryFromWooCategorySlugs(categorySlugs);
-    
-    if (routeCategory) {
-        return `/mezhkomnatnye-dveri/${routeCategory}/${slug}`;
+    if (routeCategoryPath) {
+        return `${routeCategoryPath}/${slug}`;
     }
-    
+
     return `/mezhkomnatnye-dveri/${slug}`;
 }
 
-function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
+function mapCatalogProductCard(product: WooProduct, routeContext?: DoorRouteContext): CatalogProductCard {
     const categorySlugs = product.categories.map((category) => category.slug);
-    
+    const preferredCategory = routeContext ? getPreferredDoorCategoryNodeForProduct(product, routeContext) : null;
+
     return {
         id: product.id,
         slug: product.slug,
@@ -264,7 +409,7 @@ function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
         image: getCardImage(product),
         categorySlugs,
         attributes: mapDoorAttributes(product),
-        path: buildDoorProductPath({ slug: product.slug, categorySlugs }),
+        path: buildDoorProductPath({ slug: product.slug, categorySlugs, routeCategoryPath: preferredCategory?.path }),
     };
 }
 
@@ -276,11 +421,11 @@ function mapCatalogProductCard(product: WooProduct): CatalogProductCard {
 
 function parseSelectValue(value: string | null, fallbackId: string): { id: string; label: string } {
     if (!value) return { id: fallbackId, label: fallbackId };
-    
+
     const [rawId, ...labelParts] = value.split(":");
     const id = rawId.trim() || fallbackId;
     const label = labelParts.join(":").trim() || id;
-    
+
     return { id, label };
 }
 
@@ -313,7 +458,7 @@ function normalizeDefaultOptionId(metaData: WooMetaDataItem[], keys: string[], f
 
 export function mapDoorOrderOptions(product: WooProduct): DoorOrderOptions {
     const metaData = product.meta_data;
-    
+
     const boxDefaultOptionId = normalizeDefaultOptionId(
         metaData,
         ["configurator_box_default_option", "box_default_option"],
@@ -339,7 +484,7 @@ export function mapDoorOrderOptions(product: WooProduct): DoorOrderOptions {
         ["configurator_slide_threshold_default_option", "configurator_slide_threshold_defoult_option", "slide_threshold_default_option"],
         "none",
     );
-    
+
     return {
         box: {
             key: "box",
@@ -449,14 +594,14 @@ function getDoorFamilyCode(product: WooProduct): string | null {
 
 function normalizeFamilyCode(value: string | null): string | null {
     if (!value) return null;
-    
+
     const normalized = value.trim().toLowerCase();
     return normalized === "" ? null : normalized;
 }
 
-function mapDoorFamilySibling(product: WooProduct, currentProductId: number): DoorFamilySibling {
-    const card = mapCatalogProductCard(product);
-    
+function mapDoorFamilySibling(product: WooProduct, currentProductId: number, routeContext: DoorRouteContext): DoorFamilySibling {
+    const card = mapCatalogProductCard(product, routeContext);
+
     return {
         id: card.id,
         slug: card.slug,
@@ -474,14 +619,15 @@ async function getDoorFamilyInfo(
     currentProduct: WooProduct,
     categories: WooProductCategoryTerm[],
     rootCategory: WooProductCategoryTerm,
+    routeContext: DoorRouteContext,
 ): Promise<DoorFamilyInfo> {
     const familyCode = getDoorFamilyCode(currentProduct);
     const normalizedFamilyCode = normalizeFamilyCode(familyCode);
-    
+
     if (!normalizedFamilyCode) {
         return { code: null, siblings: [] };
     }
-    
+
     const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
     const response = await wooGetList<WooProduct>("products", {
         status: "publish",
@@ -491,11 +637,11 @@ async function getDoorFamilyInfo(
         orderby: "date",
         order: "desc",
     }, 60);
-    
+
     const siblings = response.items
         .filter((product) => normalizeFamilyCode(getDoorFamilyCode(product)) === normalizedFamilyCode)
-        .map((product) => mapDoorFamilySibling(product, currentProduct.id));
-    
+        .map((product) => mapDoorFamilySibling(product, currentProduct.id, routeContext));
+
     return { code: familyCode, siblings };
 }
 
@@ -506,7 +652,7 @@ async function getDoorFamilyInfo(
 
 function getRelatedAccessoryIds(product: WooProduct): { handles: number[]; hinges: number[]; locks: number[] } {
     const metaData = product.meta_data;
-    
+
     return {
         handles: getMetaNumberArrayByKeys(metaData, ["configurator_related_handles", "configurator_related_handless", "related_handles"]),
         hinges: getMetaNumberArrayByKeys(metaData, ["configurator_related_hinges", "related_hinges"]),
@@ -517,14 +663,14 @@ function getRelatedAccessoryIds(product: WooProduct): { handles: number[]; hinge
 async function getProductsByIds(ids: number[]): Promise<WooProduct[]> {
     const uniqueIds = Array.from(new Set(ids)).filter((id) => id > 0);
     if (uniqueIds.length === 0) return [];
-    
+
     const response = await wooGetList<WooProduct>("products", {
         status: "publish",
         include: uniqueIds.join(","),
         per_page: Math.min(uniqueIds.length, 100),
         page: 1,
     }, 60);
-    
+
     const byId = new Map(response.items.map((product) => [product.id, product]));
     return uniqueIds
         .map((id) => byId.get(id))
@@ -558,13 +704,13 @@ function sortAccessories(items: DoorAccessoryCard[]): DoorAccessoryCard[] {
 
 async function getRelatedAccessories(product: WooProduct): Promise<DoorProductDetails["accessories"]> {
     const ids = getRelatedAccessoryIds(product);
-    
+
     const [handles, hinges, locks] = await Promise.all([
         getProductsByIds(ids.handles),
         getProductsByIds(ids.hinges),
         getProductsByIds(ids.locks),
     ]);
-    
+
     return {
         handles: sortAccessories(handles.map(mapAccessoryCard)),
         hinges: sortAccessories(hinges.map(mapAccessoryCard)),
@@ -576,14 +722,16 @@ async function mapDoorProductDetails(
     product: WooProduct,
     categories: WooProductCategoryTerm[],
     rootCategory: WooProductCategoryTerm,
+    routeContext: DoorRouteContext,
 ): Promise<DoorProductDetails> {
     const categorySlugs = product.categories.map((category) => category.slug);
-    
+    const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);
+
     const [family, accessories] = await Promise.all([
-        getDoorFamilyInfo(product, categories, rootCategory),
+        getDoorFamilyInfo(product, categories, rootCategory, routeContext),
         getRelatedAccessories(product),
     ]);
-    
+
     return {
         id: product.id,
         slug: product.slug,
@@ -594,7 +742,7 @@ async function mapDoorProductDetails(
         regularPrice: product.regular_price ? product.regular_price : null,
         salePrice: product.sale_price ? product.sale_price : null,
         stockStatus: product.stock_status ?? null,
-        path: buildDoorProductPath({ slug: product.slug, categorySlugs }),
+        path: buildDoorProductPath({ slug: product.slug, categorySlugs, routeCategoryPath: preferredCategory?.path }),
         image: getCardImage(product),
         gallery: product.images.map((image) => ({
             ...image,
@@ -602,6 +750,7 @@ async function mapDoorProductDetails(
         })),
         categories: product.categories,
         categorySlugs,
+        routeCategory: preferredCategory,
         shortDescriptionHtml: getHtmlOrNull(product.short_description),
         descriptionHtml: getHtmlOrNull(product.description),
         attributes: mapDoorAttributes(product),
@@ -612,13 +761,30 @@ async function mapDoorProductDetails(
 }
 
 async function getAllProductCategories(): Promise<WooProductCategoryTerm[]> {
-    const response = await wooGetList<WooProductCategoryTerm>("products/categories", {
+    const baseParams = {
         per_page: 100,
-        page: 1,
         hide_empty: false,
+    };
+    const firstPage = await wooGetList<WooProductCategoryTerm>("products/categories", {
+        ...baseParams,
+        page: 1,
     }, 300);
-    
-    return response.items;
+
+    if (firstPage.totalPages <= 1) {
+        return firstPage.items;
+    }
+
+    const restPages = await Promise.all(
+        Array.from({ length: firstPage.totalPages - 1 }, (_, index) => wooGetList<WooProductCategoryTerm>("products/categories", {
+            ...baseParams,
+            page: index + 2,
+        }, 300)),
+    );
+
+    return [
+        ...firstPage.items,
+        ...restPages.flatMap((pageResponse) => pageResponse.items),
+    ];
 }
 
 function findCategoryBySlug(categories: WooProductCategoryTerm[], slug: string): WooProductCategoryTerm | undefined {
@@ -628,32 +794,98 @@ function findCategoryBySlug(categories: WooProductCategoryTerm[], slug: string):
 function collectDescendantCategoryIds(categories: WooProductCategoryTerm[], rootId: number): number[] {
     const result = new Set<number>([rootId]);
     const queue: number[] = [rootId];
-    
+
     while (queue.length > 0) {
         const currentParentId = queue.shift() as number;
         const children = categories.filter((category) => category.parent === currentParentId);
-        
+
         for (const child of children) {
             if (result.has(child.id)) continue;
-            
+
             result.add(child.id);
             queue.push(child.id);
         }
     }
-    
+
     return Array.from(result);
 }
 
-function assertCategoryInsideTree(
-    categories: WooProductCategoryTerm[],
-    rootCategory: WooProductCategoryTerm,
-    requestedCategory: WooProductCategoryTerm,
-): void {
-    const allowedIds = new Set(collectDescendantCategoryIds(categories, rootCategory.id));
-    
-    if (!allowedIds.has(requestedCategory.id)) {
+async function getDoorRouteContext(): Promise<DoorRouteContext> {
+    const categories = await getAllProductCategories();
+    const rootCategory = findCategoryBySlug(categories, DOOR_ROOT_CATEGORY_SLUG);
+
+    if (!rootCategory) {
+        throw new Error(`В WooCommerce не найдена категория со slug "${DOOR_ROOT_CATEGORY_SLUG}"`);
+    }
+
+    return createDoorRouteContext(categories, rootCategory);
+}
+
+async function getCatalogRootCategoryContext(type: CatalogType): Promise<{
+    categories: WooProductCategoryTerm[];
+    rootCategory: WooProductCategoryTerm;
+    doorRouteContext?: DoorRouteContext;
+}> {
+    const categories = await getAllProductCategories();
+    const rootCategorySlug = ROOT_CATEGORY_BY_TYPE[type];
+    const rootCategory = findCategoryBySlug(categories, rootCategorySlug);
+
+    if (!rootCategory) {
+        throw new Error(`В WooCommerce не найдена категория со slug "${rootCategorySlug}"`);
+    }
+
+    return {
+        categories,
+        rootCategory,
+        doorRouteContext: type === "doors" ? createDoorRouteContext(categories, rootCategory) : undefined,
+    };
+}
+
+function resolveEffectiveCatalogCategory({
+                                             categorySlug,
+                                             categories,
+                                             rootCategory,
+                                             doorRouteContext,
+                                         }: {
+    categorySlug?: string;
+    categories: WooProductCategoryTerm[];
+    rootCategory: WooProductCategoryTerm;
+    doorRouteContext?: DoorRouteContext;
+}): { term: WooProductCategoryTerm; doorNode: DoorCategoryNode | null } {
+    if (!categorySlug) {
+        return { term: rootCategory, doorNode: doorRouteContext?.categoryTree ?? null };
+    }
+
+    if (doorRouteContext) {
+        const requestedDoorCategory = findDoorCategoryNodeBySlugOrRouteValue(doorRouteContext, categorySlug);
+
+        if (!requestedDoorCategory) {
+            throw new Error(`В WooCommerce не найдена категория дверей для route/category slug "${categorySlug}"`);
+        }
+
+        const term = findCategoryBySlug(doorRouteContext.categories, requestedDoorCategory.slug);
+        if (!term) {
+            throw new Error(`В WooCommerce не найдена категория со slug "${requestedDoorCategory.slug}"`);
+        }
+
+        return { term, doorNode: requestedDoorCategory };
+    }
+
+    // Non-door catalogs still resolve by real Woo slug, but we keep the same
+    // subtree protection as for doors.
+    const requestedCategory = findCategoryBySlug(categories, categorySlug);
+
+    if (!requestedCategory) {
+        throw new Error(`В WooCommerce не найдена категория со slug "${categorySlug}"`);
+    }
+
+    const allowedCategoryIds = new Set(collectDescendantCategoryIds(categories, rootCategory.id));
+
+    if (!allowedCategoryIds.has(requestedCategory.id)) {
         throw new Error(`Категория "${requestedCategory.slug}" не принадлежит дереву "${rootCategory.slug}"`);
     }
+
+    return { term: requestedCategory, doorNode: null };
 }
 
 async function getAllPublishedProductsInCategoryTree(categoryIds: number[]): Promise<WooProduct[]> {
@@ -697,29 +929,17 @@ type GetCatalogProductsArgs = {
 
 export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<CatalogResult> {
     const { type, page = 1, perPage = 24, categorySlug, filters = {} } = args;
-    const rootCategorySlug = ROOT_CATEGORY_BY_TYPE[type];
-    
-    const categories = await getAllProductCategories();
-    const rootCategory = findCategoryBySlug(categories, rootCategorySlug);
-    
-    if (!rootCategory) {
-        throw new Error(`В WooCommerce не найдена категория со slug "${rootCategorySlug}"`);
-    }
-    
-    let effectiveCategory = rootCategory;
-    
-    if (categorySlug) {
-        const requestedCategory = findCategoryBySlug(categories, categorySlug);
-        
-        if (!requestedCategory) {
-            throw new Error(`В WooCommerce не найдена категория со slug "${categorySlug}"`);
-        }
-        
-        assertCategoryInsideTree(categories, rootCategory, requestedCategory);
-        effectiveCategory = requestedCategory;
-    }
-    
-    const categoryIds = collectDescendantCategoryIds(categories, effectiveCategory.id);
+    const { categories, rootCategory, doorRouteContext } = await getCatalogRootCategoryContext(type);
+    const { term: effectiveCategory, doorNode: currentDoorCategory } = resolveEffectiveCatalogCategory({
+        categorySlug,
+        categories,
+        rootCategory,
+        doorRouteContext,
+    });
+
+    const categoryIds = doorRouteContext
+        ? collectDescendantCategoryIds(categories, effectiveCategory.id).filter((categoryId) => categoryBelongsToRootTree(doorRouteContext, categoryId))
+        : collectDescendantCategoryIds(categories, effectiveCategory.id);
     // MVP-решение: для дверей строим facet groups и фильтруем на BFF-слое.
     // Это быстрее, чем сейчас писать отдельный WP tax_query endpoint, но контракт уже отделён
     // от реализации. Позже внутренность можно заменить на серверную фильтрацию Woo/WP
@@ -738,8 +958,8 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
             orderby: "date",
             order: "desc",
         }, 60);
-    
-    const allCards = productsResponse.items.map(mapCatalogProductCard);
+
+    const allCards = productsResponse.items.map((product) => mapCatalogProductCard(product, doorRouteContext));
     const filteredCards = type === "doors"
         ? allCards.filter((item) => catalogItemMatchesActiveFilters(item.attributes, filters))
         : allCards;
@@ -750,7 +970,7 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     const pageItems = type === "doors"
         ? filteredCards.slice(pageStartIndex, pageStartIndex + perPage)
         : filteredCards;
-    
+
     return {
         type,
         categorySlug: effectiveCategory.slug,
@@ -763,26 +983,28 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
             active: type === "doors" ? filters : {},
             groups: type === "doors" ? buildCatalogFilterGroups(allCards, filters) : [],
         },
+        categoryTree: doorRouteContext?.categoryTree,
+        currentCategory: currentDoorCategory ?? undefined,
     };
 }
 
-
 export async function getDoorSitemapProducts(): Promise<CatalogProductCard[]> {
-    const categories = await getAllProductCategories();
-    const rootCategory = findCategoryBySlug(categories, ROOT_CATEGORY_BY_TYPE.doors);
-
-    if (!rootCategory) {
-        throw new Error(`В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`);
-    }
-
-    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
+    const routeContext = await getDoorRouteContext();
+    const categoryIds = collectDescendantCategoryIds(routeContext.categories, routeContext.rootCategory.id);
     const products = await getAllPublishedProductsInCategoryTree(categoryIds);
 
-    return products.map(mapCatalogProductCard);
+    return products.map((product) => mapCatalogProductCard(product, routeContext));
 }
 
-function mapDoorFeedProduct(product: WooProduct): DoorFeedProduct {
-    const card = mapCatalogProductCard(product);
+export async function getDoorSitemapCategories(): Promise<DoorCategoryInfo[]> {
+    const routeContext = await getDoorRouteContext();
+
+    return routeContext.flatCategoryNodes;
+}
+
+function mapDoorFeedProduct(product: WooProduct, routeContext: DoorRouteContext): DoorFeedProduct {
+    const card = mapCatalogProductCard(product, routeContext);
+    const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);
 
     return {
         ...card,
@@ -790,98 +1012,95 @@ function mapDoorFeedProduct(product: WooProduct): DoorFeedProduct {
         salePrice: product.sale_price ? product.sale_price : null,
         stockStatus: product.stock_status ?? null,
         categories: product.categories,
+        routeCategory: preferredCategory,
         shortDescriptionHtml: getHtmlOrNull(product.short_description),
         descriptionHtml: getHtmlOrNull(product.description),
     };
 }
 
 export async function getDoorFeedProducts(): Promise<DoorFeedProduct[]> {
-    const categories = await getAllProductCategories();
-    const rootCategory = findCategoryBySlug(categories, ROOT_CATEGORY_BY_TYPE.doors);
-
-    if (!rootCategory) {
-        throw new Error(`В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`);
-    }
-
-    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
+    const routeContext = await getDoorRouteContext();
+    const categoryIds = collectDescendantCategoryIds(routeContext.categories, routeContext.rootCategory.id);
     const products = await getAllPublishedProductsInCategoryTree(categoryIds);
 
     return products
         .filter((product) => (product.type ?? "simple") === "simple")
-        .map(mapDoorFeedProduct);
+        .map((product) => mapDoorFeedProduct(product, routeContext));
 }
 
 export type DoorRouteResolution =
-    | { kind: "category"; routeCategory: DoorRouteCategory; wooCategorySlug: string }
-    | { kind: "product"; slug: string; routeCategory?: DoorRouteCategory; wooCategorySlug?: string };
+    | { kind: "category"; category: DoorCategoryInfo; routeCategory: DoorRouteCategory; wooCategorySlug: string }
+    | { kind: "product"; slug: string; category?: DoorCategoryInfo; routeCategory?: DoorRouteCategory; wooCategorySlug?: string };
 
-function isDoorRouteCategory(value: string): value is DoorRouteCategory {
-    return value === "skrytye" || value === "protivopozharnye";
-}
+export async function resolveDoorRoute(segments: string[]): Promise<DoorRouteResolution | null> {
+    if (segments.length === 0) return null;
 
-export function resolveDoorRoute(segments: string[]): DoorRouteResolution | null {
-    if (segments.length === 0 || segments.length > 2) return null;
-    
-    if (segments.length === 1) {
-        const [firstSegment] = segments;
-        
-        if (isDoorRouteCategory(firstSegment)) {
-            return {
-                kind: "category",
-                routeCategory: firstSegment,
-                wooCategorySlug: DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[firstSegment],
-            };
-        }
-        
-        return { kind: "product", slug: firstSegment };
+    const routeContext = await getDoorRouteContext();
+    const categoryNode = findDoorCategoryNodeByRouteSegments(routeContext.categoryTree, segments);
+
+    if (categoryNode && categoryNode.id !== routeContext.rootCategory.id) {
+        return {
+            kind: "category",
+            category: categoryNode,
+            routeCategory: categoryNode.routeSlug,
+            wooCategorySlug: categoryNode.slug,
+        };
     }
-    
-    const [firstSegment, secondSegment] = segments;
-    
-    if (!isDoorRouteCategory(firstSegment)) return null;
-    
+
+    if (segments.length === 1) {
+        return { kind: "product", slug: segments[0] };
+    }
+
+    const categorySegments = segments.slice(0, -1);
+    const productSlug = segments[segments.length - 1];
+    const parentCategoryNode = findDoorCategoryNodeByRouteSegments(routeContext.categoryTree, categorySegments);
+
+    if (!parentCategoryNode || parentCategoryNode.id === routeContext.rootCategory.id) return null;
+
     return {
         kind: "product",
-        slug: secondSegment,
-        routeCategory: firstSegment,
-        wooCategorySlug: DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[firstSegment],
+        slug: productSlug,
+        category: parentCategoryNode,
+        routeCategory: parentCategoryNode.routeSlug,
+        wooCategorySlug: parentCategoryNode.slug,
     };
 }
 
 type GetDoorProductBySlugArgs = {
     slug: string;
     routeCategory?: DoorRouteCategory;
+    wooCategorySlug?: string;
 };
 
 export async function getDoorProductBySlug(args: GetDoorProductBySlugArgs): Promise<DoorProductDetails | null> {
-    const { slug, routeCategory } = args;
-    
-    const categories = await getAllProductCategories();
-    const rootCategory = findCategoryBySlug(categories, ROOT_CATEGORY_BY_TYPE.doors);
-    
-    if (!rootCategory) {
-        throw new Error(`В WooCommerce не найдена категория со slug "${ROOT_CATEGORY_BY_TYPE.doors}"`);
-    }
-    
-    const allowedDoorCategoryIds = new Set(collectDescendantCategoryIds(categories, rootCategory.id));
+    const { slug, routeCategory, wooCategorySlug } = args;
+    const routeContext = await getDoorRouteContext();
+    const expectedCategory = wooCategorySlug
+        ? findDoorCategoryNodeByWooSlug(routeContext, wooCategorySlug)
+        : routeCategory
+            ? findDoorCategoryNodeBySlugOrRouteValue(routeContext, routeCategory)
+            : null;
+
+    if ((wooCategorySlug || routeCategory) && !expectedCategory) return null;
+
+    const allowedDoorCategoryIds = new Set(routeContext.flatCategoryNodes.map((category) => category.id));
     const productsResponse = await wooGetList<WooProduct>("products", {
         status: "publish",
         slug,
         per_page: 20,
         page: 1,
     }, 60);
-    
+
     const rawProduct = productsResponse.items.find((product) => {
         const belongsToDoorsTree = product.categories.some((category) => allowedDoorCategoryIds.has(category.id));
         if (!belongsToDoorsTree) return false;
-        
-        if (!routeCategory) return true;
-        
-        const expectedWooCategorySlug = DOOR_ROUTE_CATEGORY_TO_WOO_CATEGORY_SLUG[routeCategory];
-        return product.categories.some((category) => category.slug === expectedWooCategorySlug);
+
+        if (!expectedCategory) return true;
+
+        return product.categories.some((category) => category.slug === expectedCategory.slug);
     });
-    
+
     if (!rawProduct) return null;
-    
-    return mapDoorProductDetails(rawProduct, categories, rootCategory);
+
+    return mapDoorProductDetails(rawProduct, routeContext.categories, routeContext.rootCategory, routeContext);
 }

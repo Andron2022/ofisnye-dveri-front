@@ -6,14 +6,13 @@ import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
 import {
     getCatalogProducts,
-    getDoorCategoryLabelByRouteCategory,
     getDoorProductBySlug,
-    getDoorTypeLabel,
     resolveDoorRoute,
 } from "@src/lib/woo/products";
 import { parseDoorCatalogFiltersFromSearchParams } from "@src/lib/woo/catalog-filters";
 import type {
     DoorCatalogAttributes,
+    DoorCategoryInfo,
     DoorFamilySibling,
     DoorProductDetails,
 } from "@src/lib/woo/types";
@@ -79,12 +78,18 @@ function DoorAttributesList({ attributes }: { attributes: DoorCatalogAttributes 
     );
 }
 
-function getDoorCategoryLead(routeCategory: "skrytye" | "protivopozharnye"): string {
-    if (routeCategory === "skrytye") {
+function getDoorCategoryLead(category: DoorCategoryInfo): string {
+    if (category.description) return category.description;
+
+    if (category.routeSlug === "skrytye") {
         return "Скрытые двери подходят для современных интерьеров, где важно сохранить чистую плоскость стены и аккуратную геометрию проёма.";
     }
 
-    return "Противопожарные двери подбираются с учётом требований к объекту, огнестойкости, комплектации и условий эксплуатации.";
+    if (category.routeSlug === "protivopozharnye") {
+        return "Противопожарные двери подбираются с учётом требований к объекту, огнестойкости, комплектации и условий эксплуатации.";
+    }
+
+    return `Каталог «${category.name}»: реальные товары WooCommerce, характеристики, комплектация и подбор фурнитуры под проект.`;
 }
 
 type PageParams = Promise<{ segments: string[] }>;
@@ -98,7 +103,7 @@ export async function generateMetadata({
     searchParams: PageSearchParams;
 }): Promise<Metadata> {
     const { segments } = await params;
-    const resolvedRoute = resolveDoorRoute(segments);
+    const resolvedRoute = await resolveDoorRoute(segments);
 
     if (!resolvedRoute) {
         return {
@@ -111,12 +116,12 @@ export async function generateMetadata({
         const resolvedSearchParams = await searchParams;
         const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
 
-        return buildDoorCategoryMetadata(resolvedRoute.routeCategory, filters);
+        return buildDoorCategoryMetadata(resolvedRoute.category, filters);
     }
 
     const product = await getDoorProductBySlug({
         slug: resolvedRoute.slug,
-        routeCategory: resolvedRoute.routeCategory,
+        wooCategorySlug: resolvedRoute.wooCategorySlug,
     });
 
     if (!product) {
@@ -129,14 +134,13 @@ export async function generateMetadata({
     return buildDoorProductMetadata(product);
 }
 
-async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }: {
-    wooCategorySlug: string;
-    routeCategory: "skrytye" | "protivopozharnye";
+async function DoorCategoryPage({ category, searchParams }: {
+    category: DoorCategoryInfo;
     searchParams: PageSearchParams;
 }) {
     const resolvedSearchParams = await searchParams;
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
-    const routeHref = `/mezhkomnatnye-dveri/${routeCategory}`;
+    const routeHref = category.path;
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let loadError: string | null = null;
 
@@ -145,21 +149,19 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
             type: "doors",
             page: 1,
             perPage: 24,
-            categorySlug: wooCategorySlug,
+            categorySlug: category.slug,
             filters,
         });
     } catch (error) {
         loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию. Попробуйте обновить страницу.";
     }
 
-    const categoryTitle = getDoorCategoryLabelByRouteCategory(routeCategory);
-
     return (
         <>
             <script
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{
-                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorCategoryBreadcrumbItems(routeCategory))),
+                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorCategoryBreadcrumbItems(category))),
                 }}
             />
             <TopBanner />
@@ -167,10 +169,11 @@ async function DoorCategoryPage({ wooCategorySlug, routeCategory, searchParams }
             <main id="nt_content">
                 <KallesCatalogShell
                     eyebrow="Категория дверей"
-                    title={categoryTitle}
-                    description={getDoorCategoryLead(routeCategory)}
+                    title={category.name}
+                    description={getDoorCategoryLead(category)}
                     total={catalog?.total}
                     activeHref={routeHref}
+                    categoryTree={catalog?.categoryTree}
                     filters={catalog ? (
                         <CatalogFilters
                             filters={catalog.filters}
@@ -589,6 +592,8 @@ function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
 }
 
 function DoorProductPage({ product }: { product: DoorProductDetails }) {
+    const breadcrumbs = getDoorProductBreadcrumbItems(product);
+
     return (
         <>
             <script
@@ -609,11 +614,20 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
                 <section className="bg-light border-bottom py-3">
                     <div className="container">
                         <nav className="small d-flex flex-wrap align-items-center gap-2">
-                            <Link href="/" className="text-decoration-none">Главная</Link>
-                            <span className="text-muted">/</span>
-                            <Link href="/mezhkomnatnye-dveri" className="text-decoration-none">Межкомнатные двери</Link>
-                            <span className="text-muted">/</span>
-                            <span className="text-muted">{product.name}</span>
+                            {breadcrumbs.map((item, index) => {
+                                const isLast = index === breadcrumbs.length - 1;
+
+                                return (
+                                    <span key={`${item.path}-${index}`} className="d-inline-flex align-items-center gap-2">
+                                        {isLast ? (
+                                            <span className="text-muted">{item.name}</span>
+                                        ) : (
+                                            <Link href={item.path} className="text-decoration-none">{item.name}</Link>
+                                        )}
+                                        {!isLast ? <span className="text-muted">/</span> : null}
+                                    </span>
+                                );
+                            })}
                         </nav>
                     </div>
                 </section>
@@ -676,22 +690,21 @@ export default async function InteriorDoorsSegmentsPage({
     searchParams: PageSearchParams;
 }) {
     const { segments } = await params;
-    const resolvedRoute = resolveDoorRoute(segments);
-    
+    const resolvedRoute = await resolveDoorRoute(segments);
+
     if (!resolvedRoute) notFound();
-    
+
     if (resolvedRoute.kind === "category") {
         return (
             <DoorCategoryPage
-                wooCategorySlug={resolvedRoute.wooCategorySlug}
-                routeCategory={resolvedRoute.routeCategory}
+                category={resolvedRoute.category}
                 searchParams={searchParams}
             />
         );
     }
-    
-    const product = await getDoorProductBySlug({ slug: resolvedRoute.slug, routeCategory: resolvedRoute.routeCategory });
+
+    const product = await getDoorProductBySlug({ slug: resolvedRoute.slug, wooCategorySlug: resolvedRoute.wooCategorySlug });
     if (!product) notFound();
-    
+
     return <DoorProductPage product={product} />;
 }

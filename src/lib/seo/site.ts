@@ -5,6 +5,7 @@ import { hasActiveCatalogFilters } from "@src/lib/woo/catalog-filters";
 import type {
     CatalogActiveFilters,
     DoorCatalogAttributes,
+    DoorCategoryInfo,
     DoorProductDetails,
     DoorRouteCategory,
 } from "@src/lib/woo/types";
@@ -18,7 +19,7 @@ export type DoorCategorySeo = {
     path: string;
 };
 
-type BreadcrumbItem = {
+export type BreadcrumbItem = {
     name: string;
     path: string;
 };
@@ -132,8 +133,28 @@ export function shouldIndexCatalogPage(filters: CatalogActiveFilters): boolean {
     return !hasActiveCatalogFilters(filters);
 }
 
-export function getDoorCategorySeo(routeCategory?: DoorRouteCategory): DoorCategorySeo {
-    if (routeCategory === "skrytye") {
+function humanizeRouteCategory(routeCategory: DoorRouteCategory): string {
+    return routeCategory
+        .split("-")
+        .filter(Boolean)
+        .map((part) => part[0]?.toUpperCase() + part.slice(1))
+        .join(" ");
+}
+
+function buildGenericDoorCategoryDescription(title: string): string {
+    return `Каталог ${title.toLowerCase()} из WooCommerce: реальные товары, характеристики, комплектация, фурнитура и оформление заказа без онлайн-оплаты.`;
+}
+
+export function getDoorCategorySeo(category?: DoorCategoryInfo | DoorRouteCategory): DoorCategorySeo {
+    if (category && typeof category === "object") {
+        return {
+            title: category.name,
+            description: category.description || buildGenericDoorCategoryDescription(category.name),
+            path: category.path,
+        };
+    }
+
+    if (category === "skrytye") {
         return {
             title: "Скрытые межкомнатные двери",
             description: "Каталог скрытых межкомнатных дверей из WooCommerce: размеры, цвета, характеристики, комплектация и заказ без онлайн-оплаты.",
@@ -141,11 +162,21 @@ export function getDoorCategorySeo(routeCategory?: DoorRouteCategory): DoorCateg
         };
     }
 
-    if (routeCategory === "protivopozharnye") {
+    if (category === "protivopozharnye") {
         return {
             title: "Противопожарные межкомнатные двери",
             description: "Каталог противопожарных межкомнатных дверей из WooCommerce: характеристики, огнестойкость, комплектация и заказ без онлайн-оплаты.",
             path: "/mezhkomnatnye-dveri/protivopozharnye",
+        };
+    }
+
+    if (category) {
+        const title = humanizeRouteCategory(category);
+
+        return {
+            title,
+            description: buildGenericDoorCategoryDescription(title),
+            path: `/mezhkomnatnye-dveri/${category}`,
         };
     }
 
@@ -156,8 +187,8 @@ export function getDoorCategorySeo(routeCategory?: DoorRouteCategory): DoorCateg
     };
 }
 
-export function buildDoorCategoryMetadata(routeCategory: DoorRouteCategory | undefined, filters: CatalogActiveFilters): Metadata {
-    const seo = getDoorCategorySeo(routeCategory);
+export function buildDoorCategoryMetadata(category: DoorCategoryInfo | DoorRouteCategory | undefined, filters: CatalogActiveFilters): Metadata {
+    const seo = getDoorCategorySeo(category);
     const index = shouldIndexCatalogPage(filters);
 
     return buildSeoMetadata({
@@ -198,32 +229,38 @@ export function buildDoorProductMetadata(product: DoorProductDetails): Metadata 
     });
 }
 
-export function getDoorCategoryBreadcrumbItems(routeCategory?: DoorRouteCategory): BreadcrumbItem[] {
+export function getDoorCategoryBreadcrumbItems(category?: DoorCategoryInfo | DoorRouteCategory): BreadcrumbItem[] {
     const items: BreadcrumbItem[] = [
         { name: "Главная", path: "/" },
         { name: "Межкомнатные двери", path: "/mezhkomnatnye-dveri" },
     ];
 
-    if (routeCategory === "skrytye") {
+    if (category && typeof category === "object") {
+        if (category.path !== "/mezhkomnatnye-dveri") {
+            items.push({ name: category.name, path: category.path });
+        }
+
+        return items;
+    }
+
+    if (category === "skrytye") {
         items.push({ name: "Скрытые двери", path: "/mezhkomnatnye-dveri/skrytye" });
     }
 
-    if (routeCategory === "protivopozharnye") {
+    if (category === "protivopozharnye") {
         items.push({ name: "Противопожарные двери", path: "/mezhkomnatnye-dveri/protivopozharnye" });
+    }
+
+    if (category && category !== "skrytye" && category !== "protivopozharnye") {
+        items.push({ name: humanizeRouteCategory(category), path: `/mezhkomnatnye-dveri/${category}` });
     }
 
     return items;
 }
 
 export function getDoorProductBreadcrumbItems(product: DoorProductDetails): BreadcrumbItem[] {
-    const category: DoorRouteCategory | undefined = product.categorySlugs.includes("skrytye-dveri")
-        ? "skrytye"
-        : product.categorySlugs.includes("protivopozharnye-dveri")
-            ? "protivopozharnye"
-            : undefined;
-
     return [
-        ...getDoorCategoryBreadcrumbItems(category),
+        ...getDoorCategoryBreadcrumbItems(product.routeCategory ?? undefined),
         { name: product.name, path: product.path },
     ];
 }

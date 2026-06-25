@@ -61,6 +61,7 @@ export default async function DoorsCatalogPage({ searchParams }: { searchParams:
                     description="Подберите дверь по размеру, цвету, материалу, типу открывания и другим характеристикам. После выбора можно настроить комплектацию и добавить фурнитуру."
                     total={catalog?.total}
                     activeHref="/mezhkomnatnye-dveri"
+                    categoryTree={catalog?.categoryTree}
                     filters={catalog ? (
                         <CatalogFilters
                             filters={catalog.filters}
