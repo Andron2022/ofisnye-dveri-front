@@ -87,17 +87,45 @@ export type WpPageRestItem = WpBaseContentItem & {
     acf?: WpPageAcf | unknown[];
 };
 
+export type WpPostAcf = Record<string, unknown> & {
+    post_related_product_ids?: string | number | number[];
+    post_related_post_ids?: string | number | number[];
+};
+
+export type WpPortfolioProjectAcf = Record<string, unknown> & {
+    portfolio_card_image?: WpAcfImageValue;
+    portfolio_card_label?: string;
+    portfolio_card_order?: string | number;
+    portfolio_is_featured?: boolean | string | number;
+    portfolio_grid_size?: string;
+    portfolio_hero_image?: WpAcfImageValue;
+    portfolio_project_date?: string;
+    portfolio_location?: string;
+    portfolio_client?: string;
+    portfolio_scope?: string;
+    portfolio_quote?: string;
+    portfolio_gallery_image_1?: WpAcfImageValue;
+    portfolio_gallery_image_2?: WpAcfImageValue;
+    portfolio_gallery_image_3?: WpAcfImageValue;
+    portfolio_gallery_image_4?: WpAcfImageValue;
+    portfolio_gallery_image_5?: WpAcfImageValue;
+    portfolio_gallery_image_6?: WpAcfImageValue;
+    portfolio_related_product_ids?: string | number | number[];
+    portfolio_related_project_ids?: string | number | number[];
+};
+
 export type WpPostRestItem = WpBaseContentItem & {
     type: "post";
     categories?: number[];
     tags?: number[];
+    acf?: WpPostAcf | unknown[];
 };
 
 export type WpPortfolioProjectRestItem = WpBaseContentItem & {
     type: "portfolio_project";
     portfolio_project_category?: number[];
     portfolio_project_categories?: WpTerm[];
-    acf?: Record<string, unknown> | unknown[];
+    acf?: WpPortfolioProjectAcf | unknown[];
 };
 
 export type WpNavigationRestItem = {

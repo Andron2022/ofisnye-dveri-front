@@ -4,6 +4,7 @@ import Link from "next/link";
 import Header from "@src/components/Headers/Header";
 import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
+import type { CatalogProductCard } from "@src/lib/woo/types";
 import type { WpContentDetails, WpContentPreview } from "@src/lib/wp/content";
 
 function formatDate(value: string | undefined): string | null {
@@ -18,6 +19,15 @@ function formatDate(value: string | undefined): string | null {
     } catch {
         return null;
     }
+}
+
+function formatPrice(price: string | null): string {
+    if (!price) return "Цена по запросу";
+
+    const normalized = Number(price.replace(",", "."));
+    if (Number.isNaN(normalized)) return `${price} ₽`;
+
+    return `${new Intl.NumberFormat("ru-RU").format(normalized)} ₽`;
 }
 
 function ContentImage({ item }: { item: Pick<WpContentPreview, "featuredImage" | "featuredImageAlt" | "title"> }) {
@@ -114,16 +124,131 @@ export function WpContentArchivePage({
     );
 }
 
+type RelatedSectionConfig = {
+    title: string;
+    emptyMessage: string;
+};
+
+function RelatedEmptyMessage({ message }: { message: string }) {
+    return (
+        <div className="border bg-light rounded-3 p-4 text-muted">
+            {message}
+        </div>
+    );
+}
+
+function RelatedProductCard({ item }: { item: CatalogProductCard }) {
+    const articleLabel = item.publicArticleNo ? `Арт. ${item.publicArticleNo}` : item.sku ? `Арт. ${item.sku}` : null;
+
+    return (
+        <article className="topbar-product-card h-100 border bg-white d-flex flex-column">
+            <Link href={item.path} className="d-block text-reset text-decoration-none">
+                <div className="ratio ratio-4x3 bg-light overflow-hidden">
+                    {item.image ? (
+                        <img src={item.image} alt={item.name} className="img-fluid w-100 h-100 object-fit-cover" loading="lazy" />
+                    ) : (
+                        <div className="w-100 h-100 d-flex align-items-center justify-content-center text-muted fs-14">
+                            Нет изображения
+                        </div>
+                    )}
+                </div>
+            </Link>
+
+            <div className="p-3 d-flex flex-column flex-grow-1">
+                {articleLabel ? <p className="text-muted fs-12 mb-2">{articleLabel}</p> : null}
+                <h3 className="fs-16 lh-base mb-2">
+                    <Link href={item.path} className="main_link_acid_green text-decoration-none">
+                        {item.name}
+                    </Link>
+                </h3>
+                <div className="mt-auto d-flex justify-content-between align-items-center gap-3 pt-2">
+                    <span className="text-muted fs-14">{formatPrice(item.price)}</span>
+                    <Link href={item.path} className="main_link_acid_green text-decoration-none fs-14 text-nowrap">
+                        Подробнее
+                    </Link>
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function RelatedContentCard({ item }: { item: WpContentPreview }) {
+    const date = formatDate(item.date);
+
+    return (
+        <article className="topbar-product-card h-100 border bg-white">
+            <Link href={item.path} className="d-block text-reset text-decoration-none">
+                <div className="ratio ratio-4x3 bg-light overflow-hidden">
+                    <ContentImage item={item} />
+                </div>
+                <div className="p-3">
+                    {date ? <p className="text-muted fs-12 mb-2">{date}</p> : null}
+                    <h3 className="fs-16 lh-base mb-2">{item.title}</h3>
+                    {item.excerpt ? <p className="text-muted fs-14 mb-0">{item.excerpt}</p> : null}
+                </div>
+            </Link>
+        </article>
+    );
+}
+
+function RelatedProductsSection({ config, items }: { config?: RelatedSectionConfig; items: CatalogProductCard[] }) {
+    if (!config) return null;
+
+    return (
+        <section className="mt-5 pt-4 border-top">
+            <h2 className="h4 mb-4">{config.title}</h2>
+            {items.length > 0 ? (
+                <div className="row g-4">
+                    {items.map((item) => (
+                        <div key={item.id} className="col-md-6 col-lg-4">
+                            <RelatedProductCard item={item} />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <RelatedEmptyMessage message={config.emptyMessage} />
+            )}
+        </section>
+    );
+}
+
+function RelatedContentSection({ config, items }: { config?: RelatedSectionConfig; items: WpContentPreview[] }) {
+    if (!config) return null;
+
+    return (
+        <section className="mt-5 pt-4 border-top">
+            <h2 className="h4 mb-4">{config.title}</h2>
+            {items.length > 0 ? (
+                <div className="row g-4">
+                    {items.map((item) => (
+                        <div key={item.id} className="col-md-6 col-lg-4">
+                            <RelatedContentCard item={item} />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <RelatedEmptyMessage message={config.emptyMessage} />
+            )}
+        </section>
+    );
+}
+
 export function WpContentDetailPage({
     item,
     eyebrow,
     backHref,
     backLabel,
+    relatedProductsSection,
+    relatedPostsSection,
+    relatedProjectsSection,
 }: {
     item: WpContentDetails;
     eyebrow: string;
     backHref: string;
     backLabel: string;
+    relatedProductsSection?: RelatedSectionConfig;
+    relatedPostsSection?: RelatedSectionConfig;
+    relatedProjectsSection?: RelatedSectionConfig;
 }) {
     const date = formatDate(item.date);
 
@@ -164,6 +289,10 @@ export function WpContentDetailPage({
                                         className="wp-content fs-6 lh-lg"
                                         dangerouslySetInnerHTML={{ __html: item.contentHtml }}
                                     />
+
+                                    <RelatedProductsSection config={relatedProductsSection} items={item.relatedProducts} />
+                                    <RelatedContentSection config={relatedPostsSection} items={item.relatedPosts} />
+                                    <RelatedContentSection config={relatedProjectsSection} items={item.relatedProjects} />
 
                                     <div className="border-top mt-5 pt-4">
                                         <Link href={backHref} className="btn btn-outline-dark rounded-0 px-4 py-3">

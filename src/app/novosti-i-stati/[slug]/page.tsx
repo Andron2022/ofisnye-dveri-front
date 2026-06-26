@@ -9,7 +9,7 @@ type PageParams = Promise<{ slug: string }>;
 
 export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
     const { slug } = await params;
-    const post = await getWpPostBySlug(slug);
+    const post = await getWpPostBySlug(slug, { includeRelated: false });
 
     if (!post) {
         return {
@@ -33,6 +33,14 @@ export default async function NewsOrArticlePage({ params }: { params: PageParams
             eyebrow="Новости и статьи"
             backHref="/novosti-i-stati"
             backLabel="Вернуться к материалам"
+            relatedProductsSection={{
+                title: "Связанные товары",
+                emptyMessage: "Связанные товары не выбраны.",
+            }}
+            relatedPostsSection={{
+                title: "Связанные новости и статьи",
+                emptyMessage: "Связанные материалы не выбраны.",
+            }}
         />
     );
 }

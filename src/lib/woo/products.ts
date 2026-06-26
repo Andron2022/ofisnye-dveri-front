@@ -1002,6 +1002,33 @@ export async function getDoorSitemapCategories(): Promise<DoorCategoryInfo[]> {
     return routeContext.flatCategoryNodes;
 }
 
+function isAddonOnlyProduct(product: WooProduct): boolean {
+    return getMetaBooleanByKeys(product.meta_data, [
+        "addon_configurator_is_addon_only",
+        "addon_is_addon_only",
+    ]);
+}
+
+function isPrimaryDoorProduct(product: WooProduct, routeContext: DoorRouteContext): boolean {
+    if ((product.type ?? "simple") !== "simple") return false;
+    if (isAddonOnlyProduct(product)) return false;
+
+    const allowedDoorCategoryIds = new Set(routeContext.flatCategoryNodes.map((category) => category.id));
+    return product.categories.some((category) => allowedDoorCategoryIds.has(category.id));
+}
+
+export async function getPrimaryRelatedProductsByIds(ids: number[]): Promise<CatalogProductCard[]> {
+    const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
+    if (uniqueIds.length === 0) return [];
+
+    const routeContext = await getDoorRouteContext();
+    const products = await getProductsByIds(uniqueIds);
+
+    return products
+        .filter((product) => isPrimaryDoorProduct(product, routeContext))
+        .map((product) => mapCatalogProductCard(product, routeContext));
+}
+
 function mapDoorFeedProduct(product: WooProduct, routeContext: DoorRouteContext): DoorFeedProduct {
     const card = mapCatalogProductCard(product, routeContext);
     const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);

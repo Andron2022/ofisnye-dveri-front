@@ -9,7 +9,7 @@ type PageParams = Promise<{ slug: string }>;
 
 export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
     const { slug } = await params;
-    const project = await getWpPortfolioProjectBySlug(slug);
+    const project = await getWpPortfolioProjectBySlug(slug, { includeRelated: false });
 
     if (!project) {
         return {
@@ -33,6 +33,14 @@ export default async function PortfolioDetailPage({ params }: { params: PagePara
             eyebrow="Портфолио"
             backHref="/portfolio"
             backLabel="Вернуться к портфолио"
+            relatedProductsSection={{
+                title: "Товары из проекта",
+                emptyMessage: "Связанные товары не выбраны.",
+            }}
+            relatedProjectsSection={{
+                title: "Связанные проекты",
+                emptyMessage: "Связанные проекты не выбраны.",
+            }}
         />
     );
 }

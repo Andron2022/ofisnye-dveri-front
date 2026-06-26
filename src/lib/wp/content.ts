@@ -14,6 +14,8 @@ import type {
     TrustPageId,
     TrustPageSection,
 } from "@src/lib/content/trust-pages";
+import { getPrimaryRelatedProductsByIds } from "@src/lib/woo/products";
+import type { CatalogProductCard } from "@src/lib/woo/types";
 import { wpPublicGet, wpPublicGetList } from "@src/lib/wp/client";
 import { getRenderedText, getRenderedValue, stripHtml, truncateText } from "@src/lib/wp/format";
 import type {
@@ -23,7 +25,9 @@ import type {
     WpEmbeddedMedia,
     WpPageAcf,
     WpPageRestItem,
+    WpPortfolioProjectAcf,
     WpPortfolioProjectRestItem,
+    WpPostAcf,
     WpPostRestItem,
     WpTerm,
 } from "@src/lib/wp/types";
@@ -54,6 +58,9 @@ export type WpContentDetails = WpContentPreview & {
     contentHtml: string;
     metaTitle: string;
     metaDescription: string;
+    relatedProducts: CatalogProductCard[];
+    relatedPosts: WpContentPreview[];
+    relatedProjects: WpContentPreview[];
 };
 
 export type WpSitemapEntry = {
@@ -121,6 +128,9 @@ function normalizeContentDetails(item: WpBaseContentItem, pathPrefix: string): W
         contentHtml: getRenderedValue(item.content),
         metaTitle: preview.title,
         metaDescription: truncateText(fallbackDescription, 220),
+        relatedProducts: [],
+        relatedPosts: [],
+        relatedProjects: [],
     };
 }
 
@@ -135,6 +145,47 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function getPageAcf(wpPage: WpPageRestItem): WpPageAcf {
     return isPlainObject(wpPage.acf) ? wpPage.acf as WpPageAcf : {};
+}
+
+function getPostAcf(wpPost: WpPostRestItem): WpPostAcf {
+    return isPlainObject(wpPost.acf) ? wpPost.acf as WpPostAcf : {};
+}
+
+function getPortfolioProjectAcf(wpProject: WpPortfolioProjectRestItem): WpPortfolioProjectAcf {
+    return isPlainObject(wpProject.acf) ? wpProject.acf as WpPortfolioProjectAcf : {};
+}
+
+function parseRelationIds(value: unknown): number[] {
+    const values = Array.isArray(value) ? value : [value];
+    const result = new Set<number>();
+
+    for (const item of values) {
+        if (typeof item === "number" && Number.isInteger(item) && item > 0) {
+            result.add(item);
+            continue;
+        }
+
+        if (typeof item !== "string") continue;
+
+        item
+            .split(/[\s,;]+/)
+            .map((part) => Number(part.trim()))
+            .filter((id) => Number.isInteger(id) && id > 0)
+            .forEach((id) => result.add(id));
+    }
+
+    return Array.from(result);
+}
+
+async function getRelatedProductsByIds(ids: number[]): Promise<CatalogProductCard[]> {
+    if (ids.length === 0) return [];
+
+    try {
+        return await getPrimaryRelatedProductsByIds(ids);
+    } catch (error) {
+        console.error("Failed to load related primary products", error);
+        return [];
+    }
 }
 
 function asString(value: unknown): string {
@@ -437,7 +488,45 @@ export async function getWpPosts(limit = 20): Promise<WpContentPreview[]> {
     return items.map((item) => normalizeContentPreview(item, "/novosti-i-stati"));
 }
 
-export async function getWpPostBySlug(slug: string): Promise<WpContentDetails | null> {
+async function getWpPostsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
+    const uniqueIds = Array.from(new Set(ids))
+        .filter((id) => Number.isInteger(id) && id > 0 && id !== excludeId);
+
+    if (uniqueIds.length === 0) return [];
+
+    try {
+        const { items } = await wpPublicGetList<WpPostRestItem>(
+            "posts",
+            {
+                include: uniqueIds.join(","),
+                per_page: Math.min(uniqueIds.length, 100),
+                status: "publish",
+                orderby: "include",
+                _embed: "wp:featuredmedia,wp:term",
+            },
+            CONTENT_REVALIDATE_SECONDS,
+        );
+
+        const byId = new Map(items.map((item) => [item.id, item]));
+
+        return uniqueIds
+            .map((id) => byId.get(id))
+            .filter((item): item is WpPostRestItem => Boolean(item))
+            .map((item) => normalizeContentPreview(item, "/novosti-i-stati"));
+    } catch (error) {
+        console.error("Failed to load related WP posts", error);
+        return [];
+    }
+}
+
+type GetWpContentBySlugOptions = {
+    includeRelated?: boolean;
+};
+
+export async function getWpPostBySlug(
+    slug: string,
+    options: GetWpContentBySlugOptions = {},
+): Promise<WpContentDetails | null> {
     const { items } = await wpPublicGetList<WpPostRestItem>(
         "posts",
         {
@@ -449,8 +538,22 @@ export async function getWpPostBySlug(slug: string): Promise<WpContentDetails | 
     );
 
     const item = items[0];
+    if (!item) return null;
 
-    return item ? normalizeContentDetails(item, "/novosti-i-stati") : null;
+    const details = normalizeContentDetails(item, "/novosti-i-stati");
+    if (options.includeRelated === false) return details;
+
+    const acf = getPostAcf(item);
+    const [relatedProducts, relatedPosts] = await Promise.all([
+        getRelatedProductsByIds(parseRelationIds(acf.post_related_product_ids)),
+        getWpPostsByIds(parseRelationIds(acf.post_related_post_ids), item.id),
+    ]);
+
+    return {
+        ...details,
+        relatedProducts,
+        relatedPosts,
+    };
 }
 
 export async function getWpPortfolioProjects(limit = 20): Promise<WpContentPreview[]> {
@@ -469,7 +572,41 @@ export async function getWpPortfolioProjects(limit = 20): Promise<WpContentPrevi
     return items.map((item) => normalizeContentPreview(item, "/portfolio"));
 }
 
-export async function getWpPortfolioProjectBySlug(slug: string): Promise<WpContentDetails | null> {
+async function getWpPortfolioProjectsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
+    const uniqueIds = Array.from(new Set(ids))
+        .filter((id) => Number.isInteger(id) && id > 0 && id !== excludeId);
+
+    if (uniqueIds.length === 0) return [];
+
+    try {
+        const { items } = await wpPublicGetList<WpPortfolioProjectRestItem>(
+            "portfolio_project",
+            {
+                include: uniqueIds.join(","),
+                per_page: Math.min(uniqueIds.length, 100),
+                status: "publish",
+                orderby: "include",
+                _embed: "wp:featuredmedia,wp:term",
+            },
+            CONTENT_REVALIDATE_SECONDS,
+        );
+
+        const byId = new Map(items.map((item) => [item.id, item]));
+
+        return uniqueIds
+            .map((id) => byId.get(id))
+            .filter((item): item is WpPortfolioProjectRestItem => Boolean(item))
+            .map((item) => normalizeContentPreview(item, "/portfolio"));
+    } catch (error) {
+        console.error("Failed to load related portfolio projects", error);
+        return [];
+    }
+}
+
+export async function getWpPortfolioProjectBySlug(
+    slug: string,
+    options: GetWpContentBySlugOptions = {},
+): Promise<WpContentDetails | null> {
     const { items } = await wpPublicGetList<WpPortfolioProjectRestItem>(
         "portfolio_project",
         {
@@ -481,8 +618,22 @@ export async function getWpPortfolioProjectBySlug(slug: string): Promise<WpConte
     );
 
     const item = items[0];
+    if (!item) return null;
 
-    return item ? normalizeContentDetails(item, "/portfolio") : null;
+    const details = normalizeContentDetails(item, "/portfolio");
+    if (options.includeRelated === false) return details;
+
+    const acf = getPortfolioProjectAcf(item);
+    const [relatedProducts, relatedProjects] = await Promise.all([
+        getRelatedProductsByIds(parseRelationIds(acf.portfolio_related_product_ids)),
+        getWpPortfolioProjectsByIds(parseRelationIds(acf.portfolio_related_project_ids), item.id),
+    ]);
+
+    return {
+        ...details,
+        relatedProducts,
+        relatedProjects,
+    };
 }
 
 export function buildWpContentMetadata(item: WpContentDetails): Metadata {
