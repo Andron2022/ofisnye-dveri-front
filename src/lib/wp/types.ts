@@ -88,6 +88,8 @@ export type WpPageRestItem = WpBaseContentItem & {
 };
 
 export type WpPostAcf = Record<string, unknown> & {
+    post_quote?: string;
+    post_sub_text_related_products?: string;
     post_related_product_ids?: string | number | number[];
     post_related_post_ids?: string | number | number[];
 };

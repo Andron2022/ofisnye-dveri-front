@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { WpContentDetailPage } from "@src/components/content/WpContentViews";
+import { KallesPortfolioDetailPage } from "@src/components/content/KallesContentViews";
 import { buildWpContentMetadata, getWpPortfolioProjectBySlug } from "@src/lib/wp/content";
 
 export const revalidate = 300;
@@ -27,20 +27,5 @@ export default async function PortfolioDetailPage({ params }: { params: PagePara
 
     if (!project) notFound();
 
-    return (
-        <WpContentDetailPage
-            item={project}
-            eyebrow="Портфолио"
-            backHref="/portfolio"
-            backLabel="Вернуться к портфолио"
-            relatedProductsSection={{
-                title: "Товары из проекта",
-                emptyMessage: "Связанные товары не выбраны.",
-            }}
-            relatedProjectsSection={{
-                title: "Связанные проекты",
-                emptyMessage: "Связанные проекты не выбраны.",
-            }}
-        />
-    );
+    return <KallesPortfolioDetailPage item={project} />;
 }

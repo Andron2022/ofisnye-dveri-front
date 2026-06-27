@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { WpContentArchivePage } from "@src/components/content/WpContentViews";
+import { KallesPortfolioArchivePage } from "@src/components/content/KallesContentViews";
 import { buildSeoMetadata } from "@src/lib/seo/site";
 import { getWpPortfolioProjects } from "@src/lib/wp/content";
 import type { WpContentPreview } from "@src/lib/wp/content";
@@ -16,19 +16,18 @@ export default async function PortfolioPage() {
     let projects: WpContentPreview[] = [];
 
     try {
-        projects = await getWpPortfolioProjects(20);
+        projects = await getWpPortfolioProjects(100);
     } catch (error) {
         console.error("Failed to load WP portfolio archive", error);
     }
 
     return (
-        <WpContentArchivePage
-            eyebrow="Портфолио"
-            title="Портфолио проектов"
-            description="Реализованные объекты, решения по дверям, комплектации и фурнитуре для коммерческих интерьеров."
-            emptyTitle="Проекты скоро появятся"
-            emptyDescription="Добавьте опубликованные объекты portfolio_project в WordPress — после этого они появятся в этом разделе."
+        <KallesPortfolioArchivePage
             items={projects}
+            emptyState={{
+                title: "Проекты скоро появятся",
+                description: "Добавьте опубликованные объекты portfolio_project в WordPress — после этого они появятся в этом разделе.",
+            }}
         />
     );
 }

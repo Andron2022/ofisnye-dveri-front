@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { WpContentArchivePage } from "@src/components/content/WpContentViews";
+import { KallesNewsArchivePage } from "@src/components/content/KallesContentViews";
 import { buildSeoMetadata } from "@src/lib/seo/site";
 import { getWpPosts } from "@src/lib/wp/content";
 import type { WpContentPreview } from "@src/lib/wp/content";
@@ -16,19 +16,18 @@ export default async function NewsAndArticlesPage() {
     let posts: WpContentPreview[] = [];
 
     try {
-        posts = await getWpPosts(20);
+        posts = await getWpPosts(100);
     } catch (error) {
         console.error("Failed to load WP posts archive", error);
     }
 
     return (
-        <WpContentArchivePage
-            eyebrow="Новости и статьи"
-            title="Новости и статьи"
-            description="Полезные материалы о выборе дверей, комплектации, фурнитуре, доставке и установке."
-            emptyTitle="Публикации скоро появятся"
-            emptyDescription="Добавьте опубликованные записи в WordPress — после этого они появятся в этом разделе."
+        <KallesNewsArchivePage
             items={posts}
+            emptyState={{
+                title: "Публикации скоро появятся",
+                description: "Добавьте опубликованные записи в WordPress — после этого они появятся в этом разделе.",
+            }}
         />
     );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { WpContentDetailPage } from "@src/components/content/WpContentViews";
+import { KallesNewsDetailPage } from "@src/components/content/KallesContentViews";
 import { buildWpContentMetadata, getWpPostBySlug } from "@src/lib/wp/content";
 
 export const revalidate = 300;
@@ -27,20 +27,5 @@ export default async function NewsOrArticlePage({ params }: { params: PageParams
 
     if (!post) notFound();
 
-    return (
-        <WpContentDetailPage
-            item={post}
-            eyebrow="Новости и статьи"
-            backHref="/novosti-i-stati"
-            backLabel="Вернуться к материалам"
-            relatedProductsSection={{
-                title: "Связанные товары",
-                emptyMessage: "Связанные товары не выбраны.",
-            }}
-            relatedPostsSection={{
-                title: "Связанные новости и статьи",
-                emptyMessage: "Связанные материалы не выбраны.",
-            }}
-        />
-    );
+    return <KallesNewsDetailPage item={post} />;
 }

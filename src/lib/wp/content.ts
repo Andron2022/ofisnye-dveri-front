@@ -36,6 +36,30 @@ const CONTENT_REVALIDATE_SECONDS = 300;
 const DEFAULT_EXCERPT_LENGTH = 180;
 const SERVICE_CARD_LIMIT = 6;
 
+export type WpContentImage = {
+    src: string;
+    alt?: string;
+};
+
+export type WpPostFields = {
+    quote?: string;
+    subTextRelatedProducts?: string;
+};
+
+export type WpPortfolioFields = {
+    cardLabel?: string;
+    cardOrder?: number | null;
+    isFeatured?: boolean;
+    gridSize?: string;
+    heroImage?: string;
+    projectDate?: string;
+    location?: string;
+    client?: string;
+    scope?: string;
+    quote?: string;
+    galleryImages: WpContentImage[];
+};
+
 export type WpContentPreview = {
     id: number;
     slug: string;
@@ -46,6 +70,8 @@ export type WpContentPreview = {
     modified?: string;
     featuredImage?: string;
     featuredImageAlt?: string;
+    label?: string;
+    sortOrder?: number | null;
     terms: Array<{
         id: number;
         name: string;
@@ -54,13 +80,25 @@ export type WpContentPreview = {
     }>;
 };
 
+export type WpContentNavigation = {
+    previous?: WpContentPreview;
+    next?: WpContentPreview;
+    archivePath: string;
+    archiveLabel: string;
+};
+
 export type WpContentDetails = WpContentPreview & {
     contentHtml: string;
+    contentHtmlWithoutImages: string;
+    contentImages: WpContentImage[];
     metaTitle: string;
     metaDescription: string;
     relatedProducts: CatalogProductCard[];
     relatedPosts: WpContentPreview[];
     relatedProjects: WpContentPreview[];
+    navigation?: WpContentNavigation;
+    post?: WpPostFields;
+    portfolio?: WpPortfolioFields;
 };
 
 export type WpSitemapEntry = {
@@ -99,6 +137,52 @@ function getTitle(item: WpBaseContentItem): string {
     return getRenderedText(item.title) || item.slug;
 }
 
+function decodeHtmlAttribute(value: string): string {
+    return value
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+}
+
+function getHtmlAttribute(tag: string, attribute: string): string | undefined {
+    const pattern = new RegExp(`${attribute}=["']([^"']+)["']`, "i");
+    const match = tag.match(pattern);
+    return match?.[1] ? decodeHtmlAttribute(match[1]) : undefined;
+}
+
+function extractContentImages(html: string): WpContentImage[] {
+    const result: WpContentImage[] = [];
+    const seen = new Set<string>();
+    const imageTagPattern = /<img\b[^>]*>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = imageTagPattern.exec(html)) !== null) {
+        const tag = match[0];
+        const src = getHtmlAttribute(tag, "src");
+        if (!src || seen.has(src)) continue;
+
+        seen.add(src);
+        result.push({
+            src,
+            alt: getHtmlAttribute(tag, "alt"),
+        });
+    }
+
+    return result;
+}
+
+function stripImageBlocksFromHtml(html: string): string {
+    return html
+        .replace(/<figure\b[^>]*>[\s\S]*?<img\b[\s\S]*?<\/figure>/gi, "")
+        .replace(/<p\b[^>]*>\s*<img\b[\s\S]*?<\/p>/gi, "")
+        .replace(/<img\b[^>]*>/gi, "")
+        .replace(/<p>\s*<\/p>/gi, "")
+        .trim();
+}
+
 function normalizeContentPreview(item: WpBaseContentItem, pathPrefix: string): WpContentPreview {
     return {
         id: item.id,
@@ -121,11 +205,14 @@ function normalizeContentPreview(item: WpBaseContentItem, pathPrefix: string): W
 
 function normalizeContentDetails(item: WpBaseContentItem, pathPrefix: string): WpContentDetails {
     const preview = normalizeContentPreview(item, pathPrefix);
+    const contentHtml = getRenderedValue(item.content);
     const fallbackDescription = preview.excerpt || `Материал «${preview.title}» на сайте Офисные двери.`;
 
     return {
         ...preview,
-        contentHtml: getRenderedValue(item.content),
+        contentHtml,
+        contentHtmlWithoutImages: stripImageBlocksFromHtml(contentHtml),
+        contentImages: extractContentImages(contentHtml),
         metaTitle: preview.title,
         metaDescription: truncateText(fallbackDescription, 220),
         relatedProducts: [],
@@ -194,8 +281,18 @@ function asString(value: unknown): string {
 
 function asNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value.trim());
+    if (typeof value === "string") {
+        const normalized = value.trim().replace(",", ".");
+        if (normalized && Number.isFinite(Number(normalized))) return Number(normalized);
+    }
     return null;
+}
+
+function asBoolean(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value === 1;
+    if (typeof value === "string") return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+    return false;
 }
 
 function splitTextareaItems(value: unknown): string[] {
@@ -328,37 +425,65 @@ async function getWpMediaById(id: number): Promise<WpEmbeddedMedia | null> {
     }
 }
 
-async function resolveAcfImageUrl(value: WpAcfImageValue): Promise<string | undefined> {
+function getImageAltFromObject(image: WpAcfImageObject): string | undefined {
+    const title = image.title;
+    if (typeof image.alt === "string" && image.alt.trim()) return image.alt.trim();
+    if (typeof image.alt_text === "string" && image.alt_text.trim()) return image.alt_text.trim();
+    if (typeof title === "string" && title.trim()) return title.trim();
+    return isPlainObject(title) ? getRenderedText(title as { rendered?: string }) : undefined;
+}
+
+function getImageAltFromMedia(media: WpEmbeddedMedia | null): string | undefined {
+    return media?.alt_text || getRenderedText(media?.title);
+}
+
+async function resolveAcfImage(value: WpAcfImageValue): Promise<WpContentImage | undefined> {
     if (!value) return undefined;
 
     if (typeof value === "string") {
         const trimmed = value.trim();
-        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        if (/^https?:\/\//i.test(trimmed)) return { src: trimmed };
 
         const maybeId = asNumber(trimmed);
         if (!maybeId) return undefined;
 
         const media = await getWpMediaById(maybeId);
-        return media?.source_url;
+        return media?.source_url ? { src: media.source_url, alt: getImageAltFromMedia(media) } : undefined;
     }
 
     if (typeof value === "number") {
         const media = await getWpMediaById(value);
-        return media?.source_url;
+        return media?.source_url ? { src: media.source_url, alt: getImageAltFromMedia(media) } : undefined;
     }
 
     if (isPlainObject(value)) {
-        const objectUrl = getImageUrlFromObject(value as WpAcfImageObject);
-        if (objectUrl) return objectUrl;
+        const imageObject = value as WpAcfImageObject;
+        const objectUrl = getImageUrlFromObject(imageObject);
+        if (objectUrl) return { src: objectUrl, alt: getImageAltFromObject(imageObject) };
 
-        const id = asNumber((value as WpAcfImageObject).id ?? (value as WpAcfImageObject).ID);
+        const id = asNumber(imageObject.id ?? imageObject.ID);
         if (!id) return undefined;
 
         const media = await getWpMediaById(id);
-        return media?.source_url;
+        return media?.source_url ? { src: media.source_url, alt: getImageAltFromMedia(media) } : undefined;
     }
 
     return undefined;
+}
+
+async function resolveAcfImageUrl(value: WpAcfImageValue): Promise<string | undefined> {
+    return (await resolveAcfImage(value))?.src;
+}
+
+async function resolveAcfGalleryImages(values: WpAcfImageValue[]): Promise<WpContentImage[]> {
+    const images = await Promise.all(values.map((value) => resolveAcfImage(value)));
+    const seen = new Set<string>();
+
+    return images.filter((image): image is WpContentImage => {
+        if (!image?.src || seen.has(image.src)) return false;
+        seen.add(image.src);
+        return true;
+    });
 }
 
 async function mergeContactsPageWithAcf(fallback: TrustPageContent, wpPage: WpPageRestItem): Promise<TrustPageContent> {
@@ -519,6 +644,25 @@ async function getWpPostsByIds(ids: number[], excludeId?: number): Promise<WpCon
     }
 }
 
+async function getWpPostNavigation(currentId: number): Promise<WpContentNavigation> {
+    const archivePath = "/novosti-i-stati";
+
+    try {
+        const items = await getWpPosts(100);
+        const currentIndex = items.findIndex((item) => item.id === currentId);
+
+        return {
+            archivePath,
+            archiveLabel: "Все новости и статьи",
+            previous: currentIndex >= 0 ? items[currentIndex + 1] : undefined,
+            next: currentIndex > 0 ? items[currentIndex - 1] : undefined,
+        };
+    } catch (error) {
+        console.error("Failed to load WP post navigation", error);
+        return { archivePath, archiveLabel: "Все новости и статьи" };
+    }
+}
+
 type GetWpContentBySlugOptions = {
     includeRelated?: boolean;
 };
@@ -544,15 +688,96 @@ export async function getWpPostBySlug(
     if (options.includeRelated === false) return details;
 
     const acf = getPostAcf(item);
-    const [relatedProducts, relatedPosts] = await Promise.all([
+    const [relatedProducts, relatedPosts, navigation] = await Promise.all([
         getRelatedProductsByIds(parseRelationIds(acf.post_related_product_ids)),
         getWpPostsByIds(parseRelationIds(acf.post_related_post_ids), item.id),
+        getWpPostNavigation(item.id),
     ]);
 
     return {
         ...details,
         relatedProducts,
         relatedPosts,
+        navigation,
+        post: {
+            quote: asString(acf.post_quote) || undefined,
+            subTextRelatedProducts: asString(acf.post_sub_text_related_products) || undefined,
+        },
+    };
+}
+
+function getPortfolioGalleryAcfValues(acf: WpPortfolioProjectAcf): WpAcfImageValue[] {
+    return [
+        acf.portfolio_gallery_image_1,
+        acf.portfolio_gallery_image_2,
+        acf.portfolio_gallery_image_3,
+        acf.portfolio_gallery_image_4,
+        acf.portfolio_gallery_image_5,
+        acf.portfolio_gallery_image_6,
+    ];
+}
+
+function sortPortfolioPreviews(items: WpContentPreview[]): WpContentPreview[] {
+    return [...items].sort((a, b) => {
+        const hasOrderA = typeof a.sortOrder === "number";
+        const hasOrderB = typeof b.sortOrder === "number";
+
+        if (hasOrderA && hasOrderB && a.sortOrder !== b.sortOrder) {
+            return (b.sortOrder ?? 0) - (a.sortOrder ?? 0);
+        }
+
+        if (hasOrderA !== hasOrderB) return hasOrderA ? -1 : 1;
+
+        return new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime();
+    });
+}
+
+async function normalizePortfolioProjectPreview(item: WpPortfolioProjectRestItem): Promise<WpContentPreview> {
+    const acf = getPortfolioProjectAcf(item);
+    const preview = normalizeContentPreview(item, "/portfolio");
+    const cardImage = await resolveAcfImage(acf.portfolio_card_image);
+    const cardOrder = asNumber(acf.portfolio_card_order);
+
+    return {
+        ...preview,
+        featuredImage: cardImage?.src ?? preview.featuredImage,
+        featuredImageAlt: cardImage?.alt ?? preview.featuredImageAlt,
+        label: asString(acf.portfolio_card_label) || preview.terms[0]?.name,
+        sortOrder: cardOrder,
+    };
+}
+
+async function normalizePortfolioProjectDetails(item: WpPortfolioProjectRestItem): Promise<WpContentDetails> {
+    const acf = getPortfolioProjectAcf(item);
+    const preview = await normalizePortfolioProjectPreview(item);
+    const contentHtml = getRenderedValue(item.content);
+    const fallbackDescription = preview.excerpt || `Проект «${preview.title}» на сайте Офисные двери.`;
+    const heroImage = await resolveAcfImageUrl(acf.portfolio_hero_image);
+    const galleryImages = await resolveAcfGalleryImages(getPortfolioGalleryAcfValues(acf));
+
+    return {
+        ...preview,
+        contentHtml,
+        contentHtmlWithoutImages: stripImageBlocksFromHtml(contentHtml),
+        contentImages: extractContentImages(contentHtml),
+        metaTitle: preview.title,
+        metaDescription: truncateText(fallbackDescription, 220),
+        relatedProducts: [],
+        relatedPosts: [],
+        relatedProjects: [],
+        portfolio: {
+            cardLabel: asString(acf.portfolio_card_label) || undefined,
+            cardOrder: asNumber(acf.portfolio_card_order),
+            isFeatured: asBoolean(acf.portfolio_is_featured),
+            gridSize: asString(acf.portfolio_grid_size) || undefined,
+            heroImage,
+            projectDate: asString(acf.portfolio_project_date) || undefined,
+            location: asString(acf.portfolio_location) || undefined,
+            client: asString(acf.portfolio_client) || undefined,
+            scope: asString(acf.portfolio_scope) || undefined,
+            quote: asString(acf.portfolio_quote) || undefined,
+            galleryImages,
+        },
     };
 }
 
@@ -569,7 +794,7 @@ export async function getWpPortfolioProjects(limit = 20): Promise<WpContentPrevi
         CONTENT_REVALIDATE_SECONDS,
     );
 
-    return items.map((item) => normalizeContentPreview(item, "/portfolio"));
+    return sortPortfolioPreviews(await Promise.all(items.map((item) => normalizePortfolioProjectPreview(item))));
 }
 
 async function getWpPortfolioProjectsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
@@ -593,13 +818,36 @@ async function getWpPortfolioProjectsByIds(ids: number[], excludeId?: number): P
 
         const byId = new Map(items.map((item) => [item.id, item]));
 
-        return uniqueIds
-            .map((id) => byId.get(id))
-            .filter((item): item is WpPortfolioProjectRestItem => Boolean(item))
-            .map((item) => normalizeContentPreview(item, "/portfolio"));
+        const normalized = await Promise.all(
+            uniqueIds
+                .map((id) => byId.get(id))
+                .filter((item): item is WpPortfolioProjectRestItem => Boolean(item))
+                .map((item) => normalizePortfolioProjectPreview(item)),
+        );
+
+        return normalized;
     } catch (error) {
         console.error("Failed to load related portfolio projects", error);
         return [];
+    }
+}
+
+async function getWpPortfolioProjectNavigation(currentId: number): Promise<WpContentNavigation> {
+    const archivePath = "/portfolio";
+
+    try {
+        const items = await getWpPortfolioProjects(100);
+        const currentIndex = items.findIndex((item) => item.id === currentId);
+
+        return {
+            archivePath,
+            archiveLabel: "Все проекты",
+            previous: currentIndex >= 0 ? items[currentIndex + 1] : undefined,
+            next: currentIndex > 0 ? items[currentIndex - 1] : undefined,
+        };
+    } catch (error) {
+        console.error("Failed to load WP portfolio project navigation", error);
+        return { archivePath, archiveLabel: "Все проекты" };
     }
 }
 
@@ -620,19 +868,21 @@ export async function getWpPortfolioProjectBySlug(
     const item = items[0];
     if (!item) return null;
 
-    const details = normalizeContentDetails(item, "/portfolio");
+    const details = await normalizePortfolioProjectDetails(item);
     if (options.includeRelated === false) return details;
 
     const acf = getPortfolioProjectAcf(item);
-    const [relatedProducts, relatedProjects] = await Promise.all([
+    const [relatedProducts, relatedProjects, navigation] = await Promise.all([
         getRelatedProductsByIds(parseRelationIds(acf.portfolio_related_product_ids)),
         getWpPortfolioProjectsByIds(parseRelationIds(acf.portfolio_related_project_ids), item.id),
+        getWpPortfolioProjectNavigation(item.id),
     ]);
 
     return {
         ...details,
         relatedProducts,
         relatedProjects,
+        navigation,
     };
 }
 
@@ -641,7 +891,7 @@ export function buildWpContentMetadata(item: WpContentDetails): Metadata {
         title: item.metaTitle,
         description: item.metaDescription,
         path: item.path,
-        image: item.featuredImage,
+        image: item.portfolio?.heroImage || item.featuredImage,
     });
 }
 
@@ -677,8 +927,16 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
 
     try {
         entries.push({ path: "/portfolio" });
-        const projects = await getWpPortfolioProjects(100);
-        entries.push(...projects.map((project) => ({ path: project.path, modified: project.modified })));
+        const { items: projects } = await wpPublicGetList<WpPortfolioProjectRestItem>(
+            "portfolio_project",
+            {
+                per_page: 100,
+                status: "publish",
+                _fields: "id,slug,modified",
+            },
+            CONTENT_REVALIDATE_SECONDS,
+        );
+        entries.push(...projects.map((project) => ({ path: `/portfolio/${project.slug}`, modified: project.modified })));
     } catch (error) {
         console.error("Failed to build WP portfolio sitemap entries", error);
     }
