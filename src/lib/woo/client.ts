@@ -17,6 +17,89 @@ type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 type QueryParams = Record<string, QueryValue>;
 
 const DEFAULT_REVALIDATE_SECONDS = 60;
+const REST_DEBUG_ENV = "WP_REST_DEBUG";
+const REST_TIMEOUT_ENV = "WP_REST_TIMEOUT_MS";
+
+let restRequestCounter = 0;
+
+function isRestDebugEnabled(): boolean {
+    return process.env[REST_DEBUG_ENV] === "1";
+}
+
+function getRequestTimeoutMs(): number | null {
+    const rawValue = process.env[REST_TIMEOUT_ENV];
+    if (!rawValue) return null;
+
+    const value = Number(rawValue);
+    return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getSafeUrlForLog(rawUrl: string): string {
+    try {
+        const url = new URL(rawUrl);
+        if (url.username || url.password) {
+            url.username = "***";
+            url.password = "***";
+        }
+        return url.toString();
+    } catch {
+        return rawUrl;
+    }
+}
+
+type RestFetchOptions = {
+    method: "GET" | "POST";
+    headers: HeadersInit;
+    revalidateSeconds?: number;
+    body?: string;
+    cache?: RequestCache;
+    label: "Woo REST" | "WP REST";
+};
+
+async function fetchRest(url: string, options: RestFetchOptions): Promise<Response> {
+    const requestId = ++restRequestCounter;
+    const debugEnabled = isRestDebugEnabled();
+    const timeoutMs = getRequestTimeoutMs();
+    const startedAt = Date.now();
+    const safeUrl = getSafeUrlForLog(url);
+    const controller = timeoutMs ? new AbortController() : undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if (timeoutMs && controller) {
+        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
+
+    if (debugEnabled) {
+        console.log(`[${options.label} #${requestId}] START ${options.method} ${safeUrl}`);
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: options.method,
+            headers: options.headers,
+            body: options.body,
+            cache: options.cache,
+            next: options.revalidateSeconds === undefined ? undefined : {
+                revalidate: options.revalidateSeconds,
+            },
+            signal: controller?.signal,
+        });
+
+        if (debugEnabled) {
+            console.log(`[${options.label} #${requestId}] END ${response.status} ${Date.now() - startedAt}ms ${safeUrl}`);
+        }
+
+        return response;
+    } catch (error) {
+        if (debugEnabled) {
+            console.error(`[${options.label} #${requestId}] ERROR ${Date.now() - startedAt}ms ${safeUrl}`, error);
+        }
+
+        throw error;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
+}
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name];
@@ -99,15 +182,14 @@ export async function wooGet<T>(
 ): Promise<T> {
     const url = buildWooUrl(path, query);
     
-    const response = await fetch(url, {
+    const response = await fetchRest(url, {
         method: "GET",
         headers: {
             Authorization: buildAuthorizationHeader(),
             Accept: "application/json",
         },
-        next: {
-            revalidate: revalidateSeconds,
-        },
+        revalidateSeconds,
+        label: "Woo REST",
     });
     
     if (!response.ok) {
@@ -124,15 +206,14 @@ export async function wooGetList<T>(
 ): Promise<WooListResponse<T>> {
     const url = buildWooUrl(path, query);
     
-    const response = await fetch(url, {
+    const response = await fetchRest(url, {
         method: "GET",
         headers: {
             Authorization: buildAuthorizationHeader(),
             Accept: "application/json",
         },
-        next: {
-            revalidate: revalidateSeconds,
-        },
+        revalidateSeconds,
+        label: "Woo REST",
     });
     
     if (!response.ok) {
@@ -159,7 +240,7 @@ export async function wooPost<TRequest, TResponse>(
 ): Promise<TResponse> {
     const url = buildWooUrl(path, query);
     
-    const response = await fetch(url, {
+    const response = await fetchRest(url, {
         method: "POST",
         headers: {
             Authorization: buildAuthorizationHeader(),
@@ -168,6 +249,7 @@ export async function wooPost<TRequest, TResponse>(
         },
         body: JSON.stringify(body),
         cache: "no-store",
+        label: "Woo REST",
     });
     
     if (!response.ok) {
@@ -190,14 +272,13 @@ export async function wpGet<T>(
 ): Promise<T> {
     const url = buildWpUrl(path, query);
     
-    const response = await fetch(url, {
+    const response = await fetchRest(url, {
         method: "GET",
         headers: {
             Accept: "application/json",
         },
-        next: {
-            revalidate: revalidateSeconds,
-        },
+        revalidateSeconds,
+        label: "WP REST",
     });
     
     if (!response.ok) {
@@ -214,14 +295,13 @@ export async function wpGetList<T>(
 ): Promise<WooListResponse<T>> {
     const url = buildWpUrl(path, query);
     
-    const response = await fetch(url, {
+    const response = await fetchRest(url, {
         method: "GET",
         headers: {
             Accept: "application/json",
         },
-        next: {
-            revalidate: revalidateSeconds,
-        },
+        revalidateSeconds,
+        label: "WP REST",
     });
     
     if (!response.ok) {

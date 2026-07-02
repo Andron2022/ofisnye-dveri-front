@@ -613,7 +613,7 @@ export async function getWpPosts(limit = 20): Promise<WpContentPreview[]> {
     return items.map((item) => normalizeContentPreview(item, "/novosti-i-stati"));
 }
 
-async function getWpPostsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
+export async function getWpPostsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
     const uniqueIds = Array.from(new Set(ids))
         .filter((id) => Number.isInteger(id) && id > 0 && id !== excludeId);
 

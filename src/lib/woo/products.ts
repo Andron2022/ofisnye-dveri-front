@@ -1029,6 +1029,10 @@ export async function getPrimaryRelatedProductsByIds(ids: number[]): Promise<Cat
         .map((product) => mapCatalogProductCard(product, routeContext));
 }
 
+export async function getPrimaryDoorProductsByIds(ids: number[]): Promise<CatalogProductCard[]> {
+    return getPrimaryRelatedProductsByIds(ids);
+}
+
 function mapDoorFeedProduct(product: WooProduct, routeContext: DoorRouteContext): DoorFeedProduct {
     const card = mapCatalogProductCard(product, routeContext);
     const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);
