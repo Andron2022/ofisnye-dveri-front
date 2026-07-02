@@ -23,7 +23,7 @@ import type {
 
 const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
-const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v2";
+const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v3";
 
 const ALLOWED_DOOR_CATEGORY_SLUGS = new Set([
     "mezhkomnatnye-dveri",
@@ -363,6 +363,14 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
     };
 }
 
+function getInstallationStatusLabel(payload: CheckoutOrderRequest): string {
+    return payload.services.installationRequired ? "Запрошена" : "Не требуется";
+}
+
+function getInstallationComment(payload: CheckoutOrderRequest): string {
+    return trim(payload.services.installationComment);
+}
+
 function buildCustomerNote(payload: CheckoutOrderRequest): string {
     const parts = [
         `Предпочтительный способ связи: ${getContactMethodLabel(payload.customer.contactMethod)}`,
@@ -372,9 +380,12 @@ function buildCustomerNote(payload: CheckoutOrderRequest): string {
             : "",
         trim(payload.customer.deliveryComment) ? `Комментарий по доставке: ${trim(payload.customer.deliveryComment)}` : "",
         trim(payload.customer.orderComment) ? `Комментарий к заказу: ${trim(payload.customer.orderComment)}` : "",
+        `Установка: ${getInstallationStatusLabel(payload)}.`,
+        payload.services.installationRequired && getInstallationComment(payload)
+            ? `Комментарий по установке: ${getInstallationComment(payload)}`
+            : "",
         "Доставка: стоимость уточняется менеджером после проверки адреса и объёма заказа.",
         "Оплата: после подтверждения менеджером, онлайн-оплаты на сайте пока нет.",
-        "Установка: не запрошена. Услуга будет добавлена отдельным order service позже.",
     ].filter(Boolean);
 
     return parts.join("\n\n");
@@ -425,7 +436,14 @@ function buildWooOrderPayload(
             { key: "Тип оформления", value: "Checkout MVP без онлайн-оплаты" },
             { key: "Статус оплаты", value: "Оплата после подтверждения менеджером" },
             { key: "Доставка", value: "Стоимость доставки не рассчитана. Уточняется менеджером." },
-            { key: "Установка", value: "Не запрошена. Будущий order service." },
+            { key: "Установка", value: getInstallationStatusLabel(payload) },
+            { key: "installation_required", value: payload.services.installationRequired },
+            ...(payload.services.installationRequired && getInstallationComment(payload)
+                ? [{ key: "Комментарий по установке", value: getInstallationComment(payload) }]
+                : []),
+            ...(payload.services.installationRequired && getInstallationComment(payload)
+                ? [{ key: "installation_comment", value: getInstallationComment(payload) }]
+                : []),
             { key: "Тип клиента", value: getCustomerTypeLabel(payload.customer.customerType) },
             { key: "Предпочтительный способ связи", value: getContactMethodLabel(payload.customer.contactMethod) },
             ...(companyName ? [{ key: "Компания", value: companyName }] : []),

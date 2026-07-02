@@ -6,7 +6,7 @@ import TopBanner from "@src/components/Headers/TopBanner";
 
 export const metadata: Metadata = {
     title: "Заказ принят",
-    description: "Заказ принят. Менеджер свяжется для подтверждения комплектации, доставки и оплаты.",
+    description: "Заказ принят. Менеджер свяжется для подтверждения комплектации, доставки, установки и оплаты.",
     robots: {
         index: false,
         follow: false,
@@ -55,7 +55,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
                                 {orderNumber ? `Спасибо! Заказ №${orderNumber} принят` : "Спасибо! Заказ принят"}
                             </h1>
                             <p className="text-muted mb-4">
-                                Менеджер проверит комплектацию, наличие фурнитуры, доставку и способ оплаты, после чего свяжется с вами.
+                                Менеджер проверит комплектацию, наличие фурнитуры, доставку, установку и способ оплаты, после чего свяжется с вами.
                             </p>
 
                             <div className="row justify-content-center mb-4">
@@ -80,7 +80,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
                                             </div>
                                         ) : null}
                                         <div className="py-2">
-                                            <span className="text-muted">Доставка и оплата подтверждаются менеджером.</span>
+                                            <span className="text-muted">Доставка, установка и оплата подтверждаются менеджером.</span>
                                         </div>
                                     </div>
                                 </div>

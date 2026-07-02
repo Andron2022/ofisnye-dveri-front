@@ -5,6 +5,7 @@ import type {
     CheckoutContactMethod,
     CheckoutCustomer,
     CheckoutCustomerType,
+    CheckoutOrderServices,
     CheckoutFieldError,
     CheckoutOrderRequest,
 } from "@src/lib/checkout/types";
@@ -102,6 +103,16 @@ function normalizeCustomer(value: unknown): CheckoutCustomer {
     };
 }
 
+function normalizeServices(value: unknown): CheckoutOrderServices {
+    const services = isObject(value) ? value : {};
+    const installationRequired = services.installationRequired === true;
+
+    return {
+        installationRequired,
+        installationComment: installationRequired ? normalizeWhitespace(services.installationComment) : "",
+    };
+}
+
 function getCartItemName(item: CartItem, index: number): string {
     return item.name || item.sku || `позиция №${index + 1}`;
 }
@@ -160,6 +171,7 @@ export function validateCheckoutOrderRequest(payload: unknown): {
 } {
     const rawPayload = isObject(payload) ? payload : {};
     const customer = normalizeCustomer(rawPayload.customer);
+    const services = normalizeServices(rawPayload.services);
     const items = Array.isArray(rawPayload.items) ? rawPayload.items as CartItem[] : [];
     const errors: CheckoutFieldError[] = [];
 
@@ -191,10 +203,15 @@ export function validateCheckoutOrderRequest(payload: unknown): {
         errors.push({ field: "termsAccepted", message: "Подтвердите согласие на обработку данных" });
     }
 
+    if (services.installationComment.length > 500) {
+        errors.push({ field: "installationComment", message: "Комментарий по установке должен быть не длиннее 500 символов" });
+    }
+
     errors.push(...validateItems(items));
 
     const value: CheckoutOrderRequest = {
         customer,
+        services,
         items,
     };
 

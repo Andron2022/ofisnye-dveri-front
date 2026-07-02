@@ -22,8 +22,14 @@ export type CheckoutCustomer = {
     termsAccepted: boolean;
 };
 
+export type CheckoutOrderServices = {
+    installationRequired: boolean;
+    installationComment: string;
+};
+
 export type CheckoutOrderRequest = {
     customer: CheckoutCustomer;
+    services: CheckoutOrderServices;
     items: CartItem[];
 };
 
@@ -37,7 +43,7 @@ export type CheckoutOrderSuccessResponse = {
 };
 
 export type CheckoutFieldError = {
-    field: keyof CheckoutCustomer | "items" | "root";
+    field: keyof CheckoutCustomer | keyof CheckoutOrderServices | "items" | "root";
     message: string;
 };
 

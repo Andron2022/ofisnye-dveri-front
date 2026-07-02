@@ -14,6 +14,7 @@ import type { CartAccessorySnapshot, CartItem, CartOptionSnapshot } from "@src/l
 import type {
     CheckoutCustomer,
     CheckoutFieldError,
+    CheckoutOrderServices,
     CheckoutOrderResponse,
 } from "@src/lib/checkout/types";
 import { getCheckoutErrorMessage, validateCheckoutOrderRequest } from "@src/lib/checkout/validation";
@@ -147,10 +148,16 @@ const initialCustomer: CheckoutCustomer = {
     termsAccepted: false,
 };
 
+const initialServices: CheckoutOrderServices = {
+    installationRequired: false,
+    installationComment: "",
+};
+
 const Checkout = () => {
     const router = useRouter();
     const { items, totals, isHydrated, clearCart } = useCart();
     const [customer, setCustomer] = useState<CheckoutCustomer>(initialCustomer);
+    const [services, setServices] = useState<CheckoutOrderServices>(initialServices);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Partial<Record<CheckoutFieldError["field"], string>>>({});
@@ -183,6 +190,25 @@ const Checkout = () => {
         });
     };
 
+    const handleServiceChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { id, value, type } = event.target;
+        const checked = event.target instanceof HTMLInputElement ? event.target.checked : false;
+
+        setServices((current) => ({
+            ...current,
+            [id]: type === "checkbox" ? checked : value,
+            ...(id === "installationRequired" && !checked ? { installationComment: "" } : {}),
+        }));
+
+        setFieldErrors((current) => {
+            if (!(id in current)) return current;
+
+            const nextErrors = { ...current };
+            delete nextErrors[id as CheckoutFieldError["field"]];
+            return nextErrors;
+        });
+    };
+
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setErrorMessage(null);
@@ -194,17 +220,20 @@ const Checkout = () => {
 
         const validation = validateCheckoutOrderRequest({
             customer,
+            services,
             items,
         });
 
         if (!validation.ok) {
             setCustomer(validation.value.customer);
+            setServices(validation.value.services);
             setFieldErrors(buildFieldErrorMap(validation.errors));
             setErrorMessage(getCheckoutErrorMessage(validation.errors));
             return;
         }
 
         setCustomer(validation.value.customer);
+        setServices(validation.value.services);
         setIsSubmitting(true);
 
         try {
@@ -437,7 +466,46 @@ const Checkout = () => {
                                         </div>
 
                                         <div className="mt-5 pt-md-3">
-                                            <SectionTitle eyebrow="Шаг 3" title="Комментарий к заказу" />
+                                            <SectionTitle eyebrow="Шаг 3" title="Установка" />
+
+                                            <div className="border rounded-3 p-3 p-md-4 bg-light">
+                                                <div className="form-check mb-2">
+                                                    <input
+                                                        className="form-check-input"
+                                                        type="checkbox"
+                                                        id="installationRequired"
+                                                        checked={services.installationRequired}
+                                                        onChange={handleServiceChange}
+                                                    />
+                                                    <label className="form-check-label fw-semibold" htmlFor="installationRequired">
+                                                        Нужна установка дверей
+                                                    </label>
+                                                </div>
+                                                <p className="small text-muted mb-3">
+                                                    Установка не добавляется в сумму заказа автоматически. Менеджер уточнит объект, объём работ и рассчитает услугу отдельно.
+                                                </p>
+
+                                                {services.installationRequired ? (
+                                                    <div>
+                                                        <label className="fw-medium mb-2" htmlFor="installationComment">Комментарий по установке</label>
+                                                        <textarea
+                                                            className={getInputClassName("installationComment", false)}
+                                                            style={{ borderRadius: "20px" }}
+                                                            id="installationComment"
+                                                            rows={4}
+                                                            value={services.installationComment}
+                                                            onChange={handleServiceChange}
+                                                            aria-invalid={Boolean(getFieldError("installationComment"))}
+                                                            placeholder="Например: требуется демонтаж старых дверей, объект готов, нужен замер перед установкой"
+                                                        />
+                                                        {getFieldError("installationComment") ? <div className="invalid-feedback">{getFieldError("installationComment")}</div> : null}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 pt-md-3">
+                                            <SectionTitle eyebrow="Шаг 4" title="Комментарий к заказу" />
                                             <textarea
                                                 className="form-control"
                                                 style={{ borderRadius: "20px" }}
@@ -447,10 +515,6 @@ const Checkout = () => {
                                                 onChange={handleChange}
                                                 placeholder="Дополнительные пожелания по заказу"
                                             />
-
-                                            <div className="alert alert-light border mt-3 small mb-0">
-                                                Установка рассчитывается отдельно: менеджер уточнит условия объекта после оформления заказа.
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -475,6 +539,12 @@ const Checkout = () => {
                                             <span>Доставка</span>
                                             <span className="text-muted">Уточнит менеджер</span>
                                         </div>
+                                        <div className="d-flex justify-content-between fw-medium border-bottom mb-0 py-3">
+                                            <span>Установка</span>
+                                            <span className={services.installationRequired ? "text-body fw-semibold" : "text-muted"}>
+                                                {services.installationRequired ? "Запрошена" : "Не требуется"}
+                                            </span>
+                                        </div>
                                         <div className="d-flex justify-content-between fw-bold mb-0 py-3 fs-5">
                                             <span>Итого к подтверждению</span>
                                             <span>{formatPrice(totals.subtotal)}</span>
@@ -493,7 +563,7 @@ const Checkout = () => {
                                         ) : null}
 
                                         <div className="alert alert-light border small mb-3">
-                                            Онлайн-оплаты сейчас нет. После отправки заказа менеджер проверит состав, подтвердит доставку и согласует способ оплаты.
+                                            Онлайн-оплаты сейчас нет. После отправки заказа менеджер проверит состав, подтвердит доставку, установку и согласует способ оплаты.
                                         </div>
 
                                         <div className="form-check mb-3">
@@ -533,6 +603,7 @@ const Checkout = () => {
                                         <div className="d-flex flex-wrap gap-2 mt-4 small text-muted">
                                             <span className="border rounded-pill px-3 py-1">Без онлайн-оплаты</span>
                                             <span className="border rounded-pill px-3 py-1">Проверка менеджером</span>
+                                            <span className="border rounded-pill px-3 py-1">Установка по запросу</span>
                                         </div>
                                     </div>
                                 </div>
