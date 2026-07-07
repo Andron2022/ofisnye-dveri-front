@@ -307,7 +307,7 @@ export type WooCreateOrderPayload = {
         state?: string;
         postcode?: string;
         country: string;
-        email: string;
+        email?: string;
         phone: string;
     };
     shipping: {

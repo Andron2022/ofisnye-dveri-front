@@ -2,6 +2,8 @@
 
 import type { MetadataRoute } from "next";
 import { getDoorSitemapCategories, getDoorSitemapProducts } from "@src/lib/woo/products";
+import { getWallPanelsPageContent } from "@src/lib/wall-panels/content";
+import { getWallPanelProductsByIds } from "@src/lib/wall-panels/products";
 import { buildAbsoluteUrl, getDoorCategorySeo } from "@src/lib/seo/site";
 import { getWpContentSitemapEntries } from "@src/lib/wp/content";
 
@@ -74,6 +76,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         );
     } catch (error) {
         console.error("Failed to build door product sitemap entries", error);
+    }
+
+
+    try {
+        const wallPanelsPage = await getWallPanelsPageContent();
+        const wallPanelProducts = await getWallPanelProductsByIds(wallPanelsPage.productIds);
+
+        allUrls.push(
+            ...wallPanelProducts.map((product) => ({
+                url: buildAbsoluteUrl(product.path),
+                lastModified: new Date(),
+                changeFrequency: "weekly" as const,
+                priority: 0.65,
+            })),
+        );
+    } catch (error) {
+        console.error("Failed to build wall panel product sitemap entries", error);
     }
 
     try {
