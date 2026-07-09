@@ -41,17 +41,20 @@ export type WallPanelsPageContent = {
     path: string;
     metaTitle: string;
     metaDescription: string;
+    heroEyebrow: string;
     heroTitle: string;
     heroDescription: string;
     heroImage?: {
         src: string;
         alt?: string;
     };
+    introEyebrow: string;
     introTitle: string;
     introText: string;
     processTitle: string;
     processSteps: WallPanelsProcessStep[];
     productIds: number[];
+    productsEyebrow: string;
     productsTitle: string;
     productsDescription: string;
     requestButtonLabel: string;

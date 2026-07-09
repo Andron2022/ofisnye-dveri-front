@@ -28,7 +28,7 @@ export default function WallPanelDetailView({ product }: WallPanelDetailViewProp
                         <span>{product.name}</span>
                     </div>
 
-                    <div className="row g-5 align-items-start">
+                    <div className="row g-5 align-items-stretch">
                         <div className="col-lg-7">
                             {activeImage ? (
                                 <div className="bg-white rounded-3 overflow-hidden shadow-sm mb-3" style={{ aspectRatio: "3 / 2" }}>
@@ -65,39 +65,43 @@ export default function WallPanelDetailView({ product }: WallPanelDetailViewProp
                             ) : null}
                         </div>
 
-                        <div className="col-lg-5">
-                            <p className="text-uppercase small text-muted mb-2">Проектное решение</p>
-                            <h1 className="fs-2 mb-3">{product.name}</h1>
-                            {product.shortDescriptionHtml ? (
-                                <div className="text-muted mb-4" dangerouslySetInnerHTML={{ __html: product.shortDescriptionHtml }} />
-                            ) : null}
+                        <div className="col-lg-5 d-flex">
+                            <div className="d-flex flex-column w-100 h-100">
+                                <p className="text-uppercase small text-muted mb-2">Проектное решение</p>
+                                <h1 className="fs-2 mb-3">{product.name}</h1>
+                                {product.shortDescriptionHtml ? (
+                                    <div className="text-muted mb-4" dangerouslySetInnerHTML={{ __html: product.shortDescriptionHtml }} />
+                                ) : null}
 
-                            <div className="border rounded-3 bg-white p-4 mb-4">
-                                <div className="d-flex justify-content-between gap-3 border-bottom pb-2 mb-2">
-                                    <span className="text-muted">SKU</span>
-                                    <span className="fw-medium text-end">{product.sku || "—"}</span>
+                                <div className="border rounded-3 bg-white p-4 mb-4">
+                                    <div className="d-flex justify-content-between gap-3 border-bottom pb-2 mb-2">
+                                        <span className="text-muted">Артикул</span>
+                                        <span className="fw-medium text-end">{product.publicArticleNo || "—"}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between gap-3 border-bottom pb-2 mb-2">
+                                        <span className="text-muted">Материал</span>
+                                        <span className="fw-medium text-end">{joinValues(product.material)}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between gap-3">
+                                        <span className="text-muted">Цвет</span>
+                                        <span className="fw-medium text-end">{joinValues(product.color)}</span>
+                                    </div>
                                 </div>
-                                <div className="d-flex justify-content-between gap-3 border-bottom pb-2 mb-2">
-                                    <span className="text-muted">Материал</span>
-                                    <span className="fw-medium text-end">{joinValues(product.material)}</span>
+
+                                <div className="alert alert-warning">
+                                    Панель рассчитывается индивидуально. Цена зависит от площади стены, раскладки, алюминиевой системы крепления и монтажа.
                                 </div>
-                                <div className="d-flex justify-content-between gap-3">
-                                    <span className="text-muted">Цвет</span>
-                                    <span className="fw-medium text-end">{joinValues(product.color)}</span>
+
+                                <div className="mt-lg-auto pt-3">
+                                    <button
+                                        type="button"
+                                        className="btn btn-dark rounded-pill px-4 py-3 w-100"
+                                        onClick={() => setModalProduct(product)}
+                                    >
+                                        Отправить заявку на расчёт
+                                    </button>
                                 </div>
                             </div>
-
-                            <div className="alert alert-warning">
-                                Панель рассчитывается индивидуально. Цена зависит от площади стены, раскладки, алюминиевой системы крепления и монтажа.
-                            </div>
-
-                            <button
-                                type="button"
-                                className="btn btn-dark rounded-pill px-4 py-3 w-100"
-                                onClick={() => setModalProduct(product)}
-                            >
-                                Отправить заявку на расчёт
-                            </button>
                         </div>
                     </div>
                 </div>

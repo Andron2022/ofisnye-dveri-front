@@ -23,6 +23,7 @@ const WP_REST_DEBUG_ENV = "WP_REST_DEBUG";
 const WP_REST_TIMEOUT_ENV = "WP_REST_TIMEOUT_MS";
 const WP_REST_RETRY_COUNT_ENV = "WP_REST_RETRY_COUNT";
 const DEFAULT_GET_RETRY_COUNT = 1;
+const DEVELOPMENT_MEMORY_CACHE_TTL_MS = 1000;
 
 let wpRestRequestCounter = 0;
 
@@ -34,6 +35,7 @@ type MemoryCacheEntry<T> = {
 const wpRestMemoryCache = new Map<string, MemoryCacheEntry<unknown>>();
 
 function getCacheTtlMs(revalidateSeconds: number): number {
+    if (process.env.NODE_ENV === "development") return DEVELOPMENT_MEMORY_CACHE_TTL_MS;
     if (!Number.isFinite(revalidateSeconds) || revalidateSeconds <= 0) return 0;
 
     return revalidateSeconds * 1000;
@@ -158,9 +160,13 @@ async function fetchWpRest(url: string, revalidateSeconds: number): Promise<Resp
                 headers: {
                     Accept: "application/json",
                 },
-                next: {
-                    revalidate: revalidateSeconds,
-                },
+                ...(process.env.NODE_ENV === "development"
+                    ? { cache: "no-store" as const }
+                    : {
+                        next: {
+                            revalidate: revalidateSeconds,
+                        },
+                    }),
                 signal: controller?.signal,
             });
 

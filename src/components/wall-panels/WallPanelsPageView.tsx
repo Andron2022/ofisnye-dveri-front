@@ -17,61 +17,76 @@ function formatValues(values: string[]): string | null {
 
 export default function WallPanelsPageView({ content, products, loadError }: WallPanelsPageViewProps) {
     const [selectedProduct, setSelectedProduct] = useState<WallPanelProduct | null>(null);
+    const hasHeroImage = Boolean(content.heroImage?.src);
+    const hasIntroBlock = Boolean(content.introTitle.trim());
+    const hasCtaBlock = Boolean(content.ctaTitle.trim());
 
     return (
         <>
-            <section className="position-relative overflow-hidden bg-dark text-white">
-                {content.heroImage ? (
-                    <img
-                        src={content.heroImage.src}
-                        alt={content.heroImage.alt || content.heroTitle}
-                        className="position-absolute top-0 start-0 w-100 h-100 object-fit-cover opacity-50"
-                    />
-                ) : null}
-                <div className="container position-relative py-5 py-lg-6" style={{ minHeight: "440px" }}>
-                    <div className="row align-items-center" style={{ minHeight: "360px" }}>
-                        <div className="col-lg-7 col-xl-6">
-                            <p className="text-uppercase small fw-semibold mb-3">Проектный расчёт</p>
-                            <h1 className="display-5 fw-bold mb-3">{content.heroTitle}</h1>
-                            <p className="fs-5 mb-4 text-white opacity-75">{content.heroDescription}</p>
-                            <a href="#wall-panel-products" className="btn btn-light rounded-pill px-4 py-3">
-                                Смотреть варианты панелей
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section className="py-5 bg-white border-bottom">
+            <section className="position-relative overflow-hidden bg-white border-bottom">
                 <div className="container">
-                    <div className="row g-4 align-items-start">
-                        <div className="col-lg-5">
-                            <p className="text-uppercase small text-muted mb-2">Не обычный товар</p>
-                            <h2 className="fs-3 mb-3">{content.introTitle}</h2>
-                            <p className="text-muted fs-6 mb-0">{content.introText}</p>
-                        </div>
-                        <div className="col-lg-7">
-                            <div className="row g-3">
-                                {content.processSteps.map((step, index) => (
-                                    <div className="col-md-4" key={`${step.title}-${index}`}>
-                                        <div className="h-100 border rounded-3 p-4 bg-light">
-                                            <div className="fs-4 fw-bold mb-3">0{index + 1}</div>
-                                            <h3 className="fs-6 mb-2">{step.title}</h3>
-                                            <p className="small text-muted mb-0">{step.description}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                    <div className="position-relative overflow-hidden bg-light" style={{ aspectRatio: "2 / 1" }}>
+                        {content.heroImage ? (
+                            <img
+                                src={content.heroImage.src}
+                                alt={content.heroImage.alt || content.heroTitle}
+                                className="position-absolute top-0 start-0 w-100 h-100 object-fit-cover"
+                            />
+                        ) : null}
+                        <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center">
+                            <div className="p-4 p-lg-5" style={{ maxWidth: "640px", textShadow: hasHeroImage ? "0 2px 18px rgba(0,0,0,.45)" : undefined }}>
+                                {content.heroEyebrow ? (
+                                    <p className={`text-uppercase small fw-semibold mb-3 ${hasHeroImage ? "text-white" : "text-muted"}`}>
+                                        {content.heroEyebrow}
+                                    </p>
+                                ) : null}
+                                <h1 className={`display-5 fw-bold mb-3 ${hasHeroImage ? "text-white" : "text-body"}`}>{content.heroTitle}</h1>
+                                <p className={`fs-5 mb-4 ${hasHeroImage ? "text-white" : "text-muted"}`}>{content.heroDescription}</p>
+                                <a href="#wall-panel-products" className={`btn rounded-pill px-4 py-3 ${hasHeroImage ? "btn-light" : "btn-dark"}`}>
+                                    Смотреть варианты панелей
+                                </a>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
+            {hasIntroBlock ? (
+                <section className="py-5 bg-white border-bottom">
+                    <div className="container">
+                        <div className="row g-4 align-items-start">
+                            <div className="col-lg-5">
+                                {content.introEyebrow ? (
+                                    <p className="text-uppercase small text-muted mb-2">{content.introEyebrow}</p>
+                                ) : null}
+                                <h2 className="fs-3 mb-3">{content.introTitle}</h2>
+                                <p className="text-muted fs-6 mb-0">{content.introText}</p>
+                            </div>
+                            <div className="col-lg-7">
+                                <div className="row g-3">
+                                    {content.processSteps.map((step, index) => (
+                                        <div className="col-md-4" key={`${step.title}-${index}`}>
+                                            <div className="h-100 border rounded-3 p-4 bg-light">
+                                                <div className="fs-4 fw-bold mb-3">0{index + 1}</div>
+                                                <h3 className="fs-6 mb-2">{step.title}</h3>
+                                                <p className="small text-muted mb-0">{step.description}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            ) : null}
+
             <section id="wall-panel-products" className="py-5">
                 <div className="container">
                     <div className="row justify-content-center mb-4">
                         <div className="col-lg-8 text-center">
-                            <p className="text-uppercase text-muted small mb-2">Панели в интерьере</p>
+                            {content.productsEyebrow ? (
+                                <p className="text-uppercase text-muted small mb-2">{content.productsEyebrow}</p>
+                            ) : null}
                             <h2 className="fs-3 mb-3">{content.productsTitle}</h2>
                             <p className="text-muted mb-0">{content.productsDescription}</p>
                         </div>
@@ -142,19 +157,21 @@ export default function WallPanelsPageView({ content, products, loadError }: Wal
                 </div>
             </section>
 
-            <section className="py-5 bg-light border-top">
-                <div className="container">
-                    <div className="row justify-content-center">
-                        <div className="col-lg-9 text-center">
-                            <h2 className="fs-3 mb-3">{content.ctaTitle}</h2>
-                            <p className="text-muted mb-4">{content.ctaText}</p>
-                            <a href="#wall-panel-products" className="btn btn-dark rounded-pill px-4 py-3">
-                                Выбрать панель для расчёта
-                            </a>
+            {hasCtaBlock ? (
+                <section className="py-5 bg-light border-top">
+                    <div className="container">
+                        <div className="row justify-content-center">
+                            <div className="col-lg-9 text-center">
+                                <h2 className="fs-3 mb-3">{content.ctaTitle}</h2>
+                                <p className="text-muted mb-4">{content.ctaText}</p>
+                                <a href="#wall-panel-products" className="btn btn-dark rounded-pill px-4 py-3">
+                                    Выбрать панель для расчёта
+                                </a>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            ) : null}
 
             <WallPanelRequestModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
         </>
