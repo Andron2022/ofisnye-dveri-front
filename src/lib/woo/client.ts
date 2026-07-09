@@ -19,8 +19,50 @@ type QueryParams = Record<string, QueryValue>;
 const DEFAULT_REVALIDATE_SECONDS = 60;
 const REST_DEBUG_ENV = "WP_REST_DEBUG";
 const REST_TIMEOUT_ENV = "WP_REST_TIMEOUT_MS";
+const REST_RETRY_COUNT_ENV = "WP_REST_RETRY_COUNT";
+const DEFAULT_GET_RETRY_COUNT = 1;
 
 let restRequestCounter = 0;
+
+type MemoryCacheEntry<T> = {
+    expiresAt: number;
+    promise: Promise<T>;
+};
+
+const restMemoryCache = new Map<string, MemoryCacheEntry<unknown>>();
+
+function getCacheTtlMs(revalidateSeconds: number): number {
+    if (!Number.isFinite(revalidateSeconds) || revalidateSeconds <= 0) return 0;
+
+    return revalidateSeconds * 1000;
+}
+
+function getCachedRestResult<T>(key: string, revalidateSeconds: number, loader: () => Promise<T>): Promise<T> {
+    const ttlMs = getCacheTtlMs(revalidateSeconds);
+
+    if (ttlMs <= 0) {
+        return loader();
+    }
+
+    const now = Date.now();
+    const existing = restMemoryCache.get(key);
+
+    if (existing && existing.expiresAt > now) {
+        return existing.promise as Promise<T>;
+    }
+
+    const promise = loader().catch((error) => {
+        restMemoryCache.delete(key);
+        throw error;
+    });
+
+    restMemoryCache.set(key, {
+        expiresAt: now + ttlMs,
+        promise: promise as Promise<unknown>,
+    });
+
+    return promise;
+}
 
 function isRestDebugEnabled(): boolean {
     return process.env[REST_DEBUG_ENV] === "1";
@@ -32,6 +74,47 @@ function getRequestTimeoutMs(): number | null {
 
     const value = Number(rawValue);
     return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getRetryCount(method: RestFetchOptions["method"]): number {
+    if (method !== "GET") return 0;
+
+    const rawValue = process.env[REST_RETRY_COUNT_ENV];
+    if (!rawValue) return DEFAULT_GET_RETRY_COUNT;
+
+    const value = Number(rawValue);
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : DEFAULT_GET_RETRY_COUNT;
+}
+
+function getErrorName(error: unknown): string | null {
+    return error instanceof Error ? error.name : null;
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCauseCode(error: unknown): string | null {
+    if (!(error instanceof Error) || typeof error.cause !== "object" || error.cause === null) return null;
+
+    const cause = error.cause as { code?: unknown };
+    return typeof cause.code === "string" ? cause.code : null;
+}
+
+function isRetriableRestError(error: unknown): boolean {
+    const name = getErrorName(error);
+    const message = getErrorMessage(error).toLowerCase();
+    const causeCode = getErrorCauseCode(error);
+
+    return (
+        name === "AbortError" ||
+        name === "TimeoutError" ||
+        message.includes("fetch failed") ||
+        message.includes("operation was aborted") ||
+        causeCode === "UND_ERR_CONNECT_TIMEOUT" ||
+        causeCode === "UND_ERR_HEADERS_TIMEOUT" ||
+        causeCode === "UND_ERR_SOCKET"
+    );
 }
 
 function getSafeUrlForLog(rawUrl: string): string {
@@ -62,43 +145,60 @@ async function fetchRest(url: string, options: RestFetchOptions): Promise<Respon
     const timeoutMs = getRequestTimeoutMs();
     const startedAt = Date.now();
     const safeUrl = getSafeUrlForLog(url);
-    const controller = timeoutMs ? new AbortController() : undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const retryCount = getRetryCount(options.method);
+    const totalAttempts = retryCount + 1;
+    let lastError: unknown;
 
-    if (timeoutMs && controller) {
-        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    }
+    for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
+        const controller = timeoutMs ? new AbortController() : undefined;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    if (debugEnabled) {
-        console.log(`[${options.label} #${requestId}] START ${options.method} ${safeUrl}`);
-    }
-
-    try {
-        const response = await fetch(url, {
-            method: options.method,
-            headers: options.headers,
-            body: options.body,
-            cache: options.cache,
-            next: options.revalidateSeconds === undefined ? undefined : {
-                revalidate: options.revalidateSeconds,
-            },
-            signal: controller?.signal,
-        });
-
-        if (debugEnabled) {
-            console.log(`[${options.label} #${requestId}] END ${response.status} ${Date.now() - startedAt}ms ${safeUrl}`);
+        if (timeoutMs && controller) {
+            timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         }
 
-        return response;
-    } catch (error) {
         if (debugEnabled) {
-            console.error(`[${options.label} #${requestId}] ERROR ${Date.now() - startedAt}ms ${safeUrl}`, error);
+            console.log(`[${options.label} #${requestId}] START ${options.method} attempt ${attempt}/${totalAttempts} ${safeUrl}`);
         }
 
-        throw error;
-    } finally {
-        if (timeoutId) clearTimeout(timeoutId);
+        try {
+            const response = await fetch(url, {
+                method: options.method,
+                headers: options.headers,
+                body: options.body,
+                cache: options.cache,
+                next: options.revalidateSeconds === undefined ? undefined : {
+                    revalidate: options.revalidateSeconds,
+                },
+                signal: controller?.signal,
+            });
+
+            if (debugEnabled) {
+                console.log(`[${options.label} #${requestId}] END ${response.status} ${Date.now() - startedAt}ms attempt ${attempt}/${totalAttempts} ${safeUrl}`);
+            }
+
+            return response;
+        } catch (error) {
+            lastError = error;
+            const canRetry = attempt < totalAttempts && isRetriableRestError(error);
+
+            if (debugEnabled) {
+                const log = canRetry ? console.warn : console.error;
+                log(
+                    `[${options.label} #${requestId}] ERROR ${Date.now() - startedAt}ms attempt ${attempt}/${totalAttempts}${canRetry ? " RETRY" : ""} ${safeUrl}`,
+                    error,
+                );
+            }
+
+            if (!canRetry) {
+                throw error;
+            }
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
     }
+
+    throw lastError;
 }
 
 function getRequiredEnv(name: string): string {
@@ -181,22 +281,24 @@ export async function wooGet<T>(
     revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
 ): Promise<T> {
     const url = buildWooUrl(path, query);
-    
-    const response = await fetchRest(url, {
-        method: "GET",
-        headers: {
-            Authorization: buildAuthorizationHeader(),
-            Accept: "application/json",
-        },
-        revalidateSeconds,
-        label: "Woo REST",
+
+    return getCachedRestResult<T>(`woo:get:${url}`, revalidateSeconds, async () => {
+        const response = await fetchRest(url, {
+            method: "GET",
+            headers: {
+                Authorization: buildAuthorizationHeader(),
+                Accept: "application/json",
+            },
+            revalidateSeconds,
+            label: "Woo REST",
+        });
+
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
+
+        return (await response.json()) as T;
     });
-    
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
-    
-    return (await response.json()) as T;
 }
 
 export async function wooGetList<T>(
@@ -205,31 +307,32 @@ export async function wooGetList<T>(
     revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
 ): Promise<WooListResponse<T>> {
     const url = buildWooUrl(path, query);
-    
-    const response = await fetchRest(url, {
-        method: "GET",
-        headers: {
-            Authorization: buildAuthorizationHeader(),
-            Accept: "application/json",
-        },
-        revalidateSeconds,
-        label: "Woo REST",
+
+    return getCachedRestResult<WooListResponse<T>>(`woo:list:${url}`, revalidateSeconds, async () => {
+        const response = await fetchRest(url, {
+            method: "GET",
+            headers: {
+                Authorization: buildAuthorizationHeader(),
+                Accept: "application/json",
+            },
+            revalidateSeconds,
+            label: "Woo REST",
+        });
+
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
+
+        const items = (await response.json()) as T[];
+        const total = Number(response.headers.get("X-WP-Total") ?? 0);
+        const totalPages = Number(response.headers.get("X-WP-TotalPages") ?? 0);
+
+        return {
+            items,
+            total,
+            totalPages,
+        };
     });
-    
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
-    
-    const items = (await response.json()) as T[];
-    
-    const total = Number(response.headers.get("X-WP-Total") ?? 0);
-    const totalPages = Number(response.headers.get("X-WP-TotalPages") ?? 0);
-    
-    return {
-        items,
-        total,
-        totalPages,
-    };
 }
 
 
@@ -271,21 +374,23 @@ export async function wpGet<T>(
     revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
 ): Promise<T> {
     const url = buildWpUrl(path, query);
-    
-    const response = await fetchRest(url, {
-        method: "GET",
-        headers: {
-            Accept: "application/json",
-        },
-        revalidateSeconds,
-        label: "WP REST",
+
+    return getCachedRestResult<T>(`wp:get:${url}`, revalidateSeconds, async () => {
+        const response = await fetchRest(url, {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+            },
+            revalidateSeconds,
+            label: "WP REST",
+        });
+
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
+
+        return (await response.json()) as T;
     });
-    
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
-    
-    return (await response.json()) as T;
 }
 
 export async function wpGetList<T>(
@@ -294,28 +399,29 @@ export async function wpGetList<T>(
     revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
 ): Promise<WooListResponse<T>> {
     const url = buildWpUrl(path, query);
-    
-    const response = await fetchRest(url, {
-        method: "GET",
-        headers: {
-            Accept: "application/json",
-        },
-        revalidateSeconds,
-        label: "WP REST",
+
+    return getCachedRestResult<WooListResponse<T>>(`wp:list:${url}`, revalidateSeconds, async () => {
+        const response = await fetchRest(url, {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+            },
+            revalidateSeconds,
+            label: "WP REST",
+        });
+
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
+
+        const items = (await response.json()) as T[];
+        const total = Number(response.headers.get("X-WP-Total") ?? 0);
+        const totalPages = Number(response.headers.get("X-WP-TotalPages") ?? 0);
+
+        return {
+            items,
+            total,
+            totalPages,
+        };
     });
-    
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
-    
-    const items = (await response.json()) as T[];
-    
-    const total = Number(response.headers.get("X-WP-Total") ?? 0);
-    const totalPages = Number(response.headers.get("X-WP-TotalPages") ?? 0);
-    
-    return {
-        items,
-        total,
-        totalPages,
-    };
 }

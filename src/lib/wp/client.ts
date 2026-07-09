@@ -21,8 +21,50 @@ export type WpListResponse<T> = {
 const DEFAULT_REVALIDATE_SECONDS = 300;
 const WP_REST_DEBUG_ENV = "WP_REST_DEBUG";
 const WP_REST_TIMEOUT_ENV = "WP_REST_TIMEOUT_MS";
+const WP_REST_RETRY_COUNT_ENV = "WP_REST_RETRY_COUNT";
+const DEFAULT_GET_RETRY_COUNT = 1;
 
 let wpRestRequestCounter = 0;
+
+type MemoryCacheEntry<T> = {
+    expiresAt: number;
+    promise: Promise<T>;
+};
+
+const wpRestMemoryCache = new Map<string, MemoryCacheEntry<unknown>>();
+
+function getCacheTtlMs(revalidateSeconds: number): number {
+    if (!Number.isFinite(revalidateSeconds) || revalidateSeconds <= 0) return 0;
+
+    return revalidateSeconds * 1000;
+}
+
+function getCachedRestResult<T>(key: string, revalidateSeconds: number, loader: () => Promise<T>): Promise<T> {
+    const ttlMs = getCacheTtlMs(revalidateSeconds);
+
+    if (ttlMs <= 0) {
+        return loader();
+    }
+
+    const now = Date.now();
+    const existing = wpRestMemoryCache.get(key);
+
+    if (existing && existing.expiresAt > now) {
+        return existing.promise as Promise<T>;
+    }
+
+    const promise = loader().catch((error) => {
+        wpRestMemoryCache.delete(key);
+        throw error;
+    });
+
+    wpRestMemoryCache.set(key, {
+        expiresAt: now + ttlMs,
+        promise: promise as Promise<unknown>,
+    });
+
+    return promise;
+}
 
 function isWpRestDebugEnabled(): boolean {
     return process.env[WP_REST_DEBUG_ENV] === "1";
@@ -34,6 +76,45 @@ function getRequestTimeoutMs(): number | null {
 
     const value = Number(rawValue);
     return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getRetryCount(): number {
+    const rawValue = process.env[WP_REST_RETRY_COUNT_ENV];
+    if (!rawValue) return DEFAULT_GET_RETRY_COUNT;
+
+    const value = Number(rawValue);
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : DEFAULT_GET_RETRY_COUNT;
+}
+
+function getErrorName(error: unknown): string | null {
+    return error instanceof Error ? error.name : null;
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCauseCode(error: unknown): string | null {
+    if (!(error instanceof Error) || typeof error.cause !== "object" || error.cause === null) return null;
+
+    const cause = error.cause as { code?: unknown };
+    return typeof cause.code === "string" ? cause.code : null;
+}
+
+function isRetriableRestError(error: unknown): boolean {
+    const name = getErrorName(error);
+    const message = getErrorMessage(error).toLowerCase();
+    const causeCode = getErrorCauseCode(error);
+
+    return (
+        name === "AbortError" ||
+        name === "TimeoutError" ||
+        message.includes("fetch failed") ||
+        message.includes("operation was aborted") ||
+        causeCode === "UND_ERR_CONNECT_TIMEOUT" ||
+        causeCode === "UND_ERR_HEADERS_TIMEOUT" ||
+        causeCode === "UND_ERR_SOCKET"
+    );
 }
 
 function getSafeUrlForLog(rawUrl: string): string {
@@ -55,43 +136,60 @@ async function fetchWpRest(url: string, revalidateSeconds: number): Promise<Resp
     const timeoutMs = getRequestTimeoutMs();
     const startedAt = Date.now();
     const safeUrl = getSafeUrlForLog(url);
-    const controller = timeoutMs ? new AbortController() : undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const retryCount = getRetryCount();
+    const totalAttempts = retryCount + 1;
+    let lastError: unknown;
 
-    if (timeoutMs && controller) {
-        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    }
+    for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
+        const controller = timeoutMs ? new AbortController() : undefined;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    if (debugEnabled) {
-        console.log(`[WP REST #${requestId}] START ${safeUrl}`);
-    }
-
-    try {
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                Accept: "application/json",
-            },
-            next: {
-                revalidate: revalidateSeconds,
-            },
-            signal: controller?.signal,
-        });
-
-        if (debugEnabled) {
-            console.log(`[WP REST #${requestId}] END ${response.status} ${Date.now() - startedAt}ms ${safeUrl}`);
+        if (timeoutMs && controller) {
+            timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         }
 
-        return response;
-    } catch (error) {
         if (debugEnabled) {
-            console.error(`[WP REST #${requestId}] ERROR ${Date.now() - startedAt}ms ${safeUrl}`, error);
+            console.log(`[WP REST #${requestId}] START attempt ${attempt}/${totalAttempts} ${safeUrl}`);
         }
 
-        throw error;
-    } finally {
-        if (timeoutId) clearTimeout(timeoutId);
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                },
+                next: {
+                    revalidate: revalidateSeconds,
+                },
+                signal: controller?.signal,
+            });
+
+            if (debugEnabled) {
+                console.log(`[WP REST #${requestId}] END ${response.status} ${Date.now() - startedAt}ms attempt ${attempt}/${totalAttempts} ${safeUrl}`);
+            }
+
+            return response;
+        } catch (error) {
+            lastError = error;
+            const canRetry = attempt < totalAttempts && isRetriableRestError(error);
+
+            if (debugEnabled) {
+                const log = canRetry ? console.warn : console.error;
+                log(
+                    `[WP REST #${requestId}] ERROR ${Date.now() - startedAt}ms attempt ${attempt}/${totalAttempts}${canRetry ? " RETRY" : ""} ${safeUrl}`,
+                    error,
+                );
+            }
+
+            if (!canRetry) {
+                throw error;
+            }
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
     }
+
+    throw lastError;
 }
 
 function normalizeBaseUrl(url: string): string {
@@ -160,13 +258,15 @@ export async function wpPublicGet<T>(
 ): Promise<T> {
     const url = buildWpUrl(path, query);
 
-    const response = await fetchWpRest(url, revalidateSeconds);
+    return getCachedRestResult<T>(`wp:get:${url}`, revalidateSeconds, async () => {
+        const response = await fetchWpRest(url, revalidateSeconds);
 
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
 
-    return (await response.json()) as T;
+        return (await response.json()) as T;
+    });
 }
 
 export async function wpPublicGetList<T>(
@@ -176,17 +276,19 @@ export async function wpPublicGetList<T>(
 ): Promise<WpListResponse<T>> {
     const url = buildWpUrl(path, query);
 
-    const response = await fetchWpRest(url, revalidateSeconds);
+    return getCachedRestResult<WpListResponse<T>>(`wp:list:${url}`, revalidateSeconds, async () => {
+        const response = await fetchWpRest(url, revalidateSeconds);
 
-    if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
-    }
+        if (!response.ok) {
+            throw new Error(await buildHttpErrorMessage(response));
+        }
 
-    const items = (await response.json()) as T[];
+        const items = (await response.json()) as T[];
 
-    return {
-        items,
-        total: Number(response.headers.get("X-WP-Total") ?? 0),
-        totalPages: Number(response.headers.get("X-WP-TotalPages") ?? 0),
-    };
+        return {
+            items,
+            total: Number(response.headers.get("X-WP-Total") ?? 0),
+            totalPages: Number(response.headers.get("X-WP-TotalPages") ?? 0),
+        };
+    });
 }

@@ -48,7 +48,7 @@ export default function WallPanelDetailView({ product }: WallPanelDetailViewProp
                                 <div className="d-flex gap-2 flex-wrap">
                                     {product.images.map((image, index) => (
                                         <button
-                                            key={image.id || image.src}
+                                            key={`${image.id || image.src}-${index}`}
                                             type="button"
                                             className={`border rounded-2 p-0 overflow-hidden bg-white ${index === activeImageIndex ? "border-dark" : "border-light"}`}
                                             style={{ width: "96px", aspectRatio: "3 / 2" }}

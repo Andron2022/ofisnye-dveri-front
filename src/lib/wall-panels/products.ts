@@ -18,6 +18,42 @@ const WALL_PANEL_CATEGORY_SLUGS = new Set([
     "paneli",
 ]);
 
+const WALL_PANEL_PRODUCTS_CACHE_TTL_MS = 60 * 1000;
+
+type TimedPromiseCacheItem<T> = {
+    expiresAt: number;
+    promise: Promise<T>;
+};
+
+const wallPanelProductsByIdsCache = new Map<string, TimedPromiseCacheItem<WooProduct[]>>();
+const wallPanelProductBySlugCache = new Map<string, TimedPromiseCacheItem<WallPanelProduct | null>>();
+
+function getCachedPromise<T>(
+    cache: Map<string, TimedPromiseCacheItem<T>>,
+    key: string,
+    ttlMs: number,
+    loader: () => Promise<T>,
+): Promise<T> {
+    const now = Date.now();
+    const cached = cache.get(key);
+
+    if (cached && cached.expiresAt > now) {
+        return cached.promise;
+    }
+
+    const promise = loader().catch((error) => {
+        cache.delete(key);
+        throw error;
+    });
+
+    cache.set(key, {
+        expiresAt: now + ttlMs,
+        promise,
+    });
+
+    return promise;
+}
+
 function normalizeMediaUrl(url: string | undefined): string | null {
     if (!url) return null;
 
@@ -127,17 +163,21 @@ async function getProductsByIds(ids: number[]): Promise<WooProduct[]> {
     const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
     if (uniqueIds.length === 0) return [];
 
-    const response = await wooGetList<WooProduct>("products", {
-        status: "publish",
-        include: uniqueIds.join(","),
-        per_page: Math.min(uniqueIds.length, 100),
-        page: 1,
-    }, 60);
+    const cacheKey = uniqueIds.sort((a, b) => a - b).join(",");
 
-    const byId = new Map(response.items.map((product) => [product.id, product]));
-    return uniqueIds
-        .map((id) => byId.get(id))
-        .filter((product): product is WooProduct => Boolean(product));
+    return getCachedPromise(wallPanelProductsByIdsCache, cacheKey, WALL_PANEL_PRODUCTS_CACHE_TTL_MS, async () => {
+        const response = await wooGetList<WooProduct>("products", {
+            status: "publish",
+            include: uniqueIds.join(","),
+            per_page: Math.min(uniqueIds.length, 100),
+            page: 1,
+        }, 60);
+
+        const byId = new Map(response.items.map((product) => [product.id, product]));
+        return uniqueIds
+            .map((id) => byId.get(id))
+            .filter((product): product is WooProduct => Boolean(product));
+    });
 }
 
 export async function getWallPanelProductsByIds(ids: number[]): Promise<WallPanelProduct[]> {
@@ -161,14 +201,16 @@ export async function getWallPanelProductBySlug(slug: string): Promise<WallPanel
     const normalizedSlug = slug.trim();
     if (!normalizedSlug) return null;
 
-    const response = await wooGetList<WooProduct>("products", {
-        status: "publish",
-        slug: normalizedSlug,
-        per_page: 20,
-        page: 1,
-    }, 60);
+    return getCachedPromise(wallPanelProductBySlugCache, normalizedSlug, WALL_PANEL_PRODUCTS_CACHE_TTL_MS, async () => {
+        const response = await wooGetList<WooProduct>("products", {
+            status: "publish",
+            slug: normalizedSlug,
+            per_page: 20,
+            page: 1,
+        }, 60);
 
-    const product = response.items.find(isWallPanelProduct);
+        const product = response.items.find(isWallPanelProduct);
 
-    return product ? mapWallPanelProduct(product) : null;
+        return product ? mapWallPanelProduct(product) : null;
+    });
 }

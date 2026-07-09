@@ -38,6 +38,43 @@ const WOO_CATEGORY_SLUG_TO_ROUTE_SLUG_ALIAS: Record<string, string> = {
     "protivopozharnye-dveri": "protivopozharnye",
 };
 
+const PRODUCT_CATEGORIES_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRODUCT_BY_IDS_CACHE_TTL_MS = 60 * 1000;
+
+type TimedPromiseCacheItem<T> = {
+    expiresAt: number;
+    promise: Promise<T>;
+};
+
+let allProductCategoriesCache: TimedPromiseCacheItem<WooProductCategoryTerm[]> | null = null;
+const productsByIdsCache = new Map<string, TimedPromiseCacheItem<WooProduct[]>>();
+
+function getCachedPromise<T>(
+    cache: Map<string, TimedPromiseCacheItem<T>>,
+    key: string,
+    ttlMs: number,
+    loader: () => Promise<T>,
+): Promise<T> {
+    const now = Date.now();
+    const cached = cache.get(key);
+
+    if (cached && cached.expiresAt > now) {
+        return cached.promise;
+    }
+
+    const promise = loader().catch((error) => {
+        cache.delete(key);
+        throw error;
+    });
+
+    cache.set(key, {
+        expiresAt: now + ttlMs,
+        promise,
+    });
+
+    return promise;
+}
+
 type DoorRouteContext = {
     categories: WooProductCategoryTerm[];
     rootCategory: WooProductCategoryTerm;
@@ -664,17 +701,21 @@ async function getProductsByIds(ids: number[]): Promise<WooProduct[]> {
     const uniqueIds = Array.from(new Set(ids)).filter((id) => id > 0);
     if (uniqueIds.length === 0) return [];
 
-    const response = await wooGetList<WooProduct>("products", {
-        status: "publish",
-        include: uniqueIds.join(","),
-        per_page: Math.min(uniqueIds.length, 100),
-        page: 1,
-    }, 60);
+    const cacheKey = uniqueIds.sort((a, b) => a - b).join(",");
 
-    const byId = new Map(response.items.map((product) => [product.id, product]));
-    return uniqueIds
-        .map((id) => byId.get(id))
-        .filter((product): product is WooProduct => Boolean(product));
+    return getCachedPromise(productsByIdsCache, cacheKey, PRODUCT_BY_IDS_CACHE_TTL_MS, async () => {
+        const response = await wooGetList<WooProduct>("products", {
+            status: "publish",
+            include: uniqueIds.join(","),
+            per_page: Math.min(uniqueIds.length, 100),
+            page: 1,
+        }, 60);
+
+        const byId = new Map(response.items.map((product) => [product.id, product]));
+        return uniqueIds
+            .map((id) => byId.get(id))
+            .filter((product): product is WooProduct => Boolean(product));
+    });
 }
 
 function mapAccessoryCard(product: WooProduct): DoorAccessoryCard {
@@ -704,18 +745,28 @@ function sortAccessories(items: DoorAccessoryCard[]): DoorAccessoryCard[] {
 
 async function getRelatedAccessories(product: WooProduct): Promise<DoorProductDetails["accessories"]> {
     const ids = getRelatedAccessoryIds(product);
+    const handleIds = new Set(ids.handles);
+    const hingeIds = new Set(ids.hinges);
+    const lockIds = new Set(ids.locks);
+    const allIds = [...handleIds, ...hingeIds, ...lockIds];
 
-    const [handles, hinges, locks] = await Promise.all([
-        getProductsByIds(ids.handles),
-        getProductsByIds(ids.hinges),
-        getProductsByIds(ids.locks),
-    ]);
+    try {
+        const products = await getProductsByIds(allIds);
 
-    return {
-        handles: sortAccessories(handles.map(mapAccessoryCard)),
-        hinges: sortAccessories(hinges.map(mapAccessoryCard)),
-        locks: sortAccessories(locks.map(mapAccessoryCard)),
-    };
+        return {
+            handles: sortAccessories(products.filter((item) => handleIds.has(item.id)).map(mapAccessoryCard)),
+            hinges: sortAccessories(products.filter((item) => hingeIds.has(item.id)).map(mapAccessoryCard)),
+            locks: sortAccessories(products.filter((item) => lockIds.has(item.id)).map(mapAccessoryCard)),
+        };
+    } catch (error) {
+        console.error("Failed to load related accessories for door product:", product.id, error);
+
+        return {
+            handles: [],
+            hinges: [],
+            locks: [],
+        };
+    }
 }
 
 async function mapDoorProductDetails(
@@ -760,7 +811,7 @@ async function mapDoorProductDetails(
     };
 }
 
-async function getAllProductCategories(): Promise<WooProductCategoryTerm[]> {
+async function loadAllProductCategories(): Promise<WooProductCategoryTerm[]> {
     const baseParams = {
         per_page: 100,
         hide_empty: false,
@@ -785,6 +836,26 @@ async function getAllProductCategories(): Promise<WooProductCategoryTerm[]> {
         ...firstPage.items,
         ...restPages.flatMap((pageResponse) => pageResponse.items),
     ];
+}
+
+async function getAllProductCategories(): Promise<WooProductCategoryTerm[]> {
+    const now = Date.now();
+
+    if (allProductCategoriesCache && allProductCategoriesCache.expiresAt > now) {
+        return allProductCategoriesCache.promise;
+    }
+
+    const promise = loadAllProductCategories().catch((error) => {
+        allProductCategoriesCache = null;
+        throw error;
+    });
+
+    allProductCategoriesCache = {
+        expiresAt: now + PRODUCT_CATEGORIES_CACHE_TTL_MS,
+        promise,
+    };
+
+    return promise;
 }
 
 function findCategoryBySlug(categories: WooProductCategoryTerm[], slug: string): WooProductCategoryTerm | undefined {
