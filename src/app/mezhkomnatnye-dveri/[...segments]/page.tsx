@@ -20,6 +20,7 @@ import CatalogFilters from "../CatalogFilters";
 import { KallesCatalogShell } from "@src/components/storefront/KallesCatalog";
 import KallesDoorProductGallery from "@src/components/storefront/KallesDoorProductGallery";
 import KallesDoorProductTabs from "@src/components/storefront/KallesDoorProductTabs";
+import { getDoorPdpServiceTabsContent } from "@src/lib/wp/door-pdp-service-tabs";
 import DoorProductConfigurator from "./DoorProductConfigurator";
 import {
     buildBreadcrumbListJsonLd,
@@ -591,8 +592,9 @@ function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
     );
 }
 
-function DoorProductPage({ product }: { product: DoorProductDetails }) {
+async function DoorProductPage({ product }: { product: DoorProductDetails }) {
     const breadcrumbs = getDoorProductBreadcrumbItems(product);
+    const serviceTabs = await getDoorPdpServiceTabsContent();
 
     return (
         <>
@@ -674,7 +676,11 @@ function DoorProductPage({ product }: { product: DoorProductDetails }) {
 
                 <DoorFamilyTechnicalMatrix product={product} />
                 <DoorProductConfigurator product={product} />
-                <KallesDoorProductTabs descriptionHtml={product.descriptionHtml} attributes={product.attributes} />
+                <KallesDoorProductTabs
+                    descriptionHtml={product.descriptionHtml}
+                    attributes={product.attributes}
+                    serviceTabs={serviceTabs}
+                />
                 <DoorFamilyCardsSection product={product} />
             </main>
             <FooterPage />

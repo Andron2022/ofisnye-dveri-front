@@ -20,6 +20,7 @@ export type TrustPageId =
     | "installation"
     | "contractors"
     | "architects"
+    | "care"
     | "warranty";
 
 export type TrustPageLink = {
@@ -92,6 +93,8 @@ const customerLinks: TrustPageLink[] = [
     { label: "Оплата", href: "/klientam/oplata" },
     { label: "Доставка", href: "/klientam/dostavka" },
     { label: "Установка", href: "/klientam/ustanovka" },
+    { label: "Уход и обслуживание", href: "/uhod-i-obsluzhivanie" },
+    { label: "Гарантия", href: "/garantiya" },
 ];
 
 const partnerLinks: TrustPageLink[] = [
@@ -432,6 +435,51 @@ export const trustPages: Record<TrustPageId, TrustPageContent> = {
         relatedLinks: partnerLinks.filter((link) => link.href !== "/partneram/arkhitektoram"),
     },
 
+
+    care: {
+        id: "care",
+        path: "/uhod-i-obsluzhivanie",
+        eyebrow: "Клиентам",
+        title: "Уход и обслуживание дверей",
+        description: "Общие рекомендации по уходу за дверями, покрытием и фурнитурой, чтобы сохранить внешний вид и корректную работу изделия.",
+        metaTitle: "Уход и обслуживание дверей",
+        metaDescription: "Как ухаживать за межкомнатными дверями и фурнитурой: мягкая очистка, защита покрытия, проверка петель, ручек и условий эксплуатации.",
+        lead: "Рекомендации по уходу помогают продлить срок службы двери, сохранить покрытие и избежать повреждений, которые не относятся к гарантийным случаям.",
+        facts: [
+            { label: "Очистка", value: "Мягкая сухая или слегка влажная ткань" },
+            { label: "Нельзя", value: "Абразивы, растворители, жёсткие губки" },
+            { label: "Фурнитура", value: "Периодическая проверка и регулировка" },
+        ],
+        sections: [
+            {
+                id: "surface-care",
+                title: "Как ухаживать за поверхностью",
+                items: [
+                    "Удаляйте пыль мягкой сухой тканью или салфеткой без ворса.",
+                    "Для лёгких загрязнений используйте слегка влажную ткань, затем вытирайте поверхность насухо.",
+                    "Не применяйте чистящие порошки, абразивные губки, агрессивные растворители и составы с неизвестной химией.",
+                ],
+            },
+            {
+                id: "hardware-care",
+                title: "Как следить за фурнитурой",
+                items: [
+                    "Периодически проверяйте работу ручек, замков, петель и доводчиков.",
+                    "Не допускайте перекоса полотна, сильных ударов и длительной нагрузки на открытую дверь.",
+                    "Если дверь начала задевать коробку или пол, лучше согласовать регулировку с мастером.",
+                ],
+            },
+        ],
+        steps: [
+            { id: "wipe", title: "Очищайте мягко", description: "Используйте сухую или слегка влажную ткань без абразивов." },
+            { id: "protect", title: "Берегите покрытие", description: "Избегайте растворителей, сильного намокания и механических повреждений." },
+            { id: "check", title: "Проверяйте фурнитуру", description: "Следите за петлями, ручками и замками, особенно при активной эксплуатации." },
+        ],
+        primaryCta: { label: "Выбрать дверь", href: "/mezhkomnatnye-dveri" },
+        secondaryCta: { label: "Задать вопрос", href: "/kontakty" },
+        relatedLinks: customerLinks.filter((link) => link.href !== "/uhod-i-obsluzhivanie"),
+    },
+
     warranty: {
         id: "warranty",
         path: "/garantiya",
@@ -468,7 +516,7 @@ export const trustPages: Record<TrustPageId, TrustPageContent> = {
         ],
         primaryCta: { label: "Связаться с менеджером", href: "/kontakty" },
         secondaryCta: { label: "Перейти в каталог", href: "/mezhkomnatnye-dveri" },
-        relatedLinks: customerLinks,
+        relatedLinks: customerLinks.filter((link) => link.href !== "/garantiya"),
     },
 };
 

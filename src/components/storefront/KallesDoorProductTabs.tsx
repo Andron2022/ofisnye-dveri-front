@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import type { DoorCatalogAttributes } from "@src/lib/woo/types";
+import type { DoorPdpServiceTabsContent } from "@src/lib/wp/door-pdp-service-tabs";
 
 type TabKey = "description" | "additional" | "care" | "warranty";
 
 type KallesDoorProductTabsProps = {
     descriptionHtml: string | null;
     attributes: DoorCatalogAttributes;
+    serviceTabs: DoorPdpServiceTabsContent;
 };
 
 function joinAttributeValues(values?: string[]): string {
@@ -28,7 +30,7 @@ function AttributeRow({ label, value }: { label: string; value?: string[] }) {
 
 function DescriptionPane({ descriptionHtml }: { descriptionHtml: string | null }) {
     if (descriptionHtml) {
-        return <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />;
+        return <div className="wp-content lh-lg" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />;
     }
 
     return (
@@ -60,39 +62,51 @@ function AdditionalPane({ attributes }: { attributes: DoorCatalogAttributes }) {
     );
 }
 
-function CarePane() {
+function ServiceHtmlPane({ contentHtml }: { contentHtml: string }) {
     return (
-        <div>
-            <p><strong>Уход и обслуживание</strong></p>
-            <p>Очищайте поверхность мягкой сухой или слегка влажной тканью без абразивных средств.</p>
-            <p>Не используйте агрессивные растворители, жёсткие губки и чистящие порошки.</p>
-            <p>Фурнитуру рекомендуется периодически проверять и при необходимости регулировать.</p>
-            <p className="mb-0"><em>Точные рекомендации по уходу зависят от покрытия и комплектации двери.</em></p>
-        </div>
+        <>
+            <div
+                className="door-pdp-service-tab-content wp-content lh-lg"
+                dangerouslySetInnerHTML={{ __html: contentHtml }}
+            />
+            <style dangerouslySetInnerHTML={{ __html: `
+                .door-pdp-service-tab-content p,
+                .door-pdp-service-tab-content li,
+                .door-pdp-service-tab-content blockquote {
+                    white-space: pre-line;
+                }
+
+                .door-pdp-service-tab-content a {
+                    color: #0d6efd;
+                    font-weight: 600;
+                    text-decoration: underline;
+                    text-underline-offset: 0.18em;
+                }
+
+                .door-pdp-service-tab-content a:hover,
+                .door-pdp-service-tab-content a:focus {
+                    color: #0a58ca;
+                    text-decoration-thickness: 2px;
+                }
+
+                .door-pdp-service-tab-content p:last-child,
+                .door-pdp-service-tab-content ul:last-child,
+                .door-pdp-service-tab-content ol:last-child {
+                    margin-bottom: 0;
+                }
+            ` }} />
+        </>
     );
 }
 
-function WarrantyPane() {
-    return (
-        <div>
-            <p><strong>Гарантия</strong></p>
-            <p>Гарантийные условия, сроки и комплектация подтверждаются менеджером после проверки заказа.</p>
-            <p><strong>Доставка</strong></p>
-            <p>Стоимость доставки рассчитывается отдельно с учётом адреса, объёма заказа, разгрузки и подъёма.</p>
-            <p><strong>Установка</strong></p>
-            <p className="mb-0">Монтаж и дополнительные работы согласуются после уточнения объекта или замера.</p>
-        </div>
-    );
-}
-
-export default function KallesDoorProductTabs({ descriptionHtml, attributes }: KallesDoorProductTabsProps) {
+export default function KallesDoorProductTabs({ descriptionHtml, attributes, serviceTabs }: KallesDoorProductTabsProps) {
     const [activeTab, setActiveTab] = useState<TabKey>("description");
 
     const tabs: Array<{ key: TabKey; label: string }> = [
         { key: "description", label: "Описание" },
         { key: "additional", label: "Характеристики" },
-        { key: "care", label: "Уход и обслуживание" },
-        { key: "warranty", label: "Гарантия" },
+        { key: "care", label: serviceTabs.care.title },
+        { key: "warranty", label: serviceTabs.warranty.title },
     ];
 
     return (
@@ -114,19 +128,6 @@ export default function KallesDoorProductTabs({ descriptionHtml, attributes }: K
                                     </button>
                                 </div>
                             ))}
-                            <div className="nav-item">
-                                <span className="d-inline-block" title="В разработке">
-                                    <button
-                                        type="button"
-                                        className="rounded-pill pill-border fw-medium custom-nav-link nav-link disabled"
-                                        aria-disabled="true"
-                                        tabIndex={-1}
-                                        style={{ pointerEvents: "none" }}
-                                    >
-                                        Отзывы
-                                    </button>
-                                </span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -134,8 +135,8 @@ export default function KallesDoorProductTabs({ descriptionHtml, attributes }: K
                 <div className="tab-content">
                     {activeTab === "description" ? <DescriptionPane descriptionHtml={descriptionHtml} /> : null}
                     {activeTab === "additional" ? <AdditionalPane attributes={attributes} /> : null}
-                    {activeTab === "care" ? <CarePane /> : null}
-                    {activeTab === "warranty" ? <WarrantyPane /> : null}
+                    {activeTab === "care" ? <ServiceHtmlPane contentHtml={serviceTabs.care.contentHtml} /> : null}
+                    {activeTab === "warranty" ? <ServiceHtmlPane contentHtml={serviceTabs.warranty.contentHtml} /> : null}
                 </div>
             </div>
         </section>

@@ -49,6 +49,10 @@ export type WpAcfImageValue = number | string | WpAcfImageObject | null | undefi
 export type WpPageAcf = Record<string, unknown> & {
     hero_background_image?: WpAcfImageValue;
     lead_text?: string;
+    door_pdp_care_title?: string;
+    door_pdp_care_content?: string;
+    door_pdp_warranty_title?: string;
+    door_pdp_warranty_content?: string;
     contacts_hero_image?: WpAcfImageValue;
     contacts_description?: string;
     contacts_lead?: string;
