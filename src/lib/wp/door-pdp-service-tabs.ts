@@ -5,6 +5,7 @@ import type { WpPageAcf, WpPageRestItem } from "@src/lib/wp/types";
 
 const CONTENT_REVALIDATE_SECONDS = 300;
 const DOOR_PDP_SETTINGS_PAGE_SLUG = "nastrojki-kartochki-dveri";
+const DEFAULT_SHOW_FAMILY_TECHNICAL_MATRIX = true;
 
 export type DoorPdpServiceTabContent = {
     title: string;
@@ -14,6 +15,11 @@ export type DoorPdpServiceTabContent = {
 export type DoorPdpServiceTabsContent = {
     care: DoorPdpServiceTabContent;
     warranty: DoorPdpServiceTabContent;
+};
+
+export type DoorPdpPageSettings = {
+    serviceTabs: DoorPdpServiceTabsContent;
+    showFamilyTechnicalMatrix: boolean;
 };
 
 const FALLBACK_DOOR_PDP_SERVICE_TABS: DoorPdpServiceTabsContent = {
@@ -49,6 +55,20 @@ function getPageAcf(wpPage: WpPageRestItem): WpPageAcf {
 
 function asString(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
+}
+
+function asOptionalBoolean(value: unknown): boolean | null {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value === 1 ? true : value === 0 ? false : null;
+
+    if (typeof value === "string") {
+        const normalizedValue = value.trim().toLowerCase();
+
+        if (["1", "true", "yes", "on", "да"].includes(normalizedValue)) return true;
+        if (["0", "false", "no", "off", "нет"].includes(normalizedValue)) return false;
+    }
+
+    return null;
 }
 
 function hasHtmlContent(value: string): boolean {
@@ -101,7 +121,32 @@ export function getFallbackDoorPdpServiceTabsContent(): DoorPdpServiceTabsConten
     return FALLBACK_DOOR_PDP_SERVICE_TABS;
 }
 
-export async function getDoorPdpServiceTabsContent(): Promise<DoorPdpServiceTabsContent> {
+export function getFallbackDoorPdpPageSettings(): DoorPdpPageSettings {
+    return {
+        serviceTabs: FALLBACK_DOOR_PDP_SERVICE_TABS,
+        showFamilyTechnicalMatrix: DEFAULT_SHOW_FAMILY_TECHNICAL_MATRIX,
+    };
+}
+
+function normalizeDoorPdpPageSettings(acf: WpPageAcf): DoorPdpPageSettings {
+    return {
+        serviceTabs: {
+            care: normalizeTabContent({
+                title: acf.door_pdp_care_title,
+                contentHtml: acf.door_pdp_care_content,
+                fallback: FALLBACK_DOOR_PDP_SERVICE_TABS.care,
+            }),
+            warranty: normalizeTabContent({
+                title: acf.door_pdp_warranty_title,
+                contentHtml: acf.door_pdp_warranty_content,
+                fallback: FALLBACK_DOOR_PDP_SERVICE_TABS.warranty,
+            }),
+        },
+        showFamilyTechnicalMatrix: asOptionalBoolean(acf.door_pdp_family_matrix_enabled) ?? DEFAULT_SHOW_FAMILY_TECHNICAL_MATRIX,
+    };
+}
+
+export async function getDoorPdpPageSettings(): Promise<DoorPdpPageSettings> {
     try {
         const { items } = await wpPublicGetList<WpPageRestItem>(
             "pages",
@@ -114,24 +159,15 @@ export async function getDoorPdpServiceTabsContent(): Promise<DoorPdpServiceTabs
         );
 
         const settingsPage = items[0];
-        if (!settingsPage) return FALLBACK_DOOR_PDP_SERVICE_TABS;
+        if (!settingsPage) return getFallbackDoorPdpPageSettings();
 
-        const acf = getPageAcf(settingsPage);
-
-        return {
-            care: normalizeTabContent({
-                title: acf.door_pdp_care_title,
-                contentHtml: acf.door_pdp_care_content,
-                fallback: FALLBACK_DOOR_PDP_SERVICE_TABS.care,
-            }),
-            warranty: normalizeTabContent({
-                title: acf.door_pdp_warranty_title,
-                contentHtml: acf.door_pdp_warranty_content,
-                fallback: FALLBACK_DOOR_PDP_SERVICE_TABS.warranty,
-            }),
-        };
+        return normalizeDoorPdpPageSettings(getPageAcf(settingsPage));
     } catch (error) {
-        console.error("Failed to load door PDP service tabs content", error);
-        return FALLBACK_DOOR_PDP_SERVICE_TABS;
+        console.error("Failed to load door PDP page settings", error);
+        return getFallbackDoorPdpPageSettings();
     }
+}
+
+export async function getDoorPdpServiceTabsContent(): Promise<DoorPdpServiceTabsContent> {
+    return (await getDoorPdpPageSettings()).serviceTabs;
 }

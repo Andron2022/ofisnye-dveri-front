@@ -20,7 +20,7 @@ import CatalogFilters from "../CatalogFilters";
 import { KallesCatalogShell } from "@src/components/storefront/KallesCatalog";
 import KallesDoorProductGallery from "@src/components/storefront/KallesDoorProductGallery";
 import KallesDoorProductTabs from "@src/components/storefront/KallesDoorProductTabs";
-import { getDoorPdpServiceTabsContent } from "@src/lib/wp/door-pdp-service-tabs";
+import { getDoorPdpPageSettings } from "@src/lib/wp/door-pdp-service-tabs";
 import DoorProductConfigurator from "./DoorProductConfigurator";
 import {
     buildBreadcrumbListJsonLd,
@@ -594,7 +594,7 @@ function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
 
 async function DoorProductPage({ product }: { product: DoorProductDetails }) {
     const breadcrumbs = getDoorProductBreadcrumbItems(product);
-    const serviceTabs = await getDoorPdpServiceTabsContent();
+    const doorPdpSettings = await getDoorPdpPageSettings();
 
     return (
         <>
@@ -674,12 +674,12 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
                     </div>
                 </section>
 
-                <DoorFamilyTechnicalMatrix product={product} />
+                {doorPdpSettings.showFamilyTechnicalMatrix ? <DoorFamilyTechnicalMatrix product={product} /> : null}
                 <DoorProductConfigurator product={product} />
                 <KallesDoorProductTabs
                     descriptionHtml={product.descriptionHtml}
                     attributes={product.attributes}
-                    serviceTabs={serviceTabs}
+                    serviceTabs={doorPdpSettings.serviceTabs}
                 />
                 <DoorFamilyCardsSection product={product} />
             </main>

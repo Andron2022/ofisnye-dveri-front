@@ -53,6 +53,7 @@ export type WpPageAcf = Record<string, unknown> & {
     door_pdp_care_content?: string;
     door_pdp_warranty_title?: string;
     door_pdp_warranty_content?: string;
+    door_pdp_family_matrix_enabled?: boolean | string | number;
     contacts_hero_image?: WpAcfImageValue;
     contacts_description?: string;
     contacts_lead?: string;
