@@ -4,9 +4,11 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MobileHeader from "@src/components/Headers/MobileHeader";
+import { SiteLogo } from "@src/components/site-chrome/SiteLogo";
 import { useCart } from "@src/lib/cart/CartProvider";
 import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
 import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
+import { useSiteChromeSettings } from "@src/lib/site-chrome/SiteChromeProvider";
 
 // -----------------------------------------------------
 // MVP Header.
@@ -20,6 +22,8 @@ import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
 //
 // Меню приходит из NavigationProvider: сначала WP Navigation Editor,
 // затем fallback-конфиг siteNavigation, если WP недоступен или slug не задан.
+// Текстовые элементы шапки и логотип приходят из SiteChromeProvider:
+// WP-страница nastrojki-sajta → fallback-конфиг.
 // -----------------------------------------------------
 
 function isItemActive(item: SiteNavigationItem, pathname: string | null): boolean {
@@ -101,8 +105,84 @@ function DesktopNavItem({ item }: { item: SiteNavigationItem }) {
     );
 }
 
+function HeaderTopLink({
+    href,
+    iconClass,
+    text,
+}: {
+    href?: string;
+    iconClass: string;
+    text: string;
+}) {
+    if (!text) return null;
+
+    const content = (
+        <>
+            <i className={`${iconClass} fs-14 me-1 align-middle`} />
+            {text}
+        </>
+    );
+
+    if (!href) {
+        return <span className="mb-0 text-muted">{content}</span>;
+    }
+
+    if (href.startsWith("/") || href.startsWith("#")) {
+        return (
+            <Link href={href} className="mb-0 text-muted">
+                {content}
+            </Link>
+        );
+    }
+
+    return (
+        <a href={href} className="mb-0 text-muted">
+            {content}
+        </a>
+    );
+}
+
+function HeaderEmailButton({
+    email,
+    label,
+    iconClass,
+}: {
+    email: string;
+    label: string;
+    iconClass: string;
+}) {
+    const [isCopied, setIsCopied] = useState(false);
+
+    if (!email && !label) return null;
+
+    const handleCopy = async () => {
+        if (!email) return;
+
+        try {
+            await navigator.clipboard.writeText(email);
+            setIsCopied(true);
+            window.setTimeout(() => setIsCopied(false), 1600);
+        } catch {
+            window.location.href = `mailto:${email}`;
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            className="site-chrome-copy-button text-md-end text-center fs-12 text-muted"
+            onClick={handleCopy}
+            title={email ? "Скопировать email" : undefined}
+        >
+            <i className={`${iconClass} fs-14 me-1 align-middle`} />
+            {isCopied ? "Email скопирован" : label || email}
+        </button>
+    );
+}
+
 const Header = () => {
     const navigationItems = useHeaderNavigation();
+    const { header } = useSiteChromeSettings();
     const [headerShow, setHeaderShow] = useState(false);
     const [isStickyActive, setIsStickyActive] = useState(false);
     const lastScrollTopRef = useRef(0);
@@ -134,24 +214,27 @@ const Header = () => {
                         <div className="row align-items-center justify-content-center py-3 py-xl-0">
                             <div className="col-md-5 col-lg-4 col-12 d-none d-md-block">
                                 <div className="d-flex align-items-xl-center justify-content-center justify-content-md-start gap-3">
-                                    <span className="mb-0 text-muted">
-                                        <i className="pegk pe-7s-call fs-14 me-1 align-middle" /> Москва и МО
-                                    </span>
-                                    <Link href="/kontakty" className="mb-0 text-muted">
-                                        Контакты и шоурум
-                                    </Link>
+                                    <HeaderTopLink
+                                        href={header.phoneHref}
+                                        iconClass={header.phoneIconClass}
+                                        text={header.phoneText}
+                                    />
                                 </div>
                             </div>
 
                             <div className="col-md-5 col-lg-4 col-sm-12">
                                 <div className="header-text text-center fs-12 py-1 py-lg-0">
-                                    Двери с комплектацией и фурнитурой. Заказ без онлайн-оплаты.
+                                    {header.centerText}
                                 </div>
                             </div>
 
                             <div className="col-md-2 col-lg-4 col-sm-12 d-none d-md-block">
-                                <div className="text-md-end text-center fs-12 text-muted">
-                                    Доставка и установка рассчитываются менеджером
+                                <div className="text-md-end text-center">
+                                    <HeaderEmailButton
+                                        email={header.email}
+                                        label={header.emailLabel}
+                                        iconClass={header.emailIconClass}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -173,9 +256,7 @@ const Header = () => {
                             </svg>
                         </button>
 
-                        <Link className="navbar-brand fw-semibold text-uppercase" href="/">
-                            Офисные двери
-                        </Link>
+                        <SiteLogo className="navbar-brand fw-semibold text-uppercase" />
 
                         <div className="collapse navbar-collapse" id="navbarSupportedContent">
                             <div className="d-none d-lg-block mx-auto">

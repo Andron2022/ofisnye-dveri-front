@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
+import { useSiteChromeSettings } from "@src/lib/site-chrome/SiteChromeProvider";
 
 const TopBanner = ({ topclass }: { topclass?: string }) => {
+    const { announcement } = useSiteChromeSettings();
     const [isOpen, setIsOpen] = useState(true);
 
-    if (!isOpen) {
+    if (!isOpen || !announcement.enabled || !announcement.text) {
         return null;
     }
 
@@ -16,10 +18,12 @@ const TopBanner = ({ topclass }: { topclass?: string }) => {
                 <div className="container-fluid">
                     <div className="d-flex gap-2 align-items-center">
                         <div className="col text-center text-white">
-                            Межкомнатные двери с комплектацией и подходящей фурнитурой. Оформление заказа без онлайн-оплаты.{' '}
-                            <Link href="/mezhkomnatnye-dveri" className="text-white">
-                                Перейти в каталог <i className="las la-arrow-right" />
-                            </Link>
+                            {announcement.text}{" "}
+                            {announcement.href && announcement.linkLabel ? (
+                                <Link href={announcement.href} className="text-white">
+                                    {announcement.linkLabel} <i className="las la-arrow-right" />
+                                </Link>
+                            ) : null}
                         </div>
 
                         <div className="col-auto mt-2 mt-md-0">

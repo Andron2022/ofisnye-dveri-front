@@ -102,3 +102,32 @@ File: Main Css File
   .custom-nav-link:hover {
     color: #000 !important; /* Hover color */
   }
+
+// WP-driven site chrome polish
+.site-chrome-logo__image {
+    display: block;
+    width: auto;
+    max-width: 190px;
+    max-height: 48px;
+    object-fit: contain;
+}
+
+.navbar-brand .site-chrome-logo__image {
+    max-height: 42px;
+}
+
+.footer .site-chrome-logo__image {
+    max-height: 52px;
+}
+
+.site-chrome-copy-button {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    line-height: inherit;
+}
+
+.site-chrome-copy-button:hover,
+.site-chrome-copy-button:focus-visible {
+    color: var(--bs-dark) !important;
+}

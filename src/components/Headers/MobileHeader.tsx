@@ -3,9 +3,11 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SiteLogo } from "@src/components/site-chrome/SiteLogo";
 import { useCart } from "@src/lib/cart/CartProvider";
 import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
 import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
+import { useSiteChromeSettings } from "@src/lib/site-chrome/SiteChromeProvider";
 
 type MobileHeaderProps = {
     headerShow: boolean;
@@ -97,6 +99,7 @@ function MobileNavGroup({ item, onNavigate }: { item: SiteNavigationItem; onNavi
 
 const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
     const navigationItems = useHeaderNavigation();
+    const { header } = useSiteChromeSettings();
 
     return (
         <React.Fragment>
@@ -115,9 +118,7 @@ const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
                 aria-hidden={!headerShow}
             >
                 <div className="offcanvas-header border-bottom">
-                    <Link href="/" className="fw-semibold text-uppercase text-reset" onClick={handleHeaderClose}>
-                        Офисные двери
-                    </Link>
+                    <SiteLogo className="fw-semibold text-uppercase text-reset" />
 
                     <button
                         type="button"
@@ -143,8 +144,9 @@ const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
                     </nav>
 
                     <div className="border-top pt-3 small text-muted">
-                        <p className="mb-2">Москва и МО</p>
-                        <p className="mb-2">Доставка, установка и нестандартные условия уточняются менеджером.</p>
+                        {header.phoneText ? <p className="mb-2">{header.phoneText}</p> : null}
+                        {header.centerText ? <p className="mb-2">{header.centerText}</p> : null}
+                        {header.email ? <p className="mb-2">{header.email}</p> : null}
                         <Link href="/kontakty" className="text-reset" onClick={handleHeaderClose}>
                             Перейти в контакты
                         </Link>
