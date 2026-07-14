@@ -288,6 +288,7 @@ function mapDoorCategoryInfo(category: WooProductCategoryTerm, routeSegments: st
         routeSlug,
         path: buildDoorCategoryPathFromSegments(routeSegments),
         description: normalizeCategoryDescription(category.description),
+        image: normalizeMediaUrl(category.image?.src),
         count: category.count ?? 0,
     };
 }

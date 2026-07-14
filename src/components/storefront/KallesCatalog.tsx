@@ -11,9 +11,10 @@ export type KallesCatalogCategoryLink = {
 };
 
 type KallesCatalogShellProps = {
-    eyebrow: string;
+    eyebrow?: string | null;
     title: string;
     description: string;
+    heroImage?: string | null;
     total?: number;
     activeHref: string;
     categoryTree?: DoorCategoryNode;
@@ -30,6 +31,7 @@ const FALLBACK_DOOR_CATEGORY_TREE: DoorCategoryNode = {
     routeSlug: "",
     path: "/mezhkomnatnye-dveri",
     description: null,
+    image: null,
     count: 0,
     children: [],
 };
@@ -75,20 +77,23 @@ function KallesCatalogNav({ activeHref, categoryTree }: { activeHref: string; ca
     );
 }
 
-function KallesCatalogHero({ eyebrow, title, description }: {
-    eyebrow: string;
+function KallesCatalogHero({ eyebrow, title, description, heroImage }: {
+    eyebrow?: string | null;
     title: string;
     description: string;
+    heroImage?: string | null;
 }) {
+    const backgroundImage = heroImage || shopBanner.src;
+
     return (
         <div
-            style={{ backgroundImage: `url(${shopBanner.src})`, backgroundPosition: "center", backgroundSize: "cover" }}
+            style={{ backgroundImage: `url(${backgroundImage})`, backgroundPosition: "center", backgroundSize: "cover" }}
             className="position-relative"
         >
             <div className="position-absolute top-0 start-0 right-0 bottom-0 bg-dark w-100 opacity-50" />
             <div className="container">
                 <div className="text-white text-center py-5 position-relative">
-                    <p className="text-uppercase fs-14 fw-medium mb-2">{eyebrow}</p>
+                    {eyebrow ? <p className="text-uppercase fs-14 fw-medium mb-2">{eyebrow}</p> : null}
                     <h1 className="fs-20 fw-medium mb-2">{title}</h1>
                     <p className="fs-14 mb-0 mx-auto" style={{ maxWidth: 760 }}>{description}</p>
                 </div>
@@ -162,6 +167,7 @@ export function KallesCatalogShell({
                                        eyebrow,
                                        title,
                                        description,
+                                       heroImage,
                                        total,
                                        activeHref,
                                        categoryTree = FALLBACK_DOOR_CATEGORY_TREE,
@@ -173,7 +179,7 @@ export function KallesCatalogShell({
     return (
         <>
             <KallesCatalogNav activeHref={activeHref} categoryTree={categoryTree} />
-            <KallesCatalogHero eyebrow={eyebrow} title={title} description={description} />
+            <KallesCatalogHero eyebrow={eyebrow} title={title} description={description} heroImage={heroImage} />
 
             <section className="py-5">
                 <div className="container">

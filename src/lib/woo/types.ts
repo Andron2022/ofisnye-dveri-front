@@ -51,12 +51,20 @@ export type WooProduct = {
     public_article_no?: string;
 };
 
+export type WooProductCategoryTermImage = {
+    id: number;
+    src: string;
+    name?: string;
+    alt?: string;
+};
+
 export type WooProductCategoryTerm = {
     id: number;
     name: string;
     slug: string;
     parent: number;
     description?: string;
+    image?: WooProductCategoryTermImage | null;
     menu_order?: number;
     count?: number;
 };
@@ -136,6 +144,7 @@ export type DoorCategoryInfo = {
     routeSlug: string;
     path: string;
     description: string | null;
+    image: string | null;
     count: number;
 };
 

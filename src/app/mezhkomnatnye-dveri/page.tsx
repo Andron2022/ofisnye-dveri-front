@@ -56,9 +56,9 @@ export default async function DoorsCatalogPage({ searchParams }: { searchParams:
 
             <main id="nt_content">
                 <KallesCatalogShell
-                    eyebrow="Каталог дверей"
-                    title="Межкомнатные двери"
-                    description="Подберите дверь по размеру, цвету, материалу, типу открывания и другим характеристикам. После выбора можно настроить комплектацию и добавить фурнитуру."
+                    title={catalog?.currentCategory?.name ?? "Межкомнатные двери"}
+                    description={catalog?.currentCategory?.description ?? "Подберите дверь по размеру, цвету, материалу, типу открывания и другим характеристикам. После выбора можно настроить комплектацию и добавить фурнитуру."}
+                    heroImage={catalog?.currentCategory?.image}
                     total={catalog?.total}
                     activeHref="/mezhkomnatnye-dveri"
                     categoryTree={catalog?.categoryTree}

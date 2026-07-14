@@ -80,17 +80,8 @@ function DoorAttributesList({ attributes }: { attributes: DoorCatalogAttributes 
 }
 
 function getDoorCategoryLead(category: DoorCategoryInfo): string {
-    if (category.description) return category.description;
-
-    if (category.routeSlug === "skrytye") {
-        return "Скрытые двери подходят для современных интерьеров, где важно сохранить чистую плоскость стены и аккуратную геометрию проёма.";
-    }
-
-    if (category.routeSlug === "protivopozharnye") {
-        return "Противопожарные двери подбираются с учётом требований к объекту, огнестойкости, комплектации и условий эксплуатации.";
-    }
-
-    return `Каталог «${category.name}»: реальные товары WooCommerce, характеристики, комплектация и подбор фурнитуры под проект.`;
+    return category.description
+        ?? `Каталог «${category.name}»: реальные товары WooCommerce, характеристики, комплектация и подбор фурнитуры под проект.`;
 }
 
 type PageParams = Promise<{ segments: string[] }>;
@@ -169,9 +160,9 @@ async function DoorCategoryPage({ category, searchParams }: {
             <Header />
             <main id="nt_content">
                 <KallesCatalogShell
-                    eyebrow="Категория дверей"
                     title={category.name}
                     description={getDoorCategoryLead(category)}
+                    heroImage={category.image}
                     total={catalog?.total}
                     activeHref={routeHref}
                     categoryTree={catalog?.categoryTree}
@@ -393,7 +384,7 @@ function VariantRadioPicker({ product, axis }: { product: DoorProductDetails; ax
 }
 
 function KallesSummaryVariantSelectors({ product }: { product: DoorProductDetails }) {
-    if (!product.family.code || product.family.siblings.length <= 1) return null;
+    if (!product.family.code || product.family.siblings.length === 0) return null;
 
     return (
         <div className="mb-3">
@@ -537,23 +528,6 @@ function DoorFamilyCardsSection({ product }: { product: DoorProductDetails }) {
     );
 }
 
-function KallesRatingPlaceholder() {
-    return (
-        <div className="d-flex align-items-center gap-2 mb-3">
-            <div className="kalles-rating-result">
-                <span className="kalles-rating-result__pipe">
-                    <span className="kalles-rating-result__start" />
-                    <span className="kalles-rating-result__start" />
-                    <span className="kalles-rating-result__start" />
-                    <span className="kalles-rating-result__start" />
-                    <span className="kalles-rating-result__start active" />
-                </span>
-            </div>
-            <span className="text-muted fs-14">Подбор и комплектация под проект</span>
-        </div>
-    );
-}
-
 function ProductMetaLinks() {
     return (
         <div className="mt-3 d-flex gap-3 text-nowrap flex-wrap row-gap-1">
@@ -565,29 +539,43 @@ function ProductMetaLinks() {
     );
 }
 
-function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
-    const tagItems = [
-        ...(product.attributes.color ?? []).map((value) => `Цвет ${value}`),
-        ...(product.attributes.size ?? []).map((value) => `Размер ${value}`),
-        ...(product.attributes.leafCount ?? []).map((value) => `${value} полотна`),
-    ];
+const PRODUCT_META_ATTRIBUTE_ROWS: Array<{
+    key: Exclude<keyof DoorCatalogAttributes, "color" | "size" | "leafCount">;
+    label: string;
+}> = [
+    { key: "material", label: "Материал" },
+    { key: "glazing", label: "Остекление" },
+    { key: "openingType", label: "Тип открывания" },
+    // { key: "purpose", label: "Назначение" },
+    { key: "openingDirection", label: "Направление открывания" },
+    { key: "fireResistance", label: "Огнестойкость" },
+    { key: "glazingType", label: "Тип остекления" },
+];
 
+function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
     return (
         <div className="mt-3 small">
-            <p className="mb-1"><span>SKU :</span><span className="text-muted"> {product.sku || "—"}</span></p>
-            {product.publicArticleNo ? <p className="mb-1"><span>Арт. :</span><span className="text-muted"> {product.publicArticleNo}</span></p> : null}
-            <p className="mb-1"><span>Наличие :</span><span className="text-muted"> {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</span></p>
+            {product.publicArticleNo ? <p className="mb-1"><span>Арт.:</span><span className="text-muted"> {product.publicArticleNo}</span></p> : null}
+            <p className="mb-1"><span>Наличие:</span><span className="text-muted"> {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</span></p>
             {product.categories.length > 0 ? (
                 <p className="mb-1">
-                    <span>Categories:</span>
+                    <span>Категории:</span>
                     <span className="text-muted"> {product.categories.map((category, index) => (
                         <span key={category.id}>{category.name}{index < product.categories.length - 1 ? ", " : ""}</span>
                     ))}</span>
                 </p>
             ) : null}
-            {tagItems.length > 0 ? (
-                <p className="mb-0"><span>Tags :</span><span className="text-muted"> {tagItems.join(", ")}</span></p>
-            ) : null}
+            {PRODUCT_META_ATTRIBUTE_ROWS.map(({ key, label }) => {
+                const values = product.attributes[key];
+                if (!values || values.length === 0) return null;
+
+                return (
+                    <p key={key} className="mb-1">
+                        <span>{label}:</span>
+                        <span className="text-muted"> {values.join(", ")}</span>
+                    </p>
+                );
+            })}
         </div>
     );
 }
@@ -647,7 +635,6 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
 
                             <div className="col-12 col-lg-6">
                                 <h1 className="fs-3 fw-semibold mb-2">{product.name}</h1>
-                                <KallesRatingPlaceholder />
 
                                 <div className="d-flex flex-wrap gap-3 align-items-center mb-3">
                                     <strong className="fs-2 fw-semibold">{formatPrice(product.price)}</strong>
