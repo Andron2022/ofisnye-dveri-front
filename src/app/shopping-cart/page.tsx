@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import React from "react";
 import FooterPage from "@src/components/Footer";
 import TopBanner from "@src/components/Headers/TopBanner";
@@ -6,6 +7,15 @@ import PopupPage from "@src/components/Popup";
 import HeadTitle from "@src/commonsections/HeadTitle";
 import HomeSection from "./HomeSection";
 import CartDetail from "./CartDetail";
+
+export const metadata: Metadata = {
+    title: "Корзина",
+    description: "Корзина выбранных дверей, комплектаций и дополнительной фурнитуры.",
+    robots: {
+        index: false,
+        follow: false,
+    },
+};
 
 const ShoppingCart = () => {
     return (

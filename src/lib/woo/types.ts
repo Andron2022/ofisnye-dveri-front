@@ -11,6 +11,7 @@ export type WooProductImage = {
     src: string;
     name?: string;
     alt?: string;
+    thumbnail?: string;
 };
 
 export type WooProductCategory = {
