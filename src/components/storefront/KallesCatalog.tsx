@@ -33,6 +33,7 @@ const FALLBACK_DOOR_CATEGORY_TREE: DoorCategoryNode = {
     description: null,
     image: null,
     count: 0,
+    seo: {},
     children: [],
 };
 

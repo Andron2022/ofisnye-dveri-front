@@ -36,6 +36,8 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
         description,
         path: product.path,
         image: product.image ?? undefined,
+        imageAlt: product.name,
+        seo: product.seo,
     });
 }
 

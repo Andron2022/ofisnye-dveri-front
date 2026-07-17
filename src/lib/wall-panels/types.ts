@@ -1,3 +1,5 @@
+import type { HeadlessSeo } from "@src/lib/seo/types";
+
 // src/lib/wall-panels/types.ts
 
 export type WallPanelImage = {
@@ -30,6 +32,8 @@ export type WallPanelProduct = {
     attributes: WallPanelAttribute[];
     material: string[];
     color: string[];
+    modified?: string;
+    seo: HeadlessSeo;
 };
 
 export type WallPanelsProcessStep = {
@@ -41,6 +45,12 @@ export type WallPanelsPageContent = {
     path: string;
     metaTitle: string;
     metaDescription: string;
+    seoImage?: {
+        src: string;
+        alt?: string;
+    };
+    seoNoindex: boolean;
+    modified?: string;
     heroEyebrow: string;
     heroTitle: string;
     heroDescription: string;

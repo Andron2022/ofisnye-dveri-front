@@ -23,7 +23,14 @@ export async function generateMetadata(): Promise<Metadata> {
     title: content.seo.title,
     description: content.seo.description,
     path: "/",
-    image: content.hero.slides.find((slide) => Boolean(slide.image))?.image?.src,
+    image: content.seo.image?.src || content.hero.slides.find((slide) => Boolean(slide.image))?.image?.src,
+    imageAlt: content.seo.image?.alt || content.hero.slides.find((slide) => Boolean(slide.image))?.image?.alt,
+    seo: {
+      title: content.seo.title,
+      description: content.seo.description,
+      image: content.seo.image ? { url: content.seo.image.src, alt: content.seo.image.alt } : null,
+      noindex: content.seo.noindex,
+    },
   });
 }
 

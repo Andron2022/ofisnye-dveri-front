@@ -1,6 +1,7 @@
 // src/lib/woo/products.ts
 
 import { wooGetList } from "@src/lib/woo/client";
+import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import {
     buildCatalogFilterGroups,
     catalogItemMatchesActiveFilters,
@@ -21,6 +22,7 @@ import type {
     DoorOrderOptions,
     DoorProductDetails,
     DoorRouteCategory,
+    DoorSitemapProduct,
     WooMetaDataItem,
     WooProduct,
     WooProductCategoryTerm,
@@ -290,6 +292,7 @@ function mapDoorCategoryInfo(category: WooProductCategoryTerm, routeSegments: st
         description: normalizeCategoryDescription(category.description),
         image: normalizeMediaUrl(category.image?.src),
         count: category.count ?? 0,
+        seo: normalizeHeadlessSeo(category.headless_seo),
     };
 }
 
@@ -809,6 +812,8 @@ async function mapDoorProductDetails(
         family,
         orderOptions: mapDoorOrderOptions(product),
         accessories,
+        modified: product.date_modified,
+        seo: normalizeHeadlessSeo(product.headless_seo),
     };
 }
 
@@ -1060,12 +1065,16 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     };
 }
 
-export async function getDoorSitemapProducts(): Promise<CatalogProductCard[]> {
+export async function getDoorSitemapProducts(): Promise<DoorSitemapProduct[]> {
     const routeContext = await getDoorRouteContext();
     const categoryIds = collectDescendantCategoryIds(routeContext.categories, routeContext.rootCategory.id);
     const products = await getAllPublishedProductsInCategoryTree(categoryIds);
 
-    return products.map((product) => mapCatalogProductCard(product, routeContext));
+    return products.map((product) => ({
+        path: mapCatalogProductCard(product, routeContext).path,
+        modified: product.date_modified,
+        seo: normalizeHeadlessSeo(product.headless_seo),
+    }));
 }
 
 export async function getDoorSitemapCategories(): Promise<DoorCategoryInfo[]> {

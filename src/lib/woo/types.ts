@@ -1,3 +1,5 @@
+import type { HeadlessSeo } from "@src/lib/seo/types";
+
 // src/lib/woo/types.ts
 
 export type WooMetaDataItem = {
@@ -50,6 +52,8 @@ export type WooProduct = {
     attributes: WooProductAttribute[];
     meta_data: WooMetaDataItem[];
     public_article_no?: string;
+    date_modified?: string;
+    headless_seo?: HeadlessSeo;
 };
 
 export type WooProductCategoryTermImage = {
@@ -68,6 +72,7 @@ export type WooProductCategoryTerm = {
     image?: WooProductCategoryTermImage | null;
     menu_order?: number;
     count?: number;
+    headless_seo?: HeadlessSeo;
 };
 
 export type WooListResponse<T> = {
@@ -147,6 +152,7 @@ export type DoorCategoryInfo = {
     description: string | null;
     image: string | null;
     count: number;
+    seo: HeadlessSeo;
 };
 
 export type DoorCategoryNode = DoorCategoryInfo & {
@@ -164,6 +170,12 @@ export type CatalogResult = {
     filters: CatalogFiltersState;
     categoryTree?: DoorCategoryNode;
     currentCategory?: DoorCategoryInfo;
+};
+
+export type DoorSitemapProduct = {
+    path: string;
+    modified?: string;
+    seo: HeadlessSeo;
 };
 
 export type DoorFeedProduct = {
@@ -286,6 +298,8 @@ export type DoorProductDetails = {
     family: DoorFamilyInfo;
     orderOptions: DoorOrderOptions;
     accessories: DoorRelatedAccessories;
+    modified?: string;
+    seo: HeadlessSeo;
 };
 
 

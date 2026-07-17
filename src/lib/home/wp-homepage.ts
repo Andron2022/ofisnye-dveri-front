@@ -11,6 +11,8 @@ import type {
   HomeServiceLink,
 } from "@src/lib/home/homepage-content";
 import { getWpPageBySlug } from "@src/lib/wp/content";
+import { normalizeHeadlessSeo } from "@src/lib/seo/types";
+import type { HeadlessSeo } from "@src/lib/seo/types";
 import { wpPublicGetList } from "@src/lib/wp/client";
 import { getRenderedText } from "@src/lib/wp/format";
 import type { WpAcfImageObject, WpAcfImageValue, WpEmbeddedMedia, WpPageAcf } from "@src/lib/wp/types";
@@ -396,7 +398,7 @@ function buildServiceLink(acf: WpPageAcf, index: number, fallback?: HomeServiceL
   };
 }
 
-async function mergeHomepageWithAcf(acf: WpPageAcf): Promise<HomePageContent> {
+async function mergeHomepageWithAcf(acf: WpPageAcf, seo: HeadlessSeo, modified?: string): Promise<HomePageContent> {
   const mediaMap = await getHomepageMediaMap(collectHomepageImageIds(acf));
 
   const heroSlides = [1, 2, 3].map((index) =>
@@ -440,8 +442,11 @@ async function mergeHomepageWithAcf(acf: WpPageAcf): Promise<HomePageContent> {
 
   return {
     seo: {
-      title: getAcfString(acf, "home_meta_title", homePageContent.seo.title),
-      description: getAcfString(acf, "home_meta_description", homePageContent.seo.description),
+      title: seo.title || getAcfString(acf, "home_meta_title", homePageContent.seo.title),
+      description: seo.description || getAcfString(acf, "home_meta_description", homePageContent.seo.description),
+      image: seo.image?.url ? { src: seo.image.url, alt: seo.image.alt } : undefined,
+      noindex: Boolean(seo.noindex),
+      modified,
     },
     hero: {
       enabled: getAcfBoolean(acf, "home_hero_slide_enabled", homePageContent.hero.enabled) && heroSlides.some(Boolean),
@@ -483,7 +488,11 @@ export async function getWpHomepageContent(): Promise<HomePageContent> {
     const page = await getWpPageBySlug(HOMEPAGE_WP_SLUG);
     if (!page || !isPlainObject(page.acf)) return homePageContent;
 
-    return await mergeHomepageWithAcf(page.acf as WpPageAcf);
+    return await mergeHomepageWithAcf(
+      page.acf as WpPageAcf,
+      normalizeHeadlessSeo(page.headless_seo),
+      page.modified,
+    );
   } catch (error) {
     console.error("Failed to load WP-driven homepage content", error);
     return homePageContent;

@@ -2,6 +2,7 @@
 
 import { stripHtml, truncateText } from "@src/lib/wp/format";
 import { wooGetList } from "@src/lib/woo/client";
+import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import type { WooMetaDataItem, WooProduct, WooProductAttribute, WooProductImage } from "@src/lib/woo/types";
 import type { WallPanelAttribute, WallPanelImage, WallPanelProduct } from "@src/lib/wall-panels/types";
 
@@ -156,6 +157,8 @@ export function mapWallPanelProduct(product: WooProduct): WallPanelProduct {
         attributes: product.attributes.map(normalizeAttribute),
         material: getAttributeOptions(product, ["pa_material-paneli", "material-paneli"]),
         color: getAttributeOptions(product, ["pa_tsvet-paneli", "tsvet-paneli"]),
+        modified: product.date_modified,
+        seo: normalizeHeadlessSeo(product.headless_seo),
     };
 }
 

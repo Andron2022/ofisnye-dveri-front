@@ -5,7 +5,13 @@ import { ReactNode } from "react";
 import { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import Providers from "@src/app/providers";
-import { buildMetadataBase, SITE_NAME } from "@src/lib/seo/site";
+import {
+  buildMetadataBase,
+  buildOrganizationJsonLd,
+  buildWebSiteJsonLd,
+  serializeJsonLd,
+  SITE_NAME,
+} from "@src/lib/seo/site";
 import { getWpDrivenSiteChrome } from "@src/lib/site-chrome/wp-site-chrome";
 import { getWpDrivenNavigation } from "@src/lib/wp/menu";
 
@@ -55,6 +61,18 @@ export default async function Layout({ children }: LayoutProps) {
   return (
     <html lang="ru" className={`${fontSans.variable} ${fontSerif.variable}`}>
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(buildOrganizationJsonLd(siteChrome)),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(buildWebSiteJsonLd()),
+          }}
+        />
         <Providers navigation={navigation} siteChrome={siteChrome}>{children}</Providers>
       </body>
     </html>

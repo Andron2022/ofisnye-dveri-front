@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { homePageContent } from "@src/lib/home/homepage-content";
 import type { HomeImage } from "@src/lib/home/homepage-content";
 import { buildSeoMetadata } from "@src/lib/seo/site";
+import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import { getWpPageBySlug } from "@src/lib/wp/content";
 import { wpPublicGetList } from "@src/lib/wp/client";
 import { getRenderedText, stripHtml, truncateText } from "@src/lib/wp/format";
@@ -17,6 +18,7 @@ const fallbackWallPanelsContent: WallPanelsPageContent = {
     path: "/stenovye-paneli",
     metaTitle: "Стеновые панели — индивидуальный расчёт",
     metaDescription: "Стеновые панели рассчитываются индивидуально по размерам стены, схеме разделки, системе крепления и условиям монтажа.",
+    seoNoindex: false,
     heroEyebrow: "",
     heroTitle: "Стеновые панели под проект",
     heroDescription: "Проектные панели для интерьеров офисов, коммерческих помещений и общественных пространств. Стоимость рассчитывается после проверки размеров, раскладки и условий монтажа.",
@@ -266,14 +268,18 @@ export async function getWallPanelsPageContent(): Promise<WallPanelsPageContent>
         const mediaMap = await getMediaMap([getImageId(heroImageValue)].filter((id): id is number => Boolean(id)));
         const pageTitle = getRenderedText(page.title);
         const pageText = stripHtml(getRenderedText(page.content));
+        const seo = normalizeHeadlessSeo(page.headless_seo);
 
         return {
             path: fallbackWallPanelsContent.path,
-            metaTitle: getAcfString(acf, "wall_panels_meta_title", pageTitle || fallbackWallPanelsContent.metaTitle),
-            metaDescription: truncateText(
+            metaTitle: seo.title || getAcfString(acf, "wall_panels_meta_title", pageTitle || fallbackWallPanelsContent.metaTitle),
+            metaDescription: seo.description || truncateText(
                 getAcfString(acf, "wall_panels_meta_description", pageText || fallbackWallPanelsContent.metaDescription),
                 220,
             ),
+            seoImage: seo.image?.url ? { src: seo.image.url, alt: seo.image.alt } : undefined,
+            seoNoindex: Boolean(seo.noindex),
+            modified: page.modified,
             heroEyebrow: getAcfString(acf, "wall_panels_hero_eyebrow"),
             heroTitle: getAcfString(acf, "wall_panels_hero_title", pageTitle || fallbackWallPanelsContent.heroTitle),
             heroDescription: getAcfString(acf, "wall_panels_hero_description", fallbackWallPanelsContent.heroDescription),
@@ -308,5 +314,13 @@ export async function buildWallPanelsMetadata(): Promise<Metadata> {
         title: page.metaTitle,
         description: page.metaDescription,
         path: page.path,
+        image: page.seoImage?.src || page.heroImage?.src,
+        imageAlt: page.seoImage?.alt || page.heroImage?.alt || page.heroTitle,
+        seo: {
+            title: page.metaTitle,
+            description: page.metaDescription,
+            image: page.seoImage ? { url: page.seoImage.src, alt: page.seoImage.alt } : null,
+            noindex: page.seoNoindex,
+        },
     });
 }

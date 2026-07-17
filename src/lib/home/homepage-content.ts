@@ -76,6 +76,9 @@ export type HomePageContent = {
   seo: {
     title: string;
     description: string;
+    image?: HomeImage;
+    noindex?: boolean;
+    modified?: string;
   };
   hero: {
     enabled: boolean;

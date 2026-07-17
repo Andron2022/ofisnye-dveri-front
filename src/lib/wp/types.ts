@@ -1,3 +1,5 @@
+import type { HeadlessSeo } from "@src/lib/seo/types";
+
 // src/lib/wp/types.ts
 
 export type WpRenderedField = {
@@ -46,7 +48,14 @@ export type WpAcfImageObject = {
 
 export type WpAcfImageValue = number | string | WpAcfImageObject | null | undefined;
 
-export type WpPageAcf = Record<string, unknown> & {
+export type WpSeoAcfFields = {
+    seo_title?: string;
+    seo_description?: string;
+    seo_og_image?: WpAcfImageValue;
+    seo_noindex?: boolean | string | number;
+};
+
+export type WpPageAcf = Record<string, unknown> & WpSeoAcfFields & {
     hero_background_image?: WpAcfImageValue;
     lead_text?: string;
     door_pdp_care_title?: string;
@@ -85,6 +94,7 @@ export type WpBaseContentItem = {
     parent?: number;
     menu_order?: number;
     _embedded?: WpEmbedded;
+    headless_seo?: HeadlessSeo;
 };
 
 export type WpPageRestItem = WpBaseContentItem & {
@@ -92,14 +102,14 @@ export type WpPageRestItem = WpBaseContentItem & {
     acf?: WpPageAcf | unknown[];
 };
 
-export type WpPostAcf = Record<string, unknown> & {
+export type WpPostAcf = Record<string, unknown> & WpSeoAcfFields & {
     post_quote?: string;
     post_sub_text_related_products?: string;
     post_related_product_ids?: string | number | number[];
     post_related_post_ids?: string | number | number[];
 };
 
-export type WpPortfolioProjectAcf = Record<string, unknown> & {
+export type WpPortfolioProjectAcf = Record<string, unknown> & WpSeoAcfFields & {
     portfolio_card_image?: WpAcfImageValue;
     portfolio_card_label?: string;
     portfolio_card_order?: string | number;

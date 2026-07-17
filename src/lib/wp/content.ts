@@ -2,6 +2,8 @@
 
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@src/lib/seo/site";
+import { normalizeHeadlessSeo } from "@src/lib/seo/types";
+import type { HeadlessSeo } from "@src/lib/seo/types";
 import {
     buildTrustPageMetadata,
     getTrustPageContent,
@@ -62,6 +64,7 @@ export type WpPortfolioFields = {
 
 export type WpContentPreview = {
     id: number;
+    contentType: "post" | "portfolio_project";
     slug: string;
     path: string;
     title: string;
@@ -72,6 +75,7 @@ export type WpContentPreview = {
     featuredImageAlt?: string;
     label?: string;
     sortOrder?: number | null;
+    seo: HeadlessSeo;
     terms: Array<{
         id: number;
         name: string;
@@ -186,6 +190,7 @@ function stripImageBlocksFromHtml(html: string): string {
 function normalizeContentPreview(item: WpBaseContentItem, pathPrefix: string): WpContentPreview {
     return {
         id: item.id,
+        contentType: item.type === "portfolio_project" ? "portfolio_project" : "post",
         slug: item.slug,
         path: `${pathPrefix}/${item.slug}`,
         title: getTitle(item),
@@ -194,6 +199,7 @@ function normalizeContentPreview(item: WpBaseContentItem, pathPrefix: string): W
         modified: item.modified,
         featuredImage: getFeaturedImage(item),
         featuredImageAlt: getFeaturedImageAlt(item),
+        seo: normalizeHeadlessSeo(item.headless_seo),
         terms: getEmbeddedTerms(item).map((term) => ({
             id: term.id,
             name: term.name,
@@ -213,8 +219,8 @@ function normalizeContentDetails(item: WpBaseContentItem, pathPrefix: string): W
         contentHtml,
         contentHtmlWithoutImages: stripImageBlocksFromHtml(contentHtml),
         contentImages: extractContentImages(contentHtml),
-        metaTitle: preview.title,
-        metaDescription: truncateText(fallbackDescription, 220),
+        metaTitle: preview.seo.title || preview.title,
+        metaDescription: preview.seo.description || truncateText(fallbackDescription, 220),
         relatedProducts: [],
         relatedPosts: [],
         relatedProjects: [],
@@ -494,6 +500,7 @@ async function mergeContactsPageWithAcf(fallback: TrustPageContent, wpPage: WpPa
     const heroImage = await resolveAcfImageUrl(acf.contacts_hero_image) ?? getFeaturedImage(wpPage) ?? fallback.heroImage;
     const navigatorHref = asString(acf.contacts_navigator_href) || asString(acf["link-route"]) || fallback.map?.navigatorHref;
     const navigatorLabel = asString(acf.contacts_navigator_label) || fallback.map?.navigatorLabel;
+    const seo = normalizeHeadlessSeo(wpPage.headless_seo);
 
     return {
         ...fallback,
@@ -502,8 +509,10 @@ async function mergeContactsPageWithAcf(fallback: TrustPageContent, wpPage: WpPa
         lead,
         contentHtml: getRenderedValue(wpPage.content) || fallback.contentHtml,
         heroImage,
-        metaTitle: title,
-        metaDescription: truncateText(description || fallback.metaDescription, 220),
+        seo,
+        modified: wpPage.modified,
+        metaTitle: seo.title || title,
+        metaDescription: seo.description || truncateText(description || fallback.metaDescription, 220),
         contactInformation: getContactInformationFromAcf(acf, fallback),
         sections: getContactSectionsFromAcf(acf, fallback),
         map: fallback.map
@@ -533,6 +542,7 @@ async function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: 
     const contentHtml = getRenderedValue(wpPage.content);
     const heroImage = await resolveAcfImageUrl(acf.hero_background_image) ?? getFeaturedImage(wpPage) ?? fallback.heroImage;
     const serviceCards = getServiceCardsFromAcf(acf);
+    const seo = normalizeHeadlessSeo(wpPage.headless_seo);
 
     return {
         ...fallback,
@@ -541,6 +551,8 @@ async function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: 
         lead,
         contentHtml: contentHtml || fallback.contentHtml,
         heroImage,
+        seo,
+        modified: wpPage.modified,
         sections: serviceCards.length ? serviceCards : fallback.sections,
         facts: undefined,
         steps: undefined,
@@ -548,10 +560,18 @@ async function mergeWpPageWithTrustFallback(fallback: TrustPageContent, wpPage: 
         primaryCta: undefined,
         secondaryCta: undefined,
         relatedLinks: undefined,
-        metaTitle: title,
-        metaDescription: truncateText(description || fallback.metaDescription, 220),
+        metaTitle: seo.title || title,
+        metaDescription: seo.description || truncateText(description || fallback.metaDescription, 220),
     };
 }
+
+export type WpArchiveSeoData = {
+    path: string;
+    modified?: string;
+    seo: HeadlessSeo;
+    image?: string;
+    imageAlt?: string;
+};
 
 export async function getWpPageBySlug(slug: string): Promise<WpPageRestItem | null> {
     const { items } = await wpPublicGetList<WpPageRestItem>(
@@ -565,6 +585,41 @@ export async function getWpPageBySlug(slug: string): Promise<WpPageRestItem | nu
     );
 
     return items[0] ?? null;
+}
+
+export async function getWpArchiveSeoData(slug: string, path: string): Promise<WpArchiveSeoData> {
+    try {
+        const page = await getWpPageBySlug(slug);
+
+        return {
+            path,
+            modified: page?.modified,
+            seo: normalizeHeadlessSeo(page?.headless_seo),
+            image: page ? getFeaturedImage(page) : undefined,
+            imageAlt: page ? getFeaturedImageAlt(page) : undefined,
+        };
+    } catch (error) {
+        console.error(`Failed to load WP archive SEO page: ${slug}`, error);
+        return { path, seo: {} };
+    }
+}
+
+export async function buildWpArchiveMetadata(args: {
+    slug: string;
+    path: string;
+    title: string;
+    description: string;
+}): Promise<Metadata> {
+    const data = await getWpArchiveSeoData(args.slug, args.path);
+
+    return buildSeoMetadata({
+        title: args.title,
+        description: args.description,
+        path: args.path,
+        image: data.image,
+        imageAlt: data.imageAlt,
+        seo: data.seo,
+    });
 }
 
 export async function getTrustPageContentWithWp(id: TrustPageId): Promise<TrustPageContent> {
@@ -590,6 +645,8 @@ export async function buildTrustPageMetadataWithWp(id: TrustPageId): Promise<Met
             description: page.metaDescription,
             path: page.path,
             image: page.heroImage,
+            imageAlt: page.title,
+            seo: page.seo,
         });
     } catch (error) {
         console.error(`Failed to build WP-driven trust page metadata: ${id}`, error);
@@ -760,8 +817,8 @@ async function normalizePortfolioProjectDetails(item: WpPortfolioProjectRestItem
         contentHtml,
         contentHtmlWithoutImages: stripImageBlocksFromHtml(contentHtml),
         contentImages: extractContentImages(contentHtml),
-        metaTitle: preview.title,
-        metaDescription: truncateText(fallbackDescription, 220),
+        metaTitle: preview.seo.title || preview.title,
+        metaDescription: preview.seo.description || truncateText(fallbackDescription, 220),
         relatedProducts: [],
         relatedPosts: [],
         relatedProjects: [],
@@ -892,6 +949,11 @@ export function buildWpContentMetadata(item: WpContentDetails): Metadata {
         description: item.metaDescription,
         path: item.path,
         image: item.portfolio?.heroImage || item.featuredImage,
+        imageAlt: item.featuredImageAlt || item.title,
+        seo: item.seo,
+        openGraphType: "article",
+        publishedTime: item.date,
+        modifiedTime: item.modified,
     });
 }
 
@@ -904,10 +966,11 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
                 try {
                     const slug = fallbackPage.path.split("/").filter(Boolean).at(-1);
                     const wpPage = slug ? await getWpPageBySlug(slug) : null;
-                    entries.push({
-                        path: fallbackPage.path,
-                        modified: wpPage?.modified,
-                    });
+                    const seo = normalizeHeadlessSeo(wpPage?.headless_seo);
+
+                    if (!seo.noindex) {
+                        entries.push({ path: fallbackPage.path, modified: wpPage?.modified });
+                    }
                 } catch {
                     entries.push({ path: fallbackPage.path });
                 }
@@ -918,25 +981,25 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
     }
 
     try {
-        entries.push({ path: "/novosti-i-stati" });
+        const archive = await getWpArchiveSeoData("novosti-i-stati", "/novosti-i-stati");
+        if (!archive.seo.noindex) {
+            entries.push({ path: archive.path, modified: archive.modified });
+        }
+
         const posts = await getWpPosts(100);
-        entries.push(...posts.map((post) => ({ path: post.path, modified: post.modified })));
+        entries.push(...posts.filter((post) => !post.seo.noindex).map((post) => ({ path: post.path, modified: post.modified })));
     } catch (error) {
         console.error("Failed to build WP posts sitemap entries", error);
     }
 
     try {
-        entries.push({ path: "/portfolio" });
-        const { items: projects } = await wpPublicGetList<WpPortfolioProjectRestItem>(
-            "portfolio_project",
-            {
-                per_page: 100,
-                status: "publish",
-                _fields: "id,slug,modified",
-            },
-            CONTENT_REVALIDATE_SECONDS,
-        );
-        entries.push(...projects.map((project) => ({ path: `/portfolio/${project.slug}`, modified: project.modified })));
+        const archive = await getWpArchiveSeoData("portfolio", "/portfolio");
+        if (!archive.seo.noindex) {
+            entries.push({ path: archive.path, modified: archive.modified });
+        }
+
+        const projects = await getWpPortfolioProjects(100);
+        entries.push(...projects.filter((project) => !project.seo.noindex).map((project) => ({ path: project.path, modified: project.modified })));
     } catch (error) {
         console.error("Failed to build WP portfolio sitemap entries", error);
     }

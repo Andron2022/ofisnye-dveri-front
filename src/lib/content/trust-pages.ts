@@ -2,6 +2,7 @@
 
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@src/lib/seo/site";
+import type { HeadlessSeo } from "@src/lib/seo/types";
 
 // -----------------------------------------------------
 // Fallback-контент служебных страниц MVP.
@@ -75,6 +76,8 @@ export type TrustPageContent = {
     heroImage?: string;
     metaTitle: string;
     metaDescription: string;
+    seo?: HeadlessSeo;
+    modified?: string;
     lead: string;
     contentHtml?: string;
     facts?: TrustPageFact[];
