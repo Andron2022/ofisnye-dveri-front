@@ -33,6 +33,15 @@ export type CheckoutOrderRequest = {
     items: CartItem[];
 };
 
+export type StorefrontAntiAbuseFields = {
+    website: string;
+    startedAt: number;
+};
+
+export type CheckoutOrderSubmission = CheckoutOrderRequest & {
+    antiAbuse: StorefrontAntiAbuseFields;
+};
+
 export type CheckoutOrderSuccessResponse = {
     success: true;
     orderId: number;
@@ -47,13 +56,21 @@ export type CheckoutFieldError = {
     message: string;
 };
 
-export type CheckoutOrderErrorCode = "VALIDATION_ERROR" | "ORDER_CREATE_ERROR";
+export type CheckoutOrderErrorCode =
+    | "VALIDATION_ERROR"
+    | "REQUEST_REJECTED"
+    | "RATE_LIMITED"
+    | "IDEMPOTENCY_CONFLICT"
+    | "ORDER_IN_PROGRESS"
+    | "ORDER_REJECTED"
+    | "ORDER_CREATE_ERROR";
 
 export type CheckoutOrderErrorResponse = {
     success: false;
     message: string;
     code?: CheckoutOrderErrorCode;
     errors?: CheckoutFieldError[];
+    requestId?: string;
 };
 
 export type CheckoutOrderResponse = CheckoutOrderSuccessResponse | CheckoutOrderErrorResponse;

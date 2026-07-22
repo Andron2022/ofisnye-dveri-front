@@ -355,4 +355,5 @@ export type WooCreatedOrder = {
     number: string;
     status: string;
     total: string;
+    storefront_idempotency_replayed?: boolean;
 };

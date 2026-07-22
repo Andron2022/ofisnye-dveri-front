@@ -1,5 +1,6 @@
 // src/lib/wall-panels/request.ts
 
+import { StorefrontWriteError, type StorefrontWriteContext } from "@src/lib/bff/write-security";
 import { wooPost } from "@src/lib/woo/client";
 import type { WooCreateOrderPayload, WooCreatedOrder } from "@src/lib/woo/types";
 import { buildAbsoluteUrl } from "@src/lib/seo/site";
@@ -13,13 +14,22 @@ import type {
 
 const WALL_PANEL_ORDER_STATUS = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
-const WALL_PANEL_CONTRACT_VERSION = "mvp-wall-panel-request-v1";
+const WALL_PANEL_CONTRACT_VERSION = "mvp-wall-panel-request-v2";
 
 type WallPanelRequestFieldError = NonNullable<WallPanelRequestErrorResponse["errors"]>[number];
 
 type WallPanelRequestValidationResult =
     | { ok: true; value: WallPanelRequestPayload }
     | { ok: false; errors: WallPanelRequestFieldError[] };
+
+function rejectWallPanelRequest(message: string, status = 409, code = "ORDER_REJECTED"): never {
+    throw new StorefrontWriteError({
+        code,
+        status,
+        publicMessage: message,
+        internalReason: message,
+    });
+}
 
 function normalizeWhitespace(value: unknown): string {
     return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -104,6 +114,10 @@ export function validateWallPanelRequestPayload(rawPayload: unknown): WallPanelR
         errors.push({ field: "phone", message: "Проверьте номер телефона" });
     }
 
+    if (normalized.phone.length > 32) {
+        errors.push({ field: "phone", message: "Телефон должен быть не длиннее 32 символов" });
+    }
+
     if (normalized.name.length > 120) {
         errors.push({ field: "name", message: "Имя должно быть не длиннее 120 символов" });
     }
@@ -150,7 +164,11 @@ function buildCustomerNote(payload: WallPanelRequestPayload, product: WallPanelP
     return parts.join("\n\n");
 }
 
-function buildWooOrderPayload(payload: WallPanelRequestPayload, product: WallPanelProduct): WooCreateOrderPayload {
+function buildWooOrderPayload(
+    payload: WallPanelRequestPayload,
+    product: WallPanelProduct,
+    context: StorefrontWriteContext,
+): WooCreateOrderPayload {
     const customerName = payload.name || "Клиент";
     const frontendUrl = buildAbsoluteUrl(product.path);
 
@@ -180,6 +198,10 @@ function buildWooOrderPayload(payload: WallPanelRequestPayload, product: WallPan
         customer_note: buildCustomerNote(payload, product),
         line_items: [],
         meta_data: [
+            { key: "_storefront_idempotency_key", value: context.idempotencyKey },
+            { key: "_storefront_payload_hash", value: context.payloadHash },
+            { key: "_storefront_request_id", value: context.requestId },
+            { key: "storefront_endpoint", value: context.endpoint },
             { key: "Источник заказа", value: "Next.js storefront" },
             { key: "Версия wall panels contract", value: WALL_PANEL_CONTRACT_VERSION },
             { key: "order_kind", value: "wall_panel_request" },
@@ -203,26 +225,33 @@ function buildWooOrderPayload(payload: WallPanelRequestPayload, product: WallPan
 
 export async function createWallPanelRequestOrder(
     payload: WallPanelRequestPayload,
-): Promise<WallPanelRequestSuccessResponse> {
+    context: StorefrontWriteContext,
+): Promise<WallPanelRequestSuccessResponse & { idempotencyReplayed?: boolean }> {
     const validation = validateWallPanelRequestPayload(payload);
 
     if (!validation.ok) {
-        throw new Error(getWallPanelRequestErrorMessage(validation.errors));
+        rejectWallPanelRequest(getWallPanelRequestErrorMessage(validation.errors), 422, "VALIDATION_ERROR");
     }
 
     const product = await getWallPanelProductById(validation.value.productId);
 
     if (!product) {
-        throw new Error("Выбранная стеновая панель не найдена или не опубликована");
+        rejectWallPanelRequest("Выбранная стеновая панель не найдена или не опубликована", 409);
     }
 
-    const wooPayload = buildWooOrderPayload(validation.value, product);
-    const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload);
+    const wooPayload = buildWooOrderPayload(validation.value, product, context);
+    const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload, {
+        headers: {
+            "X-Storefront-Request-Id": context.requestId,
+            "X-Storefront-Idempotency-Key": context.idempotencyKey,
+        },
+    });
 
     return {
         success: true,
         orderId: order.id,
         orderNumber: order.number,
         status: order.status,
+        idempotencyReplayed: order.storefront_idempotency_replayed === true,
     };
 }

@@ -19,7 +19,7 @@ import type { WpAcfImageObject, WpAcfImageValue, WpEmbeddedMedia, WpPageAcf } fr
 
 const HOMEPAGE_WP_SLUG = "glavnaya";
 const HOMEPAGE_REVALIDATE_SECONDS = 300;
-const HOMEPAGE_MEDIA_TIMEOUT_MS = 3500;
+// const HOMEPAGE_MEDIA_TIMEOUT_MS = 3500;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -168,36 +168,45 @@ function getPreferredMediaUrl(media: WpEmbeddedMedia | null): string | undefined
   return media.source_url;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+// async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+//   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  const timeoutPromise = new Promise<T>((resolve) => {
-    timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
-  });
+//   const timeoutPromise = new Promise<T>((resolve) => {
+//     timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+//   });
 
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-}
+//   try {
+//     return await Promise.race([promise, timeoutPromise]);
+//   } finally {
+//     if (timeoutId) clearTimeout(timeoutId);
+//   }
+// }
 
 async function getHomepageMediaMap(ids: number[]): Promise<Map<number, WpEmbeddedMedia>> {
   if (ids.length === 0) return new Map();
 
   try {
-    const response = await withTimeout(
-      wpPublicGetList<WpEmbeddedMedia>(
-        "media",
-        {
-          include: ids.join(","),
-          per_page: Math.min(ids.length, 100),
-          _fields: "id,source_url,alt_text,title,media_details",
-        },
-        HOMEPAGE_REVALIDATE_SECONDS,
-      ),
-      HOMEPAGE_MEDIA_TIMEOUT_MS,
-      { items: [], total: 0, totalPages: 0 },
+    // const response = await withTimeout(
+    //   wpPublicGetList<WpEmbeddedMedia>(
+    //     "media",
+    //     {
+    //       include: ids.join(","),
+    //       per_page: Math.min(ids.length, 100),
+    //       _fields: "id,source_url,alt_text,title,media_details",
+    //     },
+    //     HOMEPAGE_REVALIDATE_SECONDS,
+    //   ),
+    //   HOMEPAGE_MEDIA_TIMEOUT_MS,
+    //   { items: [], total: 0, totalPages: 0 },
+    // );
+    const response = await wpPublicGetList<WpEmbeddedMedia>(
+      "media",
+      {
+        include: ids.join(","),
+        per_page: Math.min(ids.length, 100),
+        _fields: "id,source_url,alt_text,title,media_details",
+      },
+      HOMEPAGE_REVALIDATE_SECONDS,
     );
 
     return new Map(

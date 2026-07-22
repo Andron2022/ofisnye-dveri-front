@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import React, { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import cart from "@assets/images/shopping-cart/shopping-cart-head.jpg";
 import FooterPage from "@src/components/Footer";
 import PopupPage from "@src/components/Popup";
@@ -16,8 +16,10 @@ import type {
     CheckoutFieldError,
     CheckoutOrderServices,
     CheckoutOrderResponse,
+    CheckoutOrderSubmission,
 } from "@src/lib/checkout/types";
 import { getCheckoutErrorMessage, validateCheckoutOrderRequest } from "@src/lib/checkout/validation";
+import { appendRequestId, createClientIdempotencyKey, readBffJsonResponse } from "@src/lib/bff/client";
 
 function formatPrice(value: number | string | null): string {
     if (value === null || value === "") return "Цена по запросу";
@@ -161,6 +163,9 @@ const Checkout = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Partial<Record<CheckoutFieldError["field"], string>>>({});
+    const [website, setWebsite] = useState("");
+    const idempotencyKeyRef = useRef<string | null>(null);
+    const formStartedAtRef = useRef(Date.now());
 
     const fullName = useMemo(() => buildFullName(customer), [customer]);
     const canSubmit = isHydrated && items.length > 0 && !totals.hasUnknownPrices && !isSubmitting;
@@ -237,24 +242,41 @@ const Checkout = () => {
         setIsSubmitting(true);
 
         try {
+            idempotencyKeyRef.current ??= createClientIdempotencyKey();
+            const submission: CheckoutOrderSubmission = {
+                ...validation.value,
+                antiAbuse: {
+                    website,
+                    startedAt: formStartedAtRef.current,
+                },
+            };
+
             const response = await fetch("/api/checkout/order", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "Idempotency-Key": idempotencyKeyRef.current,
                 },
-                body: JSON.stringify(validation.value),
+                body: JSON.stringify(submission),
             });
 
-            const result = (await response.json()) as CheckoutOrderResponse;
+            const result = await readBffJsonResponse<CheckoutOrderResponse>(response);
 
             if (!response.ok || !result.success) {
                 if (!result.success && result.errors) {
                     setFieldErrors(buildFieldErrorMap(result.errors));
                 }
 
-                throw new Error(result.success ? "Не удалось создать заказ" : result.message);
+                if (!result.success && result.code === "IDEMPOTENCY_CONFLICT") {
+                    idempotencyKeyRef.current = null;
+                }
+
+                const message = result.success ? "Не удалось создать заказ" : result.message;
+                const requestId = result.success ? undefined : result.requestId;
+                throw new Error(appendRequestId(message, requestId));
             }
 
+            idempotencyKeyRef.current = null;
             clearCart();
             router.push(result.successPath);
         } catch (error) {
@@ -304,6 +326,21 @@ const Checkout = () => {
 
                         {isHydrated && items.length > 0 ? (
                             <form onSubmit={handleSubmit} className="row g-5 align-items-start" noValidate>
+                                <div
+                                    aria-hidden="true"
+                                    style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}
+                                >
+                                    <label htmlFor="checkout-website">Сайт</label>
+                                    <input
+                                        id="checkout-website"
+                                        name="website"
+                                        type="text"
+                                        value={website}
+                                        onChange={(event) => setWebsite(event.target.value)}
+                                        tabIndex={-1}
+                                        autoComplete="off"
+                                    />
+                                </div>
                                 <div className="col-lg-7">
                                     <div className="border p-4 p-lg-5 bg-white">
                                         <SectionTitle eyebrow="Шаг 1" title="Контактные данные" />

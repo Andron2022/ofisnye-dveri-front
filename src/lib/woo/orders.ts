@@ -2,6 +2,7 @@
 
 import type { CartAccessorySnapshot, CartItem, CartOptionSnapshot } from "@src/lib/cart/types";
 import type { CheckoutOrderRequest, CheckoutOrderSuccessResponse } from "@src/lib/checkout/types";
+import { StorefrontWriteError, type StorefrontWriteContext } from "@src/lib/bff/write-security";
 import {
     getCheckoutErrorMessage,
     getContactMethodLabel,
@@ -23,20 +24,10 @@ import type {
 
 const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
-const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v3";
+const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v4";
 
-const ALLOWED_DOOR_CATEGORY_SLUGS = new Set([
-    "mezhkomnatnye-dveri",
-    "skrytye-dveri",
-    "protivopozharnye-dveri",
-]);
-
-const ALLOWED_ACCESSORY_CATEGORY_SLUGS = new Set([
-    "furnitura",
-    "ruchki",
-    "petli",
-    "zamki",
-]);
+const ALLOWED_DOOR_CATEGORY_SLUGS = new Set(["mezhkomnatnye-dveri"]);
+const ALLOWED_ACCESSORY_CATEGORY_SLUGS = new Set(["furnitura"]);
 
 const DOOR_RELATED_ACCESSORY_META_KEYS = [
     "configurator_related_handles",
@@ -53,6 +44,17 @@ type ValidatedDoorItem = {
     accessoryLineItems: WooOrderLineItemPayload[];
     lineTotal: number;
 };
+
+type WooProductLoader = (productId: number) => Promise<WooProduct>;
+
+function rejectOrder(message: string, status = 409, code = "ORDER_REJECTED"): never {
+    throw new StorefrontWriteError({
+        code,
+        status,
+        publicMessage: message,
+        internalReason: message,
+    });
+}
 
 function trim(value: string | null | undefined): string {
     return (value ?? "").trim();
@@ -148,7 +150,7 @@ function assertProductHasAllowedCategory(
     }
 
     const categoryList = getCategorySlugs(product).join(", ") || "без категории";
-    throw new Error(`Товар "${product.name}" не может быть оформлен как ${roleLabel}. Категории товара: ${categoryList}`);
+    rejectOrder(`Товар "${product.name}" не может быть оформлен как ${roleLabel}. Категории товара: ${categoryList}`);
 }
 
 function getAllowedAccessoryIdsForDoor(product: WooProduct): Set<number> {
@@ -171,26 +173,39 @@ function ensureProductCanBeOrdered(product: WooProduct, role: "door" | "accessor
     }
 
     if (product.status && product.status !== "publish") {
-        throw new Error(`Товар "${product.name}" сейчас не опубликован`);
+        rejectOrder(`Товар "${product.name}" сейчас не опубликован`);
     }
 
     if (product.stock_status && product.stock_status !== "instock") {
-        throw new Error(`Товар "${product.name}" сейчас не в наличии`);
+        rejectOrder(`Товар "${product.name}" сейчас не в наличии`);
     }
 
     const price = parseMoney(product.price);
     if (price === null) {
         const label = role === "door" ? "двери" : "фурнитуры";
-        throw new Error(`У товара ${label} "${product.name}" не задана цена. Заказ можно оформить после заполнения цены в Woo`);
+        rejectOrder(`У товара ${label} "${product.name}" не задана цена. Заказ можно оформить после заполнения цены в Woo`);
     }
 }
 
-async function getWooProduct(productId: number): Promise<WooProduct> {
-    if (!Number.isFinite(productId) || productId <= 0) {
-        throw new Error("Некорректный ID товара в корзине");
-    }
+function createWooProductLoader(): WooProductLoader {
+    const products = new Map<number, Promise<WooProduct>>();
 
-    return wooGet<WooProduct>(`products/${productId}`, {}, 0);
+    return (productId: number): Promise<WooProduct> => {
+        if (!Number.isInteger(productId) || productId <= 0) {
+            rejectOrder("Некорректный ID товара в корзине", 422);
+        }
+
+        const cached = products.get(productId);
+        if (cached) return cached;
+
+        const request = wooGet<WooProduct>(`products/${productId}`, {}, 0).catch((error) => {
+            products.delete(productId);
+            throw error;
+        });
+
+        products.set(productId, request);
+        return request;
+    };
 }
 
 function getOptionGroupByKey(
@@ -206,11 +221,11 @@ function normalizeSelectedOption(product: WooProduct, option: CartOptionSnapshot
     const choice = group.choices.find((item) => item.id === option.choiceId);
 
     if (!choice) {
-        throw new Error(`У товара "${product.name}" не найдена опция "${option.groupTitle}: ${option.choiceLabel}"`);
+        rejectOrder(`У товара "${product.name}" не найдена опция "${option.groupTitle}: ${option.choiceLabel}"`);
     }
 
     if (!choice.enabled) {
-        throw new Error(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
+        rejectOrder(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
     }
 
     return {
@@ -232,11 +247,11 @@ function normalizeDoorOptions(product: WooProduct, item: CartItem): CartOptionSn
         const choice = group.choices.find((itemChoice) => itemChoice.id === selectedChoiceId);
 
         if (!choice) {
-            throw new Error(`У товара "${product.name}" не найдена опция "${group.title}: ${selectedChoiceId}"`);
+            rejectOrder(`У товара "${product.name}" не найдена опция "${group.title}: ${selectedChoiceId}"`);
         }
 
         if (!choice.enabled) {
-            throw new Error(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
+            rejectOrder(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
         }
 
         normalizedOptions.push(normalizeSelectedOption(product, {
@@ -296,9 +311,9 @@ function accessoryMetaData(
     ];
 }
 
-async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> {
+async function validateDoorCartItem(item: CartItem, getWooProduct: WooProductLoader): Promise<ValidatedDoorItem> {
     if (!Number.isFinite(item.quantity) || item.quantity < 1 || item.quantity > 99) {
-        throw new Error(`Некорректное количество товара в корзине: ${item.name}`);
+        rejectOrder(`Некорректное количество товара в корзине: ${item.name}`, 422);
     }
 
     const doorProduct = await getWooProduct(item.productId);
@@ -306,7 +321,7 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
 
     const doorBasePrice = parseMoney(doorProduct.price);
     if (doorBasePrice === null) {
-        throw new Error(`У двери "${doorProduct.name}" не задана цена`);
+        rejectOrder(`У двери "${doorProduct.name}" не задана цена`);
     }
 
     const normalizedOptions = normalizeDoorOptions(doorProduct, item);
@@ -328,11 +343,11 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
 
     for (const accessory of item.selectedAccessories.filter((cartAccessory) => cartAccessory.qty > 0)) {
         if (!Number.isFinite(accessory.qty) || accessory.qty < 1 || accessory.qty > 99) {
-            throw new Error(`Некорректное количество фурнитуры в корзине: ${accessory.name}`);
+            rejectOrder(`Некорректное количество фурнитуры в корзине: ${accessory.name}`, 422);
         }
 
         if (!allowedAccessoryIds.has(accessory.productId)) {
-            throw new Error(`Фурнитура "${accessory.name}" не привязана к двери "${doorProduct.name}" и не может быть оформлена в этом заказе`);
+            rejectOrder(`Фурнитура "${accessory.name}" не привязана к двери "${doorProduct.name}" и не может быть оформлена в этом заказе`);
         }
 
         const accessoryProduct = await getWooProduct(accessory.productId);
@@ -340,7 +355,7 @@ async function validateDoorCartItem(item: CartItem): Promise<ValidatedDoorItem> 
 
         const accessoryPrice = parseMoney(accessoryProduct.price);
         if (accessoryPrice === null) {
-            throw new Error(`У фурнитуры "${accessoryProduct.name}" не задана цена`);
+            rejectOrder(`У фурнитуры "${accessoryProduct.name}" не задана цена`);
         }
 
         const quantity = accessory.qty * item.quantity;
@@ -395,6 +410,7 @@ function buildWooOrderPayload(
     payload: CheckoutOrderRequest,
     lineItems: WooOrderLineItemPayload[],
     calculatedTotal: number,
+    context: StorefrontWriteContext,
 ): WooCreateOrderPayload {
     const firstName = trim(payload.customer.firstName);
     const lastName = trim(payload.customer.lastName);
@@ -431,6 +447,10 @@ function buildWooOrderPayload(
         customer_note: buildCustomerNote(payload),
         line_items: lineItems,
         meta_data: [
+            { key: "_storefront_idempotency_key", value: context.idempotencyKey },
+            { key: "_storefront_payload_hash", value: context.payloadHash },
+            { key: "_storefront_request_id", value: context.requestId },
+            { key: "storefront_endpoint", value: context.endpoint },
             { key: "Источник заказа", value: "Next.js storefront" },
             { key: "Версия checkout contract", value: CHECKOUT_CONTRACT_VERSION },
             { key: "Тип оформления", value: "Checkout MVP без онлайн-оплаты" },
@@ -465,24 +485,35 @@ function buildCheckoutSuccessPath(order: WooCreatedOrder): string {
     return `/checkout/success?${params.toString()}`;
 }
 
-export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promise<CheckoutOrderSuccessResponse> {
+export async function createCheckoutOrder(
+    payload: CheckoutOrderRequest,
+    context: StorefrontWriteContext,
+): Promise<CheckoutOrderSuccessResponse & { idempotencyReplayed?: boolean }> {
     const validation = validateCheckoutOrderRequest(payload);
 
     if (!validation.ok) {
-        throw new Error(getCheckoutErrorMessage(validation.errors));
+        rejectOrder(getCheckoutErrorMessage(validation.errors), 422, "VALIDATION_ERROR");
     }
 
     const normalizedPayload = validation.value;
-    const validatedItems = await Promise.all(normalizedPayload.items.map(validateDoorCartItem));
+    const getWooProduct = createWooProductLoader();
+    const validatedItems = await Promise.all(
+        normalizedPayload.items.map((item) => validateDoorCartItem(item, getWooProduct)),
+    );
     const lineItems = validatedItems.flatMap((item) => [item.lineItem, ...item.accessoryLineItems]);
     const calculatedTotal = roundMoney(validatedItems.reduce((sum, item) => sum + item.lineTotal, 0));
 
     if (lineItems.length === 0) {
-        throw new Error("В заказе нет валидных позиций");
+        rejectOrder("В заказе нет валидных позиций", 422);
     }
 
-    const wooPayload = buildWooOrderPayload(normalizedPayload, lineItems, calculatedTotal);
-    const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload);
+    const wooPayload = buildWooOrderPayload(normalizedPayload, lineItems, calculatedTotal, context);
+    const order = await wooPost<WooCreateOrderPayload, WooCreatedOrder>("orders", wooPayload, {
+        headers: {
+            "X-Storefront-Request-Id": context.requestId,
+            "X-Storefront-Idempotency-Key": context.idempotencyKey,
+        },
+    });
 
     return {
         success: true,
@@ -491,5 +522,6 @@ export async function createCheckoutOrder(payload: CheckoutOrderRequest): Promis
         status: order.status,
         total: order.total,
         successPath: buildCheckoutSuccessPath(order),
+        idempotencyReplayed: order.storefront_idempotency_replayed === true,
     };
 }

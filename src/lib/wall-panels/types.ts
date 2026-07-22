@@ -82,6 +82,14 @@ export type WallPanelRequestPayload = {
     termsAccepted: boolean;
 };
 
+
+export type WallPanelRequestSubmission = WallPanelRequestPayload & {
+    antiAbuse: {
+        website: string;
+        startedAt: number;
+    };
+};
+
 export type WallPanelRequestSuccessResponse = {
     success: true;
     orderId: number;
@@ -92,6 +100,8 @@ export type WallPanelRequestSuccessResponse = {
 export type WallPanelRequestErrorResponse = {
     success: false;
     message: string;
+    code?: string;
+    requestId?: string;
     errors?: Array<{
         field: keyof WallPanelRequestPayload | "root";
         message: string;

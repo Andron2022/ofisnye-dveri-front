@@ -16,6 +16,24 @@ type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 
 type QueryParams = Record<string, QueryValue>;
 
+export class WooRestError extends Error {
+    readonly status: number;
+    readonly code?: string;
+    readonly details?: unknown;
+
+    constructor(args: { status: number; message: string; code?: string; details?: unknown }) {
+        super(args.message);
+        this.name = "WooRestError";
+        this.status = args.status;
+        this.code = args.code;
+        this.details = args.details;
+    }
+}
+
+export function isWooRestError(error: unknown): error is WooRestError {
+    return error instanceof WooRestError;
+}
+
 const DEFAULT_REVALIDATE_SECONDS = 60;
 const REST_DEBUG_ENV = "WP_REST_DEBUG";
 const REST_TIMEOUT_ENV = "WP_REST_TIMEOUT_MS";
@@ -252,27 +270,51 @@ function buildWpUrl(path: string, query: QueryParams = {}): string {
     return url.toString();
 }
 
-function buildAuthorizationHeader(): string {
-    const key = getRequiredEnv("WC_CONSUMER_KEY");
-    const secret = getRequiredEnv("WC_CONSUMER_SECRET");
-    
+function buildAuthorizationHeader(mode: "read" | "write" = "read"): string {
+    const writeKey = process.env.WC_WRITE_CONSUMER_KEY?.trim();
+    const writeSecret = process.env.WC_WRITE_CONSUMER_SECRET?.trim();
+
+    if (mode === "write" && Boolean(writeKey) !== Boolean(writeSecret)) {
+        throw new Error("WC_WRITE_CONSUMER_KEY and WC_WRITE_CONSUMER_SECRET must be configured together");
+    }
+
+    const key = mode === "write" && writeKey ? writeKey : getRequiredEnv("WC_CONSUMER_KEY");
+    const secret = mode === "write" && writeSecret ? writeSecret : getRequiredEnv("WC_CONSUMER_SECRET");
     const token = Buffer.from(`${key}:${secret}`).toString("base64");
+
     return `Basic ${token}`;
 }
 
-async function buildHttpErrorMessage(response: Response): Promise<string> {
-    let details = response.statusText;
-    
+async function buildHttpError(response: Response): Promise<WooRestError> {
+    let details: unknown;
+    let code: string | undefined;
+    let publicMessage = response.statusText || "REST request failed";
+
     try {
         const bodyText = await response.text();
         if (bodyText) {
-            details = `${details}. ${bodyText}`;
+            try {
+                details = JSON.parse(bodyText) as unknown;
+            } catch {
+                details = bodyText;
+            }
+
+            if (details && typeof details === "object" && !Array.isArray(details)) {
+                const body = details as { code?: unknown; message?: unknown };
+                if (typeof body.code === "string") code = body.code;
+                if (typeof body.message === "string" && body.message.trim()) publicMessage = body.message.trim();
+            }
         }
     } catch {
-        // Если тело ошибки не прочиталось, оставляем statusText.
+        // Keep the HTTP status when the error body cannot be read.
     }
-    
-    return `Woo/WP API request failed (${response.status}): ${details}`;
+
+    return new WooRestError({
+        status: response.status,
+        code,
+        message: `Woo/WP API request failed (${response.status}): ${publicMessage}`,
+        details,
+    });
 }
 
 export async function wooGet<T>(
@@ -294,7 +336,7 @@ export async function wooGet<T>(
         });
 
         if (!response.ok) {
-            throw new Error(await buildHttpErrorMessage(response));
+            throw await buildHttpError(response);
         }
 
         return (await response.json()) as T;
@@ -320,7 +362,7 @@ export async function wooGetList<T>(
         });
 
         if (!response.ok) {
-            throw new Error(await buildHttpErrorMessage(response));
+            throw await buildHttpError(response);
         }
 
         const items = (await response.json()) as T[];
@@ -339,14 +381,15 @@ export async function wooGetList<T>(
 export async function wooPost<TRequest, TResponse>(
     path: string,
     body: TRequest,
-    query: QueryParams = {},
+    options: { query?: QueryParams; headers?: HeadersInit } = {},
 ): Promise<TResponse> {
-    const url = buildWooUrl(path, query);
-    
+    const url = buildWooUrl(path, options.query ?? {});
+
     const response = await fetchRest(url, {
         method: "POST",
         headers: {
-            Authorization: buildAuthorizationHeader(),
+            ...Object.fromEntries(new Headers(options.headers).entries()),
+            Authorization: buildAuthorizationHeader("write"),
             Accept: "application/json",
             "Content-Type": "application/json",
         },
@@ -354,11 +397,11 @@ export async function wooPost<TRequest, TResponse>(
         cache: "no-store",
         label: "Woo REST",
     });
-    
+
     if (!response.ok) {
-        throw new Error(await buildHttpErrorMessage(response));
+        throw await buildHttpError(response);
     }
-    
+
     return (await response.json()) as TResponse;
 }
 
@@ -386,7 +429,7 @@ export async function wpGet<T>(
         });
 
         if (!response.ok) {
-            throw new Error(await buildHttpErrorMessage(response));
+            throw await buildHttpError(response);
         }
 
         return (await response.json()) as T;
@@ -411,7 +454,7 @@ export async function wpGetList<T>(
         });
 
         if (!response.ok) {
-            throw new Error(await buildHttpErrorMessage(response));
+            throw await buildHttpError(response);
         }
 
         const items = (await response.json()) as T[];

@@ -1,11 +1,13 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import type {
     WallPanelProduct,
     WallPanelRequestPayload,
     WallPanelRequestResponse,
+    WallPanelRequestSubmission,
 } from "@src/lib/wall-panels/types";
+import { appendRequestId, createClientIdempotencyKey, readBffJsonResponse } from "@src/lib/bff/client";
 
 const initialFormState: Omit<WallPanelRequestPayload, "productId"> = {
     areaSqm: 0,
@@ -46,6 +48,9 @@ export default function WallPanelRequestModal({ product, onClose }: WallPanelReq
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [website, setWebsite] = useState("");
+    const idempotencyKeyRef = useRef<string | null>(null);
+    const formStartedAtRef = useRef(Date.now());
 
     const activeImage = useMemo(() => {
         if (!product) return null;
@@ -59,6 +64,9 @@ export default function WallPanelRequestModal({ product, onClose }: WallPanelReq
         setActiveImageIndex(0);
         setFieldErrors({});
         setSuccessMessage(null);
+        setWebsite("");
+        idempotencyKeyRef.current = null;
+        formStartedAtRef.current = Date.now();
         onClose();
     };
 
@@ -89,33 +97,52 @@ export default function WallPanelRequestModal({ product, onClose }: WallPanelReq
         setFieldErrors({});
 
         try {
+            idempotencyKeyRef.current ??= createClientIdempotencyKey();
+            const submission: WallPanelRequestSubmission = {
+                productId: product.id,
+                areaSqm: form.areaSqm,
+                name: form.name,
+                phone: form.phone,
+                email: form.email,
+                comment: form.comment,
+                termsAccepted: form.termsAccepted,
+                antiAbuse: {
+                    website,
+                    startedAt: formStartedAtRef.current,
+                },
+            };
+
             const response = await fetch("/api/wall-panels/request", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "Idempotency-Key": idempotencyKeyRef.current,
                 },
-                body: JSON.stringify({
-                    productId: product.id,
-                    areaSqm: form.areaSqm,
-                    name: form.name,
-                    phone: form.phone,
-                    email: form.email,
-                    comment: form.comment,
-                    termsAccepted: form.termsAccepted,
-                } satisfies WallPanelRequestPayload),
+                body: JSON.stringify(submission),
             });
-            const data = (await response.json()) as WallPanelRequestResponse;
+            const data = await readBffJsonResponse<WallPanelRequestResponse>(response);
 
             if (!response.ok || !data.success) {
+                if (!data.success && data.code === "IDEMPOTENCY_CONFLICT") {
+                    idempotencyKeyRef.current = null;
+                }
+
+                const rootMessage = data.success
+                    ? "Не удалось отправить заявку. Попробуйте ещё раз."
+                    : appendRequestId(data.message, data.requestId);
+
                 setFieldErrors({
                     ...buildFieldErrorMap(data),
-                    root: data.success ? "Не удалось отправить заявку. Попробуйте ещё раз." : data.message,
+                    root: rootMessage,
                 });
                 return;
             }
 
+            idempotencyKeyRef.current = null;
             setSuccessMessage(`Заявка отправлена. Номер в Woo: ${data.orderNumber}. Менеджер свяжется для уточнения проекта.`);
             setForm(initialFormState);
+            setWebsite("");
+            formStartedAtRef.current = Date.now();
         } catch (error) {
             setFieldErrors({
                 root: error instanceof Error ? error.message : "Не удалось отправить заявку. Попробуйте ещё раз.",
@@ -223,6 +250,21 @@ export default function WallPanelRequestModal({ product, onClose }: WallPanelReq
                                     <div className="alert alert-success mb-0">{successMessage}</div>
                                 ) : (
                                     <form onSubmit={handleSubmit} noValidate>
+                                        <div
+                                            aria-hidden="true"
+                                            style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}
+                                        >
+                                            <label htmlFor="wall-panel-website">Сайт</label>
+                                            <input
+                                                id="wall-panel-website"
+                                                name="website"
+                                                type="text"
+                                                value={website}
+                                                onChange={(event) => setWebsite(event.target.value)}
+                                                tabIndex={-1}
+                                                autoComplete="off"
+                                            />
+                                        </div>
                                         <div className="mb-3">
                                             <label className="fw-medium mb-2" htmlFor="areaSqm">Примерная площадь, м²</label>
                                             <input
