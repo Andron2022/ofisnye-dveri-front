@@ -1,0 +1,11 @@
+[Unit]
+Description=Monthly WordPress staging restore test
+
+[Timer]
+OnCalendar=Sun *-*-01..07 06:30:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=wordpress-restore-test.service
+
+[Install]
+WantedBy=timers.target

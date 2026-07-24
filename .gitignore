@@ -49,3 +49,7 @@ repomix-output*.md
 
 # images project
 /gallery/
+
+# deployment secrets
+/deploy/**/*.env
+!/deploy/**/*.env.example

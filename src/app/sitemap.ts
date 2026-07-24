@@ -7,6 +7,7 @@ import { getDoorSitemapCategories, getDoorSitemapProducts } from "@src/lib/woo/p
 import { getWallPanelsPageContent } from "@src/lib/wall-panels/content";
 import { getWallPanelProductsByIds } from "@src/lib/wall-panels/products";
 import { getWpContentSitemapEntries } from "@src/lib/wp/content";
+import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
 
 export const revalidate = 3600;
 
@@ -51,6 +52,8 @@ function dedupeSitemapEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sit
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  if (!isSiteIndexingEnabled()) return [];
+
   const allUrls: MetadataRoute.Sitemap = [];
 
   try {

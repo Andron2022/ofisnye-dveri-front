@@ -1,0 +1,46 @@
+[Unit]
+Description=Ofisnye Dveri Next.js storefront (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=storefront
+Group=storefront
+WorkingDirectory=/srv/ofisnye-dveri/%i/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/ofisnye-dveri/%i.env
+EnvironmentFile=-/srv/ofisnye-dveri/%i/current/.release.env
+ExecStart=/usr/local/bin/node server.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+SuccessExitStatus=0 143
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/srv/ofisnye-dveri/%i/shared/cache
+UMask=0027
+LimitNOFILE=65535
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ofisnye-dveri-%i
+
+[Install]
+WantedBy=multi-user.target

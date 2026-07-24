@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly WordPress staging off-server backup maintenance
+
+[Timer]
+OnCalendar=Sun *-*-* 05:15:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=wordpress-backup-maintenance.service
+
+[Install]
+WantedBy=timers.target

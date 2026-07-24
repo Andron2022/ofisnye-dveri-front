@@ -14,6 +14,7 @@ import {
 } from "@src/lib/seo/site";
 import { getWpDrivenSiteChrome } from "@src/lib/site-chrome/wp-site-chrome";
 import { getWpDrivenNavigation } from "@src/lib/wp/menu";
+import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
 
 const fontSans = Inter({
   subsets: ["latin", "cyrillic"],
@@ -46,6 +47,18 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  ...(!isSiteIndexingEnabled()
+    ? {
+        robots: {
+          index: false,
+          follow: false,
+          googleBot: {
+            index: false,
+            follow: false,
+          },
+        },
+      }
+    : {}),
 };
 
 interface LayoutProps {

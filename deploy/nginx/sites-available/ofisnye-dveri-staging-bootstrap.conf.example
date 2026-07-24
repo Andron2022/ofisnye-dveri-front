@@ -1,0 +1,16 @@
+# Temporary HTTP-only configuration used before certificates exist.
+# Replace both domains, enable the file, obtain two certificates, then disable it.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name staging-shop.example.com staging-wp.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+    }
+
+    location / {
+        return 404;
+    }
+}

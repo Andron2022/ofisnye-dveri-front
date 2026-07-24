@@ -15,7 +15,7 @@ export function SiteLogo({ className = "", imageClassName = "" }: SiteLogoProps)
   const label = logo.text || "Офисные двери";
 
   return (
-    <Link href="/" className={className} aria-label={label}>
+    <Link href="/" prefetch={false} className={className} aria-label={label}>
       {logo.image?.src ? (
         <img
           src={logo.image.src}
