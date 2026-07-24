@@ -65,7 +65,11 @@ function DesktopNavItem({ item }: { item: SiteNavigationItem }) {
     if (!hasChildren) {
         return (
             <li className="nav-item">
-                <Link className={`nav-link ${isActive ? "active" : ""}`} href={item.href ?? "#"}>
+                <Link
+                    href={item.href ?? "#"}
+                    prefetch={false}
+                    className={`nav-link ${isActive ? "active" : ""}`}
+                >
                     {item.label}
                 </Link>
             </li>
@@ -92,6 +96,7 @@ function DesktopNavItem({ item }: { item: SiteNavigationItem }) {
                     <li key={child.id}>
                         <Link
                             href={child.href ?? "#"}
+                            prefetch={false}
                             className="text-muted d-flex justify-content-between align-items-center gap-3"
                             onClick={() => setIsOpen(false)}
                         >
@@ -129,7 +134,7 @@ function HeaderTopLink({
 
     if (href.startsWith("/") || href.startsWith("#")) {
         return (
-            <Link href={href} className="mb-0 text-muted">
+            <Link href={href} prefetch={false} className="mb-0 text-muted">
                 {content}
             </Link>
         );

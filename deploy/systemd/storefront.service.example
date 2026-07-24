@@ -1,0 +1,25 @@
+[Unit]
+Description=Headless storefront
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=storefront
+Group=storefront
+WorkingDirectory=/var/www/storefront/current
+EnvironmentFile=/var/www/storefront/shared/storefront.env
+EnvironmentFile=-/var/www/storefront/current/.release.env
+ExecStart=/usr/bin/node /var/www/storefront/current/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -17,7 +17,11 @@ function FooterLinks({ title, items }: {
       <ul className="list-unstyled d-grid gap-2 mb-0">
         {items.map((item) => (
           <li key={item.id}>
-            <Link href={item.href ?? "#"} className="text-muted text-decoration-none">
+            <Link
+              href={item.href ?? "#"}
+              prefetch={false}
+              className="text-muted text-decoration-none"
+            >
               {item.label}
               {item.note ? <span className="ms-2 small">{item.note}</span> : null}
             </Link>

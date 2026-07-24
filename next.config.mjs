@@ -33,13 +33,17 @@ const securityHeaders = process.env.NODE_ENV === "production"
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {
     return [
       {
         source: "/:path*",
-        headers: securityHeaders,
+        headers: [
+          ...securityHeaders,
+          { key: "X-Accel-Buffering", value: "no" },
+        ],
       },
     ];
   },

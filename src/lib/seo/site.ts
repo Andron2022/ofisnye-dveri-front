@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import { hasActiveCatalogFilters } from "@src/lib/woo/catalog-filters";
 import { getHeadlessSeoImageUrl } from "@src/lib/seo/types";
+import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
 import type { HeadlessSeo } from "@src/lib/seo/types";
 import type { SiteChromeSettings } from "@src/lib/site-chrome/types";
 import type {
@@ -164,7 +165,7 @@ export function buildSeoMetadata({
   const resolvedImage = normalizePublicUrl(getHeadlessSeoImageUrl(seo) || image);
   const resolvedImageAlt =
     seo?.image?.alt?.trim() || imageAlt?.trim() || resolvedTitle;
-  const shouldIndex = index && !seo?.noindex;
+  const shouldIndex = isSiteIndexingEnabled() && index && !seo?.noindex;
   const absoluteUrl = buildAbsoluteUrl(path);
   const fullTitle = buildTitle(resolvedTitle);
   const images = resolvedImage

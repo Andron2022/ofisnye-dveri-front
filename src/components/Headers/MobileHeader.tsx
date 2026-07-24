@@ -56,6 +56,7 @@ function MobileNavGroup({ item, onNavigate }: { item: SiteNavigationItem; onNavi
             <li>
                 <Link
                     href={item.href ?? "#"}
+                    prefetch={false}
                     className={`d-block py-2 text-reset ${isItemActive(item, pathname) ? "fw-semibold" : ""}`}
                     onClick={onNavigate}
                 >
@@ -83,6 +84,7 @@ function MobileNavGroup({ item, onNavigate }: { item: SiteNavigationItem; onNavi
                         <li key={child.id}>
                             <Link
                                 href={child.href ?? "#"}
+                                prefetch={false}
                                 className="d-flex justify-content-between align-items-center gap-3 py-2 text-reset"
                                 onClick={onNavigate}
                             >
@@ -147,7 +149,7 @@ const MobileHeader = ({ headerShow, handleHeaderClose }: MobileHeaderProps) => {
                         {header.phoneText ? <p className="mb-2">{header.phoneText}</p> : null}
                         {header.centerText ? <p className="mb-2">{header.centerText}</p> : null}
                         {header.email ? <p className="mb-2">{header.email}</p> : null}
-                        <Link href="/kontakty" className="text-reset" onClick={handleHeaderClose}>
+                        <Link href="/kontakty" prefetch={false} className="text-reset" onClick={handleHeaderClose}>
                             Перейти в контакты
                         </Link>
                     </div>

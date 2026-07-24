@@ -1,0 +1,10 @@
+[Unit]
+Description=WordPress database and wp-content backup
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/bash /var/www/storefront/repository/deploy/scripts/backup-wordpress.sh /etc/ofisnye-dveri/wordpress-backup.env
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

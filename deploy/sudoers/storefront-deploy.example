@@ -1,0 +1,5 @@
+# Validate with: visudo -cf /etc/sudoers.d/storefront-deploy
+# Replace "deploy" if another SSH/deployment user is used.
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart storefront.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl status storefront.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl is-active storefront.service

@@ -1,0 +1,4 @@
+# Install in /etc/nginx/conf.d/storefront-bff-hardening.conf.
+# limit_req_zone is valid only in the nginx http context.
+limit_req_zone $binary_remote_addr zone=storefront_checkout:10m rate=10r/m;
+limit_req_zone $binary_remote_addr zone=storefront_wall_panels:10m rate=15r/m;

@@ -1,0 +1,6 @@
+# Validate with: visudo -cf /etc/sudoers.d/ofisnye-dveri-deploy
+# Confirm the systemctl path with: command -v systemctl
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart ofisnye-dveri@staging.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart ofisnye-dveri@production.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl status ofisnye-dveri@staging.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl status ofisnye-dveri@production.service
