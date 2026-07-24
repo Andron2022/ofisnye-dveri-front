@@ -1,0 +1,8 @@
+# Install as /etc/ofisnye-dveri/mysql-restore-admin.cnf, owner root:root, mode 600.
+# Used only by the isolated restore test. Prefer a dedicated account allowed to
+# CREATE/DROP only the RESTORE_TEST_DB_NAME database.
+[client]
+host=127.0.0.1
+port=3306
+user=wordpress_restore_test
+password=replace_me

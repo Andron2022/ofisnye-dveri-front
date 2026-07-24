@@ -1,0 +1,72 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name staging-wp.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name staging-wp.example.com;
+    server_tokens off;
+
+    root /srv/wordpress/staging/public;
+    index index.php;
+
+    ssl_certificate /etc/letsencrypt/live/staging-wp.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/staging-wp.example.com/privkey.pem;
+
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    client_max_body_size 64m;
+
+    access_log /var/log/nginx/ofisnye-dveri-wp-staging.access.log;
+    error_log /var/log/nginx/ofisnye-dveri-wp-staging.error.log warn;
+
+    location = /robots.txt {
+        default_type text/plain;
+        return 200 "User-agent: *\nDisallow: /\n";
+    }
+
+    location = /xmlrpc.php {
+        deny all;
+    }
+
+    location = /wp-login.php {
+        limit_req zone=wordpress_login burst=10 nodelay;
+        limit_req_status 429;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~* ^/wp-content/uploads/.*\.php$ {
+        deny all;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~* \.(?:css|js|jpg|jpeg|gif|png|webp|avif|svg|ico|woff2?)$ {
+        expires 7d;
+        access_log off;
+        try_files $uri /index.php?$args;
+    }
+}

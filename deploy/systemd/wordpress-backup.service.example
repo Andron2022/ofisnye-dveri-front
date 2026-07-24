@@ -1,10 +1,15 @@
 [Unit]
-Description=WordPress database and wp-content backup
+Description=WordPress staging database and wp-content backup
+After=mysql.service
 
 [Service]
 Type=oneshot
 User=root
-ExecStart=/usr/bin/bash /var/www/storefront/repository/deploy/scripts/backup-wordpress.sh /etc/ofisnye-dveri/wordpress-backup.env
+ExecStart=/usr/bin/bash /srv/ofisnye-dveri/repository/deploy/scripts/backup-wordpress.sh /etc/ofisnye-dveri/wordpress-backup.env
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/ofisnye-dveri /var/cache/ofisnye-dveri/restic

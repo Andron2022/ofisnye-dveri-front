@@ -5,13 +5,13 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=deploy
-Group=www-data
+User=storefront
+Group=storefront
 WorkingDirectory=/srv/ofisnye-dveri/%i/current
 Environment=NODE_ENV=production
 EnvironmentFile=/etc/ofisnye-dveri/%i.env
 EnvironmentFile=-/srv/ofisnye-dveri/%i/current/.release.env
-ExecStart=/usr/bin/env node server.js
+ExecStart=/usr/local/bin/node server.js
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=30s
@@ -21,13 +21,20 @@ SuccessExitStatus=0 143
 
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+PrivateDevices=true
+ProtectSystem=strict
 ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
+ProtectKernelLogs=true
 ProtectControlGroups=true
+ProtectClock=true
 RestrictSUIDSGID=true
 LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/srv/ofisnye-dveri/%i/shared/cache
 UMask=0027
 LimitNOFILE=65535
 

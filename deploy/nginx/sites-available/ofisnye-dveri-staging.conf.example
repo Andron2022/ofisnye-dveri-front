@@ -6,23 +6,31 @@ upstream ofisnye_dveri_staging {
 server {
     listen 80;
     listen [::]:80;
-    server_name staging.shop.example.com;
-    return 301 https://$host$request_uri;
+    server_name staging-shop.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name staging.shop.example.com;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name staging-shop.example.com;
+    server_tokens off;
 
-    ssl_certificate /etc/letsencrypt/live/staging.shop.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/staging.shop.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/staging-shop.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/staging-shop.example.com/privkey.pem;
 
-    auth_basic "Staging";
+    auth_basic "Staging storefront";
     auth_basic_user_file /etc/nginx/.htpasswd-ofisnye-dveri-staging;
 
     add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
     client_max_body_size 128k;
     limit_conn storefront_per_ip 20;
 
@@ -32,6 +40,7 @@ server {
     location = /api/checkout/order {
         client_max_body_size 64k;
         limit_req zone=storefront_checkout burst=4 nodelay;
+        limit_req_status 429;
         proxy_pass http://ofisnye_dveri_staging;
         include /etc/nginx/snippets/storefront-proxy.conf;
     }
@@ -39,6 +48,7 @@ server {
     location = /api/wall-panels/request {
         client_max_body_size 16k;
         limit_req zone=storefront_panels burst=6 nodelay;
+        limit_req_status 429;
         proxy_pass http://ofisnye_dveri_staging;
         include /etc/nginx/snippets/storefront-proxy.conf;
     }

@@ -1,6 +1,14 @@
 # Validate with: visudo -cf /etc/sudoers.d/ofisnye-dveri-deploy
 # Confirm the systemctl path with: command -v systemctl
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart ofisnye-dveri@staging.service
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart ofisnye-dveri@production.service
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl status ofisnye-dveri@staging.service
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl status ofisnye-dveri@production.service
+Cmnd_Alias OFISNYE_DVERI_STAGING = \
+  /usr/bin/systemctl restart ofisnye-dveri@staging.service, \
+  /usr/bin/systemctl stop ofisnye-dveri@staging.service, \
+  /usr/bin/systemctl status ofisnye-dveri@staging.service, \
+  /usr/bin/systemctl is-active ofisnye-dveri@staging.service
+Cmnd_Alias OFISNYE_DVERI_PRODUCTION = \
+  /usr/bin/systemctl restart ofisnye-dveri@production.service, \
+  /usr/bin/systemctl stop ofisnye-dveri@production.service, \
+  /usr/bin/systemctl status ofisnye-dveri@production.service, \
+  /usr/bin/systemctl is-active ofisnye-dveri@production.service
+
+deploy ALL=(root) NOPASSWD: OFISNYE_DVERI_STAGING, OFISNYE_DVERI_PRODUCTION
