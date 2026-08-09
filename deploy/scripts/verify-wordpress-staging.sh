@@ -11,6 +11,11 @@ source "$INVENTORY_FILE"
 source "$STOREFRONT_ENV_FILE"
 set +a
 
+# Создаем временную директорию для хранения больших JSON-ответов,
+# чтобы избежать ошибки "Argument list too long" при передаче через env
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
 WP_URL="https://$WORDPRESS_DOMAIN"
 for command in curl node wp php; do command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }; done
 
@@ -26,32 +31,39 @@ for plugin in door-family-taxonomy.php headless-seo-foundation.php portfolio-pro
   [[ -f "$WORDPRESS_ROOT/wp-content/mu-plugins/$plugin" ]] || { echo "Missing MU-plugin: $plugin" >&2; exit 1; }
 done
 
-plugin_json="$("${wp_cmd[@]}" plugin list --format=json)"
-PLUGIN_JSON="$plugin_json" node <<'NODE'
-const plugins = JSON.parse(process.env.PLUGIN_JSON || "[]");
+"${wp_cmd[@]}" plugin list --format=json > "$tmpdir/plugins.json"
+PLUGIN_FILE="$tmpdir/plugins.json" node <<'NODE'
+const fs = require('fs');
+const plugins = JSON.parse(fs.readFileSync(process.env.PLUGIN_FILE, 'utf-8') || "[]");
 const active = plugins.filter((p) => p.status === "active" || p.status === "must-use");
 if (!active.some((p) => p.name === "woocommerce")) throw new Error("WooCommerce is not active");
 if (!active.some((p) => /advanced-custom-fields/.test(p.name))) throw new Error("ACF is not active");
 NODE
 
 curl_opts=(--fail --silent --show-error --max-time 20)
-root_json="$(curl "${curl_opts[@]}" "$WP_URL/wp-json/")"
-ROOT_JSON="$root_json" node -e 'const v=JSON.parse(process.env.ROOT_JSON); if(!v.namespaces?.includes("wp/v2")) process.exit(1);'
+curl "${curl_opts[@]}" "$WP_URL/wp-json/" > "$tmpdir/root.json"
+ROOT_FILE="$tmpdir/root.json" node <<'NODE'
+const fs = require('fs');
+const v = JSON.parse(fs.readFileSync(process.env.ROOT_FILE, 'utf-8'));
+if(!v.namespaces?.includes("wp/v2")) process.exit(1);
+NODE
 
-homepage="$(curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/pages?slug=glavnaya&status=publish&_fields=id,slug,acf")"
-site_chrome="$(curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/pages?slug=$WP_SITE_CHROME_PAGE_SLUG&status=publish&_fields=id,slug,acf")"
-HOMEPAGE_JSON="$homepage" SITE_CHROME_JSON="$site_chrome" node <<'NODE'
-const homepage = JSON.parse(process.env.HOMEPAGE_JSON || "[]");
-const chrome = JSON.parse(process.env.SITE_CHROME_JSON || "[]");
+curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/pages?slug=glavnaya&status=publish&_fields=id,slug,acf" > "$tmpdir/homepage.json"
+curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/pages?slug=$WP_SITE_CHROME_PAGE_SLUG&status=publish&_fields=id,slug,acf" > "$tmpdir/chrome.json"
+HOMEPAGE_FILE="$tmpdir/homepage.json" CHROME_FILE="$tmpdir/chrome.json" node <<'NODE'
+const fs = require('fs');
+const homepage = JSON.parse(fs.readFileSync(process.env.HOMEPAGE_FILE, 'utf-8') || "[]");
+const chrome = JSON.parse(fs.readFileSync(process.env.CHROME_FILE, 'utf-8') || "[]");
 if (!Array.isArray(homepage) || homepage.length !== 1 || typeof homepage[0].acf !== "object") throw new Error("Homepage ACF response is invalid");
 if (!("home_hero_slide_enabled" in homepage[0].acf)) throw new Error("Homepage ACF contract is incomplete");
 if (!Array.isArray(chrome) || chrome.length !== 1 || typeof chrome[0].acf !== "object") throw new Error("Site chrome ACF response is invalid");
 NODE
 
 for slug in "$WP_HEADER_NAVIGATION_SLUG" "$WP_FOOTER_NAVIGATION_SLUG"; do
-  navigation="$(curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/navigation?slug=$slug&status=publish&_fields=id,slug,title,content")"
-  NAVIGATION_JSON="$navigation" EXPECTED_SLUG="$slug" node <<'NODE'
-const items = JSON.parse(process.env.NAVIGATION_JSON || "[]");
+  curl "${curl_opts[@]}" "$WP_URL/wp-json/wp/v2/navigation?slug=$slug&status=publish&_fields=id,slug,title,content" > "$tmpdir/navigation.json"
+  NAVIGATION_FILE="$tmpdir/navigation.json" EXPECTED_SLUG="$slug" node <<'NODE'
+const fs = require('fs');
+const items = JSON.parse(fs.readFileSync(process.env.NAVIGATION_FILE, 'utf-8') || "[]");
 if (!Array.isArray(items) || items.length !== 1 || items[0].slug !== process.env.EXPECTED_SLUG) throw new Error("Navigation response is invalid");
 const html = items[0].content?.rendered || "";
 if (!html.includes("/mezhkomnatnye-dveri")) throw new Error("Navigation has no /mezhkomnatnye-dveri link");
@@ -59,10 +71,11 @@ if (html.includes("/catalog")) throw new Error("Legacy /catalog link is still pr
 NODE
 done
 
-products="$(curl "${curl_opts[@]}" --user "$WC_CONSUMER_KEY:$WC_CONSUMER_SECRET" \
-  "$WP_URL/wp-json/wc/v3/products?status=publish&per_page=1")"
-PRODUCTS_JSON="$products" node <<'NODE'
-const items = JSON.parse(process.env.PRODUCTS_JSON || "[]");
+curl "${curl_opts[@]}" --user "$WC_CONSUMER_KEY:$WC_CONSUMER_SECRET" \
+  "$WP_URL/wp-json/wc/v3/products?status=publish&per_page=1" > "$tmpdir/products.json"
+PRODUCTS_FILE="$tmpdir/products.json" node <<'NODE'
+const fs = require('fs');
+const items = JSON.parse(fs.readFileSync(process.env.PRODUCTS_FILE, 'utf-8') || "[]");
 if (!Array.isArray(items) || items.length < 1) throw new Error("Woo products response is empty");
 const item = items[0];
 if (item.type !== "simple") throw new Error("Sample Woo product is not simple");
