@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly WordPress production off-server backup maintenance
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=wordpress-production-backup-maintenance.service
+
+[Install]
+WantedBy=timers.target

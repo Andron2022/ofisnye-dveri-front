@@ -1,0 +1,16 @@
+[Unit]
+Description=WordPress production isolated off-server restore test
+After=mysql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/bash /srv/ofisnye-dveri/repository/deploy/scripts/verify-backup-restore.sh /etc/ofisnye-dveri/wordpress-production-backup.env offsite
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/tmp /var/cache/ofisnye-dveri/restic-production

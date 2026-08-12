@@ -60,6 +60,15 @@ const writeSecret = env.WC_WRITE_CONSUMER_SECRET?.trim() || "";
 if (Boolean(writeKey) !== Boolean(writeSecret)) {
   errors.push("WC_WRITE_CONSUMER_KEY and WC_WRITE_CONSUMER_SECRET must be configured together");
 }
+if (appEnv === "production" && (!writeKey || !writeSecret)) {
+  errors.push("Dedicated WC_WRITE_CONSUMER_KEY and WC_WRITE_CONSUMER_SECRET are required on production");
+}
+if (appEnv === "production" && writeKey && writeKey === env.WC_CONSUMER_KEY?.trim()) {
+  errors.push("WC_WRITE_CONSUMER_KEY must differ from the read-only WC_CONSUMER_KEY on production");
+}
+if (appEnv === "production" && writeSecret && writeSecret === env.WC_CONSUMER_SECRET?.trim()) {
+  errors.push("WC_WRITE_CONSUMER_SECRET must differ from the read-only WC_CONSUMER_SECRET on production");
+}
 
 const bffSecret = requireValue("BFF_SECURITY_SECRET");
 if (bffSecret && bffSecret.length < 32) {
@@ -82,8 +91,10 @@ const indexingEnabled = parseBoolean("SITE_INDEXING_ENABLED");
 if (appEnv === "staging" && indexingEnabled !== false) {
   errors.push("SITE_INDEXING_ENABLED must be false on staging");
 }
-if (appEnv === "production" && indexingEnabled !== true) {
-  errors.push("SITE_INDEXING_ENABLED must be true on production");
+// Production is intentionally allowed to run with indexing disabled during
+// the prelaunch phase. The public launch is a separate controlled switch.
+if (appEnv === "production" && indexingEnabled === undefined) {
+  errors.push("SITE_INDEXING_ENABLED must be explicitly true or false on production");
 }
 
 if (env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
@@ -103,4 +114,5 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Deployment environment is valid for ${appEnv}.`);
+const phase = appEnv === "production" && indexingEnabled === false ? " (prelaunch: indexing disabled)" : "";
+console.log(`Deployment environment is valid for ${appEnv}${phase}.`);

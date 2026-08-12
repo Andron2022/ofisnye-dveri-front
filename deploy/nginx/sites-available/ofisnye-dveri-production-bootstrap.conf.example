@@ -1,0 +1,16 @@
+# Temporary HTTP-only configuration used before production certificates exist.
+# Keep production closed until DNS points here, obtain certificates, then disable this file.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ofisnye-dveri.ru www.ofisnye-dveri.ru wp.ofisnye-dveri.ru;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+    }
+
+    location / {
+        return 404;
+    }
+}

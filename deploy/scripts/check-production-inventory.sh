@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-INVENTORY_FILE="${1:-/etc/ofisnye-dveri/staging-inventory.env}"
+INVENTORY_FILE="${1:-/etc/ofisnye-dveri/production-inventory.env}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 bash "$SCRIPT_DIR/check-environment-inventory.sh" "$INVENTORY_FILE"
@@ -11,7 +11,7 @@ set -a
 source "$INVENTORY_FILE"
 set +a
 
-[[ "$ENVIRONMENT" == "staging" ]] || {
-  echo "Expected a staging inventory, got: $ENVIRONMENT" >&2
+[[ "$ENVIRONMENT" == "production" ]] || {
+  echo "Expected a production inventory, got: $ENVIRONMENT" >&2
   exit 1
 }

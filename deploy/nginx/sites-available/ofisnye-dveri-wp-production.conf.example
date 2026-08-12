@@ -1,0 +1,112 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name wp.ofisnye-dveri.ru;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name wp.ofisnye-dveri.ru;
+    server_tokens off;
+
+    root /srv/wordpress/production/public;
+    index index.php;
+
+    ssl_certificate /etc/letsencrypt/live/wp.ofisnye-dveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/wp.ofisnye-dveri.ru/privkey.pem;
+
+    # WordPress is an origin/admin service, never the indexed public site.
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    client_max_body_size 64m;
+
+    access_log /var/log/nginx/ofisnye-dveri-wp-production.access.log;
+    error_log /var/log/nginx/ofisnye-dveri-wp-production.error.log warn;
+
+    location = /robots.txt {
+        default_type text/plain;
+        return 200 "User-agent: *\nDisallow: /\n";
+    }
+
+    # Legacy/public execution surfaces are not required by the headless storefront.
+    location = /xmlrpc.php { return 403; }
+    location = /wp-cron.php { return 403; }
+
+    # WP admin gets an outer Basic Auth barrier in addition to WordPress auth.
+    location = /wp-login.php {
+        auth_basic "WordPress production admin";
+        auth_basic_user_file /etc/nginx/.htpasswd-ofisnye-dveri-wp-production-admin;
+        limit_req zone=wordpress_login burst=10 nodelay;
+        limit_req_status 429;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location = /wp-admin {
+        return 301 /wp-admin/;
+    }
+
+    location /wp-admin/ {
+        auth_basic "WordPress production admin";
+        auth_basic_user_file /etc/nginx/.htpasswd-ofisnye-dveri-wp-production-admin;
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ ^/wp-admin/.*\.php$ {
+        auth_basic "WordPress production admin";
+        auth_basic_user_file /etc/nginx/.htpasswd-ofisnye-dveri-wp-production-admin;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    # Public REST remains available because Next.js SSR/build and the WP editor use it.
+    # Woo wc/v3 still enforces its own consumer-key permissions.
+    location ^~ /wp-json/ {
+        limit_req zone=wordpress_rest burst=60 nodelay;
+        limit_req_status 429;
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    # Media is intentionally public: Next-rendered pages reference these URLs directly.
+    location /wp-content/uploads/ {
+        expires 30d;
+        access_log off;
+        try_files $uri =404;
+    }
+
+    location ~* ^/wp-content/uploads/.*\.php$ {
+        return 403;
+    }
+
+    # Static assets required by wp-admin may be served, but arbitrary PHP may not.
+    location ~* \.(?:css|js|jpg|jpeg|gif|png|webp|avif|svg|ico|woff2?)$ {
+        expires 7d;
+        access_log off;
+        try_files $uri =404;
+    }
+
+    # /wp-json/... internally resolves here. A direct public /index.php request stays hidden.
+    location = /index.php {
+        if ($request_uri = "/index.php") { return 404; }
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ \.php$ {
+        return 404;
+    }
+
+    # No public WordPress theme/frontend surface in production.
+    location / {
+        return 404;
+    }
+}

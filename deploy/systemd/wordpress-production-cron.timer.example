@@ -1,0 +1,11 @@
+[Unit]
+Description=WordPress production cron every five minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=5m
+Persistent=true
+Unit=wordpress-production-cron.service
+
+[Install]
+WantedBy=timers.target

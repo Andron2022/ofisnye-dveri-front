@@ -1,0 +1,11 @@
+[Unit]
+Description=Monthly WordPress production restore test
+
+[Timer]
+OnCalendar=Sun *-*-01..07 05:45:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=wordpress-production-restore-test.service
+
+[Install]
+WantedBy=timers.target

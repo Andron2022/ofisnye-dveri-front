@@ -3,4 +3,5 @@
 limit_req_zone $binary_remote_addr zone=storefront_checkout:10m rate=1r/m;
 limit_req_zone $binary_remote_addr zone=storefront_panels:10m rate=2r/m;
 limit_req_zone $binary_remote_addr zone=wordpress_login:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=wordpress_rest:10m rate=30r/s;
 limit_conn_zone $binary_remote_addr zone=storefront_per_ip:10m;

@@ -1,0 +1,6 @@
+# Install as /etc/ofisnye-dveri/mysql-production-backup.cnf, owner root:root, mode 600.
+[client]
+host=127.0.0.1
+port=3306
+user=wordpress_production_backup
+password=replace_me

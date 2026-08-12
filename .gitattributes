@@ -3,3 +3,8 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+# Never export local/runtime secrets or AI packing artifacts into clientN.zip.
+.env export-ignore
+.env.local export-ignore
+.env.*.local export-ignore
+repomix-output*.md export-ignore

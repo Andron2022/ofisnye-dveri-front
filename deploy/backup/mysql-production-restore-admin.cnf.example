@@ -1,0 +1,7 @@
+# Install as /etc/ofisnye-dveri/mysql-production-restore-admin.cnf, owner root:root, mode 600.
+# Use a dedicated account allowed to CREATE/DROP only the restore-test database.
+[client]
+host=127.0.0.1
+port=3306
+user=wordpress_production_restore_test
+password=replace_me

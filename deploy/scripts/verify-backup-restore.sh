@@ -49,7 +49,6 @@ else
   BACKUP_DIR="$(find "$WORK_DIR/restored" -type f -name SHA256SUMS -printf '%h\n' | head -1)"
   [[ -n "$BACKUP_DIR" ]] || { echo "Restic snapshot has no backup set" >&2; exit 1; }
   mkdir -p "$WORK_DIR/backup"
-  mkdir -p "$WORK_DIR/backup"
   cp -a "$BACKUP_DIR/." "$WORK_DIR/backup/"
 fi
 

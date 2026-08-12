@@ -1,0 +1,14 @@
+[Unit]
+Description=Run due WordPress production cron events
+After=mysql.service php8.3-fpm.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/wordpress/production/public
+ExecStart=/usr/local/bin/wp cron event run --due-now --path=/srv/wordpress/production/public --quiet
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/wordpress/production/public/wp-content
