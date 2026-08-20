@@ -10,6 +10,12 @@ set -a
 source "$INVENTORY_FILE"
 set +a
 
+# Потенциально большие HTTP-ответы храним во временных файлах.
+# Это исключает ошибку "Argument list too long":
+# большие JSON больше не передаются Node.js через переменные окружения.
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
 BASE_URL="https://$WORDPRESS_DOMAIN"
 curl_common=(--silent --show-error --max-time 20)
 if [[ -n "${CURL_RESOLVE:-}" ]]; then curl_common+=(--resolve "$CURL_RESOLVE"); fi
@@ -35,9 +41,18 @@ grep -qi '^x-robots-tag:.*noindex' <<<"$headers" || {
   exit 1
 }
 
-rest_root="$(curl "${curl_common[@]}" --fail "$BASE_URL/wp-json/")"
-REST_RESPONSE="$rest_root" node <<'NODE'
-const value = JSON.parse(process.env.REST_RESPONSE || "{}");
+curl "${curl_common[@]}" \
+  --fail \
+  "$BASE_URL/wp-json/" \
+  > "$tmpdir/rest-root.json"
+
+REST_RESPONSE_FILE="$tmpdir/rest-root.json" node <<'NODE'
+const fs = require("node:fs");
+
+const value = JSON.parse(
+  fs.readFileSync(process.env.REST_RESPONSE_FILE, "utf8") || "{}"
+);
+
 if (!Array.isArray(value.namespaces) || !value.namespaces.includes("wp/v2")) {
   throw new Error("wp/v2 REST namespace is missing");
 }
