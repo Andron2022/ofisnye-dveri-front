@@ -3,7 +3,11 @@
 import type { MetadataRoute } from "next";
 import { getWpHomepageContent } from "@src/lib/home/wp-homepage";
 import { buildAbsoluteUrl, getDoorCategorySeo } from "@src/lib/seo/site";
-import { getDoorSitemapCategories, getDoorSitemapProducts } from "@src/lib/woo/products";
+import {
+  getDoorSeoLandingSitemapEntries,
+  getDoorSitemapCategories,
+  getDoorSitemapProducts,
+} from "@src/lib/woo/products";
 import { getWallPanelsPageContent } from "@src/lib/wall-panels/content";
 import { getWallPanelProductsByIds } from "@src/lib/wall-panels/products";
 import { getWpContentSitemapEntries } from "@src/lib/wp/content";
@@ -99,6 +103,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
       }),
     );
+  }
+
+  try {
+    const landings = await getDoorSeoLandingSitemapEntries();
+
+    allUrls.push(
+      ...landings
+        .filter((landing) => !landing.seo.noindex && landing.productCount > 0)
+        .map((landing) =>
+          mapSitemapEntry({
+            path: landing.path,
+            modified: landing.modified,
+            changeFrequency: "weekly",
+            priority: 0.72,
+          }),
+        ),
+    );
+  } catch (error) {
+    console.error("Failed to build door SEO landing sitemap entries", error);
   }
 
   try {

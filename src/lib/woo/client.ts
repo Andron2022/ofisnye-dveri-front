@@ -270,6 +270,16 @@ function buildWpUrl(path: string, query: QueryParams = {}): string {
     return url.toString();
 }
 
+function buildWpNamespaceUrl(path: string, query: QueryParams = {}): string {
+    const baseUrl = normalizeBaseUrl(getRequiredEnv("WORDPRESS_URL"));
+    const normalizedPath = path.replace(/^\/+/, "");
+    const url = new URL(`/wp-json/${normalizedPath}`, baseUrl);
+
+    appendQuery(url, query);
+
+    return url.toString();
+}
+
 function buildAuthorizationHeader(mode: "read" | "write" = "read"): string {
     const writeKey = process.env.WC_WRITE_CONSUMER_KEY?.trim();
     const writeSecret = process.env.WC_WRITE_CONSUMER_SECRET?.trim();
@@ -466,5 +476,30 @@ export async function wpGetList<T>(
             total,
             totalPages,
         };
+    });
+}
+
+export async function wpNamespaceGet<T>(
+    path: string,
+    query: QueryParams = {},
+    revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
+): Promise<T> {
+    const url = buildWpNamespaceUrl(path, query);
+
+    return getCachedRestResult<T>(`wp:namespace:${url}`, revalidateSeconds, async () => {
+        const response = await fetchRest(url, {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+            },
+            revalidateSeconds,
+            label: "WP REST",
+        });
+
+        if (!response.ok) {
+            throw await buildHttpError(response);
+        }
+
+        return (await response.json()) as T;
     });
 }

@@ -22,6 +22,8 @@ type KallesCatalogShellProps = {
     items: CatalogProductCard[];
     loadError?: string | null;
     emptyMessage: string;
+    seoLinks?: Array<{ href: string; label: string }>;
+    afterContent?: ReactNode;
 };
 
 const FALLBACK_DOOR_CATEGORY_TREE: DoorCategoryNode = {
@@ -164,6 +166,26 @@ function KallesSidebarCategoryLinks({ activeHref, categoryTree }: { activeHref: 
     );
 }
 
+function KallesSeoLandingLinks({ links }: { links: Array<{ href: string; label: string }> }) {
+    if (links.length === 0) return null;
+
+    return (
+        <div className="mb-4">
+            <h5 className="mb-2 mt-3">Популярные подборки</h5>
+            <div className="filter-title mb-3" />
+            <ul className="list-unstyled mb-0">
+                {links.map((item) => (
+                    <li key={item.href}>
+                        <Link href={item.href} className="nav-link py-1 px-0 fs-14">
+                            {item.label}
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 export function KallesCatalogShell({
                                        eyebrow,
                                        title,
@@ -176,6 +198,8 @@ export function KallesCatalogShell({
                                        items,
                                        loadError,
                                        emptyMessage,
+                                       seoLinks = [],
+                                       afterContent,
                                    }: KallesCatalogShellProps) {
     return (
         <>
@@ -199,10 +223,12 @@ export function KallesCatalogShell({
                         <aside className="col-12 col-lg-3 mb-4 mb-lg-0">
                             <KallesSidebarCategoryLinks activeHref={activeHref} categoryTree={categoryTree} />
                             {filters}
+                            <KallesSeoLandingLinks links={seoLinks} />
                         </aside>
 
                         <div className="col-12 col-lg-9">
                             {!loadError && items.length > 0 ? <KallesCatalogGrid items={items} total={total} /> : null}
+                            {afterContent}
                         </div>
                     </div>
                 </div>

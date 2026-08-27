@@ -6,12 +6,23 @@ import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
 import {
     getCatalogProducts,
+    getDoorCatalogProductIdsForFilters,
     getDoorProductBySlug,
+    getDoorSeoLandingLinksByIds,
+    getDoorSeoLandingLinksForCategory,
+    getDoorSeoRoutingDescriptorsForCategory,
     resolveDoorRoute,
+    resolvePreferredDoorCatalogRoute,
+    type ResolvedDoorSeoLanding,
 } from "@src/lib/woo/products";
-import { parseDoorCatalogFiltersFromSearchParams } from "@src/lib/woo/catalog-filters";
+import {
+    hasActiveCatalogFilters,
+    parseDoorCatalogFiltersFromSearchParams,
+} from "@src/lib/woo/catalog-filters";
 import type {
+    CatalogActiveFilters,
     DoorCatalogAttributes,
+    DoorCatalogFilterKey,
     DoorCategoryInfo,
     DoorFamilySibling,
     DoorProductDetails,
@@ -27,8 +38,11 @@ import {
     buildDoorCategoryMetadata,
     buildDoorProductJsonLd,
     buildDoorProductMetadata,
+    buildDoorSeoLandingMetadata,
+    buildFaqPageJsonLd,
     getDoorCategoryBreadcrumbItems,
     getDoorProductBreadcrumbItems,
+    getDoorSeoLandingBreadcrumbItems,
     serializeJsonLd,
 } from "@src/lib/seo/site";
 
@@ -87,6 +101,38 @@ function getDoorCategoryLead(category: DoorCategoryInfo): string {
 type PageParams = Promise<{ segments: string[] }>;
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+function getLandingResidualFilters(
+    landing: ResolvedDoorSeoLanding,
+    queryFilters: CatalogActiveFilters,
+): CatalogActiveFilters {
+    const landingKeys = new Set(landing.rules.map((rule) => rule.filterKey));
+    const residual: CatalogActiveFilters = {};
+
+    for (const [key, values] of Object.entries(queryFilters)) {
+        const filterKey = key as DoorCatalogFilterKey;
+        if (landingKeys.has(filterKey)) continue;
+        if (values && values.length > 0) {
+            residual[filterKey] = [...values];
+        }
+    }
+
+    return residual;
+}
+
+function buildLandingFilterState(
+    landing: ResolvedDoorSeoLanding,
+    queryFilters: CatalogActiveFilters,
+): { fullFilters: CatalogActiveFilters; residualFilters: CatalogActiveFilters } {
+    const residualFilters = getLandingResidualFilters(landing, queryFilters);
+    const fullFilters: CatalogActiveFilters = { ...residualFilters };
+
+    for (const rule of landing.rules) {
+        fullFilters[rule.filterKey] = rule.terms.map((term) => term.slug).sort();
+    }
+
+    return { fullFilters, residualFilters };
+}
+
 export async function generateMetadata({
                                            params,
                                            searchParams,
@@ -104,11 +150,39 @@ export async function generateMetadata({
         };
     }
 
-    if (resolvedRoute.kind === "category") {
-        const resolvedSearchParams = await searchParams;
-        const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const resolvedSearchParams = await searchParams;
+    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
 
-        return buildDoorCategoryMetadata(resolvedRoute.category, filters);
+    if (resolvedRoute.kind === "category") {
+        if (!hasActiveCatalogFilters(queryFilters)) {
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters);
+        }
+
+        try {
+            const preferredRoute = await resolvePreferredDoorCatalogRoute(resolvedRoute.category, queryFilters);
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters, preferredRoute.canonicalPath);
+        } catch (error) {
+            console.error("Failed to resolve category preferred canonical", error);
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters);
+        }
+    }
+
+    if (resolvedRoute.kind === "seoLanding") {
+        const { fullFilters } = buildLandingFilterState(resolvedRoute.landing, queryFilters);
+        let productCount = 0;
+
+        try {
+            productCount = (await getDoorCatalogProductIdsForFilters(
+                resolvedRoute.landing.baseCategory.id,
+                fullFilters,
+            )).length;
+        } catch (error) {
+            console.error("Failed to build SEO landing metadata product count", error);
+        }
+
+        // Любой query-вариант landing остаётся noindex, даже если query пытается
+        // повторно задать группу, уже зафиксированную clean landing path.
+        return buildDoorSeoLandingMetadata(resolvedRoute.landing, queryFilters, productCount);
     }
 
     const product = await getDoorProductBySlug({
@@ -134,6 +208,8 @@ async function DoorCategoryPage({ category, searchParams }: {
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
     const routeHref = category.path;
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
+    let seoLinks: Array<{ href: string; label: string }> = [];
+    let routingLandings: Awaited<ReturnType<typeof getDoorSeoRoutingDescriptorsForCategory>> = [];
     let loadError: string | null = null;
 
     try {
@@ -144,6 +220,11 @@ async function DoorCategoryPage({ category, searchParams }: {
             categorySlug: category.slug,
             filters,
         });
+
+        [seoLinks, routingLandings] = await Promise.all([
+            getDoorSeoLandingLinksForCategory(category.id),
+            getDoorSeoRoutingDescriptorsForCategory(category.id),
+        ]);
     } catch (error) {
         loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию. Попробуйте обновить страницу.";
     }
@@ -169,13 +250,155 @@ async function DoorCategoryPage({ category, searchParams }: {
                     filters={catalog ? (
                         <CatalogFilters
                             filters={catalog.filters}
-                            action={routeHref}
-                            resetHref={routeHref}
+                            categoryId={category.id}
+                            categoryPath={routeHref}
+                            landings={routingLandings}
                         />
                     ) : null}
                     items={catalog?.items ?? []}
                     loadError={loadError}
                     emptyMessage="В этой категории пока нет опубликованных товаров."
+                    seoLinks={seoLinks}
+                />
+            </main>
+            <FooterPage />
+        </>
+    );
+}
+
+function DoorSeoLandingContent({ landing }: { landing: ResolvedDoorSeoLanding }) {
+    const hasContent = Boolean(
+        landing.contentHtml ||
+        landing.targetIntent ||
+        landing.selectionNotes ||
+        landing.faq.length > 0,
+    );
+
+    if (!hasContent) return null;
+
+    return (
+        <div className="pt-5">
+            {landing.contentHtml ? (
+                <div
+                    className="mb-4"
+                    dangerouslySetInnerHTML={{ __html: landing.contentHtml }}
+                />
+            ) : null}
+
+            {landing.targetIntent ? (
+                <div className="mb-4">
+                    <h2 className="fs-4 fw-semibold">Для каких объектов подходит</h2>
+                    <p className="mb-0">{landing.targetIntent}</p>
+                </div>
+            ) : null}
+
+            {landing.selectionNotes ? (
+                <div className="mb-4">
+                    <h2 className="fs-4 fw-semibold">Особенности выбора</h2>
+                    <p className="mb-0">{landing.selectionNotes}</p>
+                </div>
+            ) : null}
+
+            {landing.faq.length > 0 ? (
+                <div>
+                    <h2 className="fs-4 fw-semibold mb-3">Вопросы и ответы</h2>
+                    {landing.faq.map((item, index) => (
+                        <details key={`${item.question}-${index}`} className="border-bottom py-3">
+                            <summary className="fw-medium" style={{ cursor: "pointer" }}>
+                                {item.question}
+                            </summary>
+                            <p className="mb-0 pt-2 text-muted">{item.answer}</p>
+                        </details>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+async function DoorSeoLandingPage({ landing, searchParams }: {
+    landing: ResolvedDoorSeoLanding;
+    searchParams: PageSearchParams;
+}) {
+    const resolvedSearchParams = await searchParams;
+    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const { fullFilters } = buildLandingFilterState(landing, queryFilters);
+    const hasQueryFilters = hasActiveCatalogFilters(queryFilters);
+    let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
+    let relatedLinks: Array<{ href: string; label: string }> = [];
+    let siblingLinks: Array<{ href: string; label: string }> = [];
+    let routingLandings: Awaited<ReturnType<typeof getDoorSeoRoutingDescriptorsForCategory>> = [];
+    let loadError: string | null = null;
+
+    try {
+        catalog = await getCatalogProducts({
+            type: "doors",
+            page: 1,
+            perPage: 24,
+            categorySlug: landing.baseCategory.slug,
+            filters: fullFilters,
+        });
+    } catch (error) {
+        loadError = error instanceof Error
+            ? error.message
+            : "Не удалось загрузить товары SEO-посадочной. Попробуйте обновить страницу.";
+    }
+
+    try {
+        [relatedLinks, siblingLinks, routingLandings] = await Promise.all([
+            getDoorSeoLandingLinksByIds(landing.relatedIds),
+            getDoorSeoLandingLinksForCategory(landing.baseCategory.id),
+            getDoorSeoRoutingDescriptorsForCategory(landing.baseCategory.id),
+        ]);
+    } catch (error) {
+        console.error("Failed to load SEO landing navigation", error);
+    }
+
+    const seoLinks = Array.from(
+        new Map(
+            [...relatedLinks, ...siblingLinks]
+                .filter((link) => link.href !== landing.path)
+                .map((link) => [link.href, link] as const),
+        ).values(),
+    );
+
+    return (
+        <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: serializeJsonLd(buildBreadcrumbListJsonLd(getDoorSeoLandingBreadcrumbItems(landing))),
+                }}
+            />
+            {!hasQueryFilters && landing.faq.length > 0 ? (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: serializeJsonLd(buildFaqPageJsonLd(landing.faq)) }}
+                />
+            ) : null}
+            <TopBanner />
+            <Header />
+            <main id="nt_content">
+                <KallesCatalogShell
+                    title={landing.h1 || landing.title}
+                    description={landing.intro || getDoorCategoryLead(landing.baseCategoryInfo)}
+                    heroImage={landing.baseCategoryInfo.image}
+                    total={catalog?.total}
+                    activeHref={landing.baseCategoryInfo.path}
+                    categoryTree={catalog?.categoryTree}
+                    filters={catalog ? (
+                        <CatalogFilters
+                            filters={catalog.filters}
+                            categoryId={landing.baseCategory.id}
+                            categoryPath={landing.baseCategoryInfo.path}
+                            landings={routingLandings}
+                        />
+                    ) : null}
+                    items={catalog?.items ?? []}
+                    loadError={loadError}
+                    emptyMessage="По условиям этой подборки сейчас нет опубликованных товаров."
+                    seoLinks={seoLinks}
+                    afterContent={<DoorSeoLandingContent landing={landing} />}
                 />
             </main>
             <FooterPage />
@@ -691,6 +914,15 @@ export default async function InteriorDoorsSegmentsPage({
         return (
             <DoorCategoryPage
                 category={resolvedRoute.category}
+                searchParams={searchParams}
+            />
+        );
+    }
+
+    if (resolvedRoute.kind === "seoLanding") {
+        return (
+            <DoorSeoLandingPage
+                landing={resolvedRoute.landing}
                 searchParams={searchParams}
             />
         );

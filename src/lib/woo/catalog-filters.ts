@@ -3,6 +3,7 @@
 import type {
     CatalogActiveFilters,
     CatalogFilterGroup,
+    CatalogFilterTermDictionary,
     DoorCatalogAttributes,
     DoorCatalogFilterKey,
 } from "@src/lib/woo/types";
@@ -80,10 +81,9 @@ function isDoorCatalogFilterKey(key: string): key is DoorCatalogFilterKey {
 }
 
 // -----------------------------------------------------
-// Генерируем стабильный URL-value для значения атрибута.
-// Woo product response отдаёт labels атрибутов, но не всегда term slug.
-// Для MVP генерируем slug из label по правилам проекта.
-// Позже этот helper можно заменить на реальные term slugs из WP REST.
+// Woo product response отдаёт labels значений атрибутов. Основной URL-value
+// теперь берём из настоящего Woo term slug через termDictionary. Эта функция
+// остаётся fallback для старых/orphaned значений и безопасного разбора query.
 // -----------------------------------------------------
 
 export function normalizeCatalogFilterValue(value: string): string {
@@ -151,16 +151,35 @@ function getAttributeValues(attributes: DoorCatalogAttributes, key: DoorCatalogF
     return attributes[definition.attributeField] ?? [];
 }
 
+function normalizeTermName(value: string): string {
+    return value.trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, " ");
+}
+
+function resolveFilterValueFromLabel(
+    key: DoorCatalogFilterKey,
+    label: string,
+    termDictionary: CatalogFilterTermDictionary,
+): string {
+    const normalizedName = normalizeTermName(label);
+    const matchedTerm = termDictionary[key]?.find((term) => normalizeTermName(term.name) === normalizedName);
+
+    // Fallback сохраняет работоспособность каталога, если taxonomy endpoint временно
+    // недоступен или старый товар содержит orphaned label. Новые ссылки при наличии
+    // словаря всегда используют реальный Woo term slug.
+    return matchedTerm?.slug || normalizeCatalogFilterValue(label);
+}
+
 export function catalogItemMatchesActiveFilters(
     attributes: DoorCatalogAttributes,
     activeFilters: CatalogActiveFilters,
+    termDictionary: CatalogFilterTermDictionary = {},
 ): boolean {
     return DOOR_CATALOG_FILTER_DEFINITIONS.every((definition) => {
         const selectedValues = activeFilters[definition.key];
         if (!selectedValues || selectedValues.length === 0) return true;
 
         const productValues = getAttributeValues(attributes, definition.key)
-            .map((value) => normalizeCatalogFilterValue(value));
+            .map((value) => resolveFilterValueFromLabel(definition.key, value, termDictionary));
 
         return selectedValues.some((selectedValue) => productValues.includes(selectedValue));
     });
@@ -173,6 +192,7 @@ export function hasActiveCatalogFilters(activeFilters: CatalogActiveFilters): bo
 export function buildCatalogFilterGroups(
     items: Array<{ attributes: DoorCatalogAttributes }>,
     activeFilters: CatalogActiveFilters,
+    termDictionary: CatalogFilterTermDictionary = {},
 ): CatalogFilterGroup[] {
     return DOOR_CATALOG_FILTER_DEFINITIONS.map((definition) => {
         const optionMap = new Map<string, { label: string; count: number }>();
@@ -181,7 +201,7 @@ export function buildCatalogFilterGroups(
             const uniqueValues = new Map<string, string>();
 
             for (const label of getAttributeValues(item.attributes, definition.key)) {
-                const value = normalizeCatalogFilterValue(label);
+                const value = resolveFilterValueFromLabel(definition.key, label, termDictionary);
                 if (!value) continue;
                 uniqueValues.set(value, label);
             }
@@ -197,13 +217,30 @@ export function buildCatalogFilterGroups(
         }
 
         const selectedValues = activeFilters[definition.key] ?? [];
+
+        // Активное значение должно оставаться видимым даже при count=0. Это особенно
+        // важно для clean SEO landing: зафиксированная path-группа не исчезает из UI.
+        for (const selectedValue of selectedValues) {
+            if (optionMap.has(selectedValue)) continue;
+            const selectedTerm = termDictionary[definition.key]?.find((term) => term.slug === selectedValue);
+            if (selectedTerm) {
+                optionMap.set(selectedValue, { label: selectedTerm.name, count: 0 });
+            }
+        }
+
         const options = Array.from(optionMap.entries())
-            .map(([value, option]) => ({
-                value,
-                label: option.label,
-                count: option.count,
-                selected: selectedValues.includes(value),
-            }))
+            .map(([value, option]) => {
+                const term = termDictionary[definition.key]?.find((item) => item.slug === value) ?? null;
+
+                return {
+                    value,
+                    label: option.label,
+                    count: option.count,
+                    selected: selectedValues.includes(value),
+                    termId: term?.id ?? null,
+                    taxonomy: term?.taxonomy ?? null,
+                };
+            })
             .sort((a, b) => a.label.localeCompare(b.label, "ru", {
                 numeric: true,
                 sensitivity: "base",

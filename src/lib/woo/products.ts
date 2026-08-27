@@ -3,9 +3,19 @@
 import { wooGetList } from "@src/lib/woo/client";
 import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import {
-    buildCatalogFilterGroups,
-    catalogItemMatchesActiveFilters,
-} from "@src/lib/woo/catalog-filters";
+    getDoorCatalogFilterTermDictionary,
+    getDoorCatalogProductIds,
+    getDoorSeoLanding,
+    getDoorSeoLandingProductIds,
+    getDoorSeoLandings,
+    type DoorSeoLanding,
+} from "@src/lib/wp/door-seo-landings";
+import { buildCatalogFilterGroups } from "@src/lib/woo/catalog-filters";
+import {
+    buildDoorFilterState,
+    doorFilterStateFullyResolvesActiveFilters,
+    resolvePreferredDoorFilterRoute,
+} from "@src/lib/woo/seo-landing-routing";
 import type {
     CatalogActiveFilters,
     CatalogProductCard,
@@ -22,6 +32,8 @@ import type {
     DoorOrderOptions,
     DoorProductDetails,
     DoorRouteCategory,
+    DoorSeoRoutingDescriptor,
+    PreferredDoorFilterRoute,
     DoorSitemapProduct,
     WooMetaDataItem,
     WooProduct,
@@ -347,6 +359,10 @@ function createDoorRouteContext(
 
 function findDoorCategoryNodeByWooSlug(context: DoorRouteContext, wooCategorySlug: string): DoorCategoryNode | null {
     return context.flatCategoryNodes.find((category) => category.slug === wooCategorySlug) ?? null;
+}
+
+function findDoorCategoryNodeById(context: DoorRouteContext, categoryId: number): DoorCategoryNode | null {
+    return context.flatCategoryNodes.find((category) => category.id === categoryId) ?? null;
 }
 
 function findDoorCategoryNodeByRouteSegments(root: DoorCategoryNode, routeSegments: string[]): DoorCategoryNode | null {
@@ -1017,17 +1033,9 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     const categoryIds = doorRouteContext
         ? collectDescendantCategoryIds(categories, effectiveCategory.id).filter((categoryId) => categoryBelongsToRootTree(doorRouteContext, categoryId))
         : collectDescendantCategoryIds(categories, effectiveCategory.id);
-    // MVP-решение: для дверей строим facet groups и фильтруем на BFF-слое.
-    // Это быстрее, чем сейчас писать отдельный WP tax_query endpoint, но контракт уже отделён
-    // от реализации. Позже внутренность можно заменить на серверную фильтрацию Woo/WP
-    // без переписывания UI каталога.
-    const productsResponse = type === "doors"
-        ? {
-            items: await getAllPublishedProductsInCategoryTree(categoryIds),
-            total: 0,
-            totalPages: 1,
-        }
-        : await wooGetList<WooProduct>("products", {
+
+    if (type !== "doors") {
+        const productsResponse = await wooGetList<WooProduct>("products", {
             status: "publish",
             page,
             per_page: perPage,
@@ -1036,17 +1044,45 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
             order: "desc",
         }, 60);
 
-    const allCards = productsResponse.items.map((product) => mapCatalogProductCard(product, doorRouteContext));
-    const filteredCards = type === "doors"
-        ? allCards.filter((item) => catalogItemMatchesActiveFilters(item.attributes, filters))
-        : allCards;
-    const total = type === "doors" ? filteredCards.length : productsResponse.total;
+        const cards = productsResponse.items.map((product) => mapCatalogProductCard(product, doorRouteContext));
+
+        return {
+            type,
+            categorySlug: effectiveCategory.slug,
+            page,
+            perPage,
+            total: productsResponse.total,
+            totalPages: productsResponse.totalPages,
+            items: cards,
+            filters: { active: {}, groups: [] },
+            categoryTree: doorRouteContext?.categoryTree,
+            currentCategory: currentDoorCategory ?? undefined,
+        };
+    }
+
+    if (!doorRouteContext || !currentDoorCategory) {
+        throw new Error("Не удалось определить категорию дверей для серверной фильтрации.");
+    }
+
+    // Источник истины для URL/filter values — реальные Woo terms. Товарное совпадение
+    // вычисляет WordPress tax_query через полный FilterState; Next только отображает
+    // возвращённое множество ID и строит facet UI по исходному category subtree.
+    const termDictionary = await getDoorCatalogFilterTermDictionary();
+    const filterState = buildDoorFilterState(effectiveCategory.id, filters, termDictionary);
+    const filterStateIsResolved = doorFilterStateFullyResolvesActiveFilters(filterState, filters);
+    const [allProducts, matchedProductIds] = await Promise.all([
+        getAllPublishedProductsInCategoryTree(categoryIds),
+        filterStateIsResolved ? getDoorCatalogProductIds(filterState) : Promise.resolve([]),
+    ]);
+
+    const allCards = allProducts.map((product) => mapCatalogProductCard(product, doorRouteContext));
+    const matchedIds = new Set(matchedProductIds);
+    const filteredCards = allCards.filter((item) => matchedIds.has(item.id));
+    const total = filteredCards.length;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     const safePage = Math.min(Math.max(page, 1), totalPages);
     const pageStartIndex = (safePage - 1) * perPage;
-    const pageItems = type === "doors"
-        ? filteredCards.slice(pageStartIndex, pageStartIndex + perPage)
-        : filteredCards;
+    const pageItems = filteredCards.slice(pageStartIndex, pageStartIndex + perPage);
 
     return {
         type,
@@ -1057,11 +1093,11 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
         totalPages,
         items: pageItems,
         filters: {
-            active: type === "doors" ? filters : {},
-            groups: type === "doors" ? buildCatalogFilterGroups(allCards, filters) : [],
+            active: filters,
+            groups: buildCatalogFilterGroups(allCards, filters, termDictionary),
         },
-        categoryTree: doorRouteContext?.categoryTree,
-        currentCategory: currentDoorCategory ?? undefined,
+        categoryTree: doorRouteContext.categoryTree,
+        currentCategory: currentDoorCategory,
     };
 }
 
@@ -1140,8 +1176,135 @@ export async function getDoorFeedProducts(): Promise<DoorFeedProduct[]> {
         .map((product) => mapDoorFeedProduct(product, routeContext));
 }
 
+export type ResolvedDoorSeoLanding = DoorSeoLanding & {
+    path: string;
+    baseCategoryInfo: DoorCategoryInfo;
+};
+
+function resolveDoorSeoLandingWithContext(
+    landing: DoorSeoLanding,
+    routeContext: DoorRouteContext,
+): ResolvedDoorSeoLanding | null {
+    const baseCategoryInfo = findDoorCategoryNodeById(routeContext, landing.baseCategory.id);
+    if (!baseCategoryInfo || !landing.enabled || !landing.valid) return null;
+
+    return {
+        ...landing,
+        baseCategoryInfo,
+        path: `${baseCategoryInfo.path}/${landing.slug}`,
+    };
+}
+
+export function toDoorSeoRoutingDescriptor(landing: ResolvedDoorSeoLanding): DoorSeoRoutingDescriptor {
+    return {
+        id: landing.id,
+        slug: landing.slug,
+        path: landing.path,
+        baseCategoryId: landing.baseCategory.id,
+        navigationPriority: landing.navigationPriority,
+        rules: landing.rules.map((rule) => ({
+            filterKey: rule.filterKey,
+            taxonomy: rule.taxonomy,
+            termIds: rule.terms.map((term) => term.id).sort((a, b) => a - b),
+        })),
+    };
+}
+
+export async function getResolvedDoorSeoLandings(baseCategoryId?: number): Promise<ResolvedDoorSeoLanding[]> {
+    const [routeContext, landings] = await Promise.all([
+        getDoorRouteContext(),
+        getDoorSeoLandings({ baseCategoryId }),
+    ]);
+
+    return landings
+        .map((landing) => resolveDoorSeoLandingWithContext(landing, routeContext))
+        .filter((landing): landing is ResolvedDoorSeoLanding => Boolean(landing));
+}
+
+export async function getDoorSeoRoutingDescriptorsForCategory(categoryId: number): Promise<DoorSeoRoutingDescriptor[]> {
+    const landings = await getResolvedDoorSeoLandings(categoryId);
+    return landings.map(toDoorSeoRoutingDescriptor);
+}
+
+export async function resolvePreferredDoorCatalogRoute(
+    category: DoorCategoryInfo,
+    activeFilters: CatalogActiveFilters,
+): Promise<PreferredDoorFilterRoute> {
+    const [termDictionary, landings] = await Promise.all([
+        getDoorCatalogFilterTermDictionary(),
+        getDoorSeoRoutingDescriptorsForCategory(category.id),
+    ]);
+
+    return resolvePreferredDoorFilterRoute({
+        categoryPath: category.path,
+        filterState: buildDoorFilterState(category.id, activeFilters, termDictionary),
+        activeFilters,
+        landings,
+    });
+}
+
+export async function getDoorCatalogProductIdsForFilters(
+    categoryId: number,
+    activeFilters: CatalogActiveFilters,
+): Promise<number[]> {
+    const termDictionary = await getDoorCatalogFilterTermDictionary();
+    const filterState = buildDoorFilterState(categoryId, activeFilters, termDictionary);
+    if (!doorFilterStateFullyResolvesActiveFilters(filterState, activeFilters)) return [];
+    return getDoorCatalogProductIds(filterState);
+}
+
+
+export async function getDoorRootCategoryInfo(): Promise<DoorCategoryInfo> {
+    const routeContext = await getDoorRouteContext();
+    return routeContext.categoryTree;
+}
+
+export async function getDoorSeoLandingLinksForCategory(categoryId: number): Promise<Array<{ href: string; label: string }>> {
+    const landings = await getResolvedDoorSeoLandings(categoryId);
+
+    return landings
+        .filter((landing) => landing.showInPopularCollections)
+        .map((landing) => ({
+            href: landing.path,
+            label: landing.h1 || landing.title,
+        }));
+}
+
+export async function getDoorSeoLandingLinksByIds(ids: number[]): Promise<Array<{ href: string; label: string }>> {
+    const selectedIds = new Set(ids);
+    if (selectedIds.size === 0) return [];
+
+    const landings = await getResolvedDoorSeoLandings();
+    return landings
+        .filter((landing) => selectedIds.has(landing.id))
+        .map((landing) => ({ href: landing.path, label: landing.h1 || landing.title }));
+}
+
+
+export type DoorSeoLandingSitemapEntry = {
+    path: string;
+    modified?: string;
+    seo: DoorSeoLanding["seo"];
+    productCount: number;
+};
+
+export async function getDoorSeoLandingSitemapEntries(): Promise<DoorSeoLandingSitemapEntry[]> {
+    const landings = await getResolvedDoorSeoLandings();
+    const productIds = await Promise.all(landings.map((landing) =>
+        landing.seo.noindex ? Promise.resolve([]) : getDoorSeoLandingProductIds(landing.id),
+    ));
+
+    return landings.map((landing, index) => ({
+        path: landing.path,
+        modified: landing.modified,
+        seo: landing.seo,
+        productCount: productIds[index]?.length ?? 0,
+    }));
+}
+
 export type DoorRouteResolution =
     | { kind: "category"; category: DoorCategoryInfo; routeCategory: DoorRouteCategory; wooCategorySlug: string }
+    | { kind: "seoLanding"; landing: ResolvedDoorSeoLanding; category: DoorCategoryInfo }
     | { kind: "product"; slug: string; category?: DoorCategoryInfo; routeCategory?: DoorRouteCategory; wooCategorySlug?: string };
 
 export async function resolveDoorRoute(segments: string[]): Promise<DoorRouteResolution | null> {
@@ -1159,19 +1322,35 @@ export async function resolveDoorRoute(segments: string[]): Promise<DoorRouteRes
         };
     }
 
-    if (segments.length === 1) {
-        return { kind: "product", slug: segments[0] };
+    const categorySegments = segments.slice(0, -1);
+    const terminalSlug = segments[segments.length - 1];
+    const parentCategoryNode = findDoorCategoryNodeByRouteSegments(routeContext.categoryTree, categorySegments);
+
+    // Категория уже проверена выше. Второй приоритет — явно опубликованная SEO landing
+    // относительно точной базовой категории (включая корень /mezhkomnatnye-dveri).
+    if (parentCategoryNode) {
+        try {
+            const landing = await getDoorSeoLanding(parentCategoryNode.id, terminalSlug);
+            if (landing) {
+                const resolvedLanding = resolveDoorSeoLandingWithContext(landing, routeContext);
+                if (resolvedLanding) {
+                    return { kind: "seoLanding", landing: resolvedLanding, category: parentCategoryNode };
+                }
+            }
+        } catch (error) {
+            console.error("Failed to resolve door SEO landing", error);
+        }
     }
 
-    const categorySegments = segments.slice(0, -1);
-    const productSlug = segments[segments.length - 1];
-    const parentCategoryNode = findDoorCategoryNodeByRouteSegments(routeContext.categoryTree, categorySegments);
+    if (segments.length === 1) {
+        return { kind: "product", slug: terminalSlug };
+    }
 
     if (!parentCategoryNode || parentCategoryNode.id === routeContext.rootCategory.id) return null;
 
     return {
         kind: "product",
-        slug: productSlug,
+        slug: terminalSlug,
         category: parentCategoryNode,
         routeCategory: parentCategoryNode.routeSlug,
         wooCategorySlug: parentCategoryNode.slug,

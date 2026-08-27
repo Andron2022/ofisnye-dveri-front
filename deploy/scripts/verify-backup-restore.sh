@@ -59,7 +59,7 @@ fi
 mkdir -p "$WORK_DIR/wp-content-restore"
 tar -C "$WORK_DIR/wp-content-restore" -xzf "$WORK_DIR/backup/wp-content.tar.gz"
 [[ -d "$WORK_DIR/wp-content-restore/wp-content/uploads" ]] || { echo "Restored uploads directory is missing" >&2; exit 1; }
-for plugin in door-family-taxonomy.php headless-seo-foundation.php portfolio-project-cpt.php public-article-no.php storefront-order-idempotency.php; do
+for plugin in door-family-taxonomy.php door-seo-landing.php headless-seo-foundation.php portfolio-project-cpt.php public-article-no.php storefront-order-idempotency.php; do
   [[ -f "$WORK_DIR/wp-content-restore/wp-content/mu-plugins/$plugin" ]] || { echo "Missing restored MU-plugin: $plugin" >&2; exit 1; }
 done
 

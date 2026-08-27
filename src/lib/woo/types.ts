@@ -110,11 +110,51 @@ export type DoorCatalogFilterKey =
 
 export type CatalogActiveFilters = Partial<Record<DoorCatalogFilterKey, string[]>>;
 
+export type CatalogFilterTerm = {
+    id: number;
+    name: string;
+    slug: string;
+    taxonomy: string;
+};
+
+export type CatalogFilterTermDictionary = Partial<Record<DoorCatalogFilterKey, CatalogFilterTerm[]>>;
+
+export type DoorFilterState = {
+    categoryId: number;
+    selectedTermsByFilter: Partial<Record<DoorCatalogFilterKey, number[]>>;
+};
+
+export type DoorSeoRoutingRule = {
+    filterKey: DoorCatalogFilterKey;
+    taxonomy: string;
+    termIds: number[];
+};
+
+export type DoorSeoRoutingDescriptor = {
+    id: number;
+    slug: string;
+    path: string;
+    baseCategoryId: number;
+    navigationPriority: number;
+    rules: DoorSeoRoutingRule[];
+};
+
+export type PreferredDoorFilterRoute = {
+    kind: "category" | "clean_landing" | "landing_plus_query" | "category_query";
+    href: string;
+    canonicalPath: string;
+    landingId?: number;
+    landingPath?: string;
+    residualFilters: CatalogActiveFilters;
+};
+
 export type CatalogFilterOption = {
     value: string;
     label: string;
     count: number;
     selected: boolean;
+    termId: number | null;
+    taxonomy: string | null;
 };
 
 export type CatalogFilterGroup = {

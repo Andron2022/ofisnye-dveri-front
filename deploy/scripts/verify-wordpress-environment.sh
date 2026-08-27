@@ -49,6 +49,7 @@ site_url="$("${wp_cmd[@]}" option get siteurl)"
 # Проверяем обязательные MU-плагины headless-логики.
 for plugin in \
   door-family-taxonomy.php \
+  door-seo-landing.php \
   headless-seo-foundation.php \
   portfolio-project-cpt.php \
   public-article-no.php \
@@ -108,6 +109,102 @@ const root = JSON.parse(
 
 if (!root.namespaces?.includes("wp/v2")) {
   throw new Error("WordPress REST namespace wp/v2 is missing");
+}
+
+if (!root.namespaces?.includes("od/v1")) {
+  throw new Error("Door SEO landing REST namespace od/v1 is missing");
+}
+
+if (!root.routes?.["/od/v1/door-catalog-products"]) {
+  throw new Error("Door catalog products REST route is missing");
+}
+NODE
+
+# Проверяем публичный headless-контракт SEO-посадочных и стабильных Woo terms.
+curl "${curl_opts[@]}" \
+  "$WP_URL/wp-json/od/v1/door-seo-landings" \
+  > "$tmpdir/door-seo-landings.json"
+
+curl "${curl_opts[@]}" \
+  "$WP_URL/wp-json/od/v1/door-filter-terms" \
+  > "$tmpdir/door-filter-terms.json"
+
+root_category_id="$("${wp_cmd[@]}" term get product_cat mezhkomnatnye-dveri --by=slug --field=term_id)"
+curl "${curl_opts[@]}" \
+  "$WP_URL/wp-json/od/v1/door-catalog-products?base_category_id=$root_category_id" \
+  > "$tmpdir/door-catalog-products.json"
+
+DOOR_SEO_LANDINGS_FILE="$tmpdir/door-seo-landings.json" \
+DOOR_FILTER_TERMS_FILE="$tmpdir/door-filter-terms.json" \
+DOOR_CATALOG_PRODUCTS_FILE="$tmpdir/door-catalog-products.json" \
+node <<'NODE'
+const fs = require("node:fs");
+
+const landings = JSON.parse(
+  fs.readFileSync(process.env.DOOR_SEO_LANDINGS_FILE, "utf8") || "{}"
+);
+const filterTerms = JSON.parse(
+  fs.readFileSync(process.env.DOOR_FILTER_TERMS_FILE, "utf8") || "{}"
+);
+const catalogProducts = JSON.parse(
+  fs.readFileSync(process.env.DOOR_CATALOG_PRODUCTS_FILE, "utf8") || "{}"
+);
+
+if (!Array.isArray(landings.items)) {
+  throw new Error("Door SEO landing REST collection is invalid");
+}
+
+if (!Array.isArray(filterTerms.groups)) {
+  throw new Error("Door filter terms REST collection is invalid");
+}
+
+for (const landing of landings.items) {
+  if (!Number.isInteger(landing?.navigation_priority)) {
+    throw new Error("Door SEO landing navigation_priority contract is invalid");
+  }
+
+  if (typeof landing?.show_in_popular_collections !== "boolean") {
+    throw new Error("Door SEO landing show_in_popular_collections contract is invalid");
+  }
+
+  if (!Array.isArray(landing?.rules)) {
+    throw new Error("Door SEO landing rules contract is invalid");
+  }
+
+  for (const rule of landing.rules) {
+    if (typeof rule?.filter_key !== "string" || typeof rule?.taxonomy !== "string" || !Array.isArray(rule?.terms)) {
+      throw new Error("Door SEO landing rule contract is invalid");
+    }
+    if (rule.terms.some((term) => !Number.isInteger(term?.id) || typeof term?.slug !== "string")) {
+      throw new Error(`Door SEO landing term contract is invalid for ${rule.filter_key}`);
+    }
+  }
+}
+
+if (!Number.isInteger(catalogProducts?.base_category_id) || !Array.isArray(catalogProducts?.ids)) {
+  throw new Error("Door catalog products REST contract is invalid");
+}
+if (!Number.isInteger(catalogProducts?.count) || catalogProducts.count !== catalogProducts.ids.length) {
+  throw new Error("Door catalog products count contract is invalid");
+}
+if (catalogProducts.ids.some((id) => !Number.isInteger(id))) {
+  throw new Error("Door catalog products IDs contract is invalid");
+}
+
+for (const group of filterTerms.groups) {
+  if (typeof group?.filter_key !== "string" || typeof group?.taxonomy !== "string") {
+    throw new Error("Door filter term group contract is invalid");
+  }
+
+  if (!Array.isArray(group.terms)) {
+    throw new Error(`Door filter terms are invalid for ${group.filter_key}`);
+  }
+
+  for (const term of group.terms) {
+    if (!Number.isInteger(term?.id) || typeof term?.name !== "string" || typeof term?.slug !== "string") {
+      throw new Error(`Door filter term contract is invalid for ${group.filter_key}`);
+    }
+  }
 }
 NODE
 

@@ -6,6 +6,8 @@ import { getHeadlessSeoImageUrl } from "@src/lib/seo/types";
 import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
 import type { HeadlessSeo } from "@src/lib/seo/types";
 import type { SiteChromeSettings } from "@src/lib/site-chrome/types";
+import type { ResolvedDoorSeoLanding } from "@src/lib/woo/products";
+import type { DoorSeoLandingFaqItem } from "@src/lib/wp/door-seo-landings";
 import type {
   CatalogActiveFilters,
   DoorCatalogAttributes,
@@ -289,6 +291,7 @@ export function getDoorCategorySeo(
 export function buildDoorCategoryMetadata(
   category: DoorCategoryInfo | DoorRouteCategory | undefined,
   filters: CatalogActiveFilters,
+  canonicalPath?: string,
 ): Metadata {
   const fallback = getDoorCategorySeo(category);
   const index = shouldIndexCatalogPage(filters);
@@ -298,11 +301,34 @@ export function buildDoorCategoryMetadata(
   return buildSeoMetadata({
     title: fallback.title,
     description: fallback.description,
-    path: fallback.path,
+    path: canonicalPath ?? fallback.path,
     index,
     image: resolvedCategory?.image,
     imageAlt: resolvedCategory?.name,
     seo: resolvedCategory?.seo,
+  });
+}
+
+export function buildDoorSeoLandingMetadata(
+  landing: ResolvedDoorSeoLanding,
+  filters: CatalogActiveFilters,
+  productCount: number,
+): Metadata {
+  const title = landing.h1 || landing.title;
+  const description =
+    landing.intro ||
+    stripHtml(landing.contentHtml) ||
+    landing.baseCategoryInfo.description ||
+    buildGenericDoorCategoryDescription(title);
+
+  return buildSeoMetadata({
+    title,
+    description,
+    path: landing.path,
+    index: productCount > 0 && shouldIndexCatalogPage(filters),
+    image: landing.baseCategoryInfo.image,
+    imageAlt: title,
+    seo: landing.seo,
   });
 }
 
@@ -388,6 +414,15 @@ export function getDoorCategoryBreadcrumbItems(
   return items;
 }
 
+export function getDoorSeoLandingBreadcrumbItems(
+  landing: ResolvedDoorSeoLanding,
+): BreadcrumbItem[] {
+  return [
+    ...getDoorCategoryBreadcrumbItems(landing.baseCategoryInfo),
+    { name: landing.h1 || landing.title, path: landing.path },
+  ];
+}
+
 export function getDoorProductBreadcrumbItems(
   product: DoorProductDetails,
 ): BreadcrumbItem[] {
@@ -408,6 +443,21 @@ export function buildBreadcrumbListJsonLd(
       position: index + 1,
       name: item.name,
       item: buildAbsoluteUrl(item.path),
+    })),
+  };
+}
+
+export function buildFaqPageJsonLd(items: DoorSeoLandingFaqItem[]): JsonLdObject {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
     })),
   };
 }
