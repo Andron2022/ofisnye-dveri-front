@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCatalogProducts } from "@src/lib/woo/products";
 import { parseDoorCatalogFiltersFromURLSearchParams } from "@src/lib/woo/catalog-filters";
 import type { CatalogType } from "@src/lib/woo/types";
+import { getDoorCatalogFilterKeys } from "@src/lib/wp/door-seo-landings";
 
 // -----------------------------------------------------
 // Это первый реальный BFF endpoint проекта.
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
         );
         
         const categorySlug = searchParams.get("categorySlug") ?? undefined;
-        const filters = parseDoorCatalogFiltersFromURLSearchParams(searchParams);
+        const filters = parseDoorCatalogFiltersFromURLSearchParams(searchParams, type === "doors" ? await getDoorCatalogFilterKeys() : []);
         
         const catalog = await getCatalogProducts({
             type,

@@ -35,12 +35,7 @@ function formatDelta(priceDelta: number): string {
 }
 
 function getInitialSelectedOptions(product: DoorProductDetails): SelectedOptions {
-    return {
-        box: product.orderOptions.box.defaultOptionId,
-        openingSide: product.orderOptions.openingSide.defaultOptionId,
-        soundproofing: product.orderOptions.soundproofing.defaultOptionId,
-        threshold: product.orderOptions.threshold.defaultOptionId,
-    };
+    return Object.fromEntries(product.orderOptions.map((group) => [group.key, group.defaultOptionId]));
 }
 
 function findSelectedChoice(group: DoorOptionGroup, selectedId: string): DoorOptionChoice | null {
@@ -56,37 +51,26 @@ function getSelectedChoiceOrFallback(group: DoorOptionGroup, selectedId: string)
 }
 
 function getOptionsDelta(product: DoorProductDetails, selectedOptions: SelectedOptions): number {
-    const selectedChoices = [
-        findSelectedChoice(product.orderOptions.box, selectedOptions.box),
-        findSelectedChoice(product.orderOptions.openingSide, selectedOptions.openingSide),
-        findSelectedChoice(product.orderOptions.soundproofing, selectedOptions.soundproofing),
-        findSelectedChoice(product.orderOptions.threshold, selectedOptions.threshold),
-    ];
-
-    return selectedChoices.reduce((sum, choice) => sum + (choice?.priceDelta ?? 0), 0);
+    return product.orderOptions.reduce((sum, group) => {
+        const selectedId = selectedOptions[group.key] ?? group.defaultOptionId;
+        return sum + (findSelectedChoice(group, selectedId)?.priceDelta ?? 0);
+    }, 0);
 }
 
 function getAllAccessories(product: DoorProductDetails): DoorAccessoryCard[] {
-    return [
-        ...product.accessories.handles,
-        ...product.accessories.hinges,
-        ...product.accessories.locks,
-    ];
+    const unique = new Map<number, DoorAccessoryCard>();
+    for (const group of product.accessories) {
+        for (const item of group.items) unique.set(item.id, item);
+    }
+    return Array.from(unique.values());
 }
 
 function buildSelectedOptionSnapshots(
     product: DoorProductDetails,
     selectedOptions: SelectedOptions,
 ): CartOptionSnapshot[] {
-    const optionGroups = [
-        product.orderOptions.box,
-        product.orderOptions.openingSide,
-        product.orderOptions.soundproofing,
-        product.orderOptions.threshold,
-    ];
-
-    return optionGroups.map((group) => {
-        const selectedId = selectedOptions[group.key];
+    return product.orderOptions.map((group) => {
+        const selectedId = selectedOptions[group.key] ?? group.defaultOptionId;
         const choice = getSelectedChoiceOrFallback(group, selectedId);
 
         return {
@@ -298,7 +282,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
         [product, selectedOptions, selectedAccessories, quantity],
     );
 
-    const changeOption = (key: keyof SelectedOptions, value: string) => {
+    const changeOption = (key: string, value: string) => {
         setSelectedOptions((current) => ({ ...current, [key]: value }));
         setAddedItemKey(null);
     };
@@ -330,23 +314,36 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                     <div className="mb-4 pb-4 border-bottom">
                         <p className="text-uppercase text-muted mb-2 small">Выбор комплектации</p>
                         <h2 className="fs-3 mb-2">Комплектация двери</h2>
-                        <p className="text-muted mb-0">Выберите коробку, сторону открывания, звукоизоляцию и порог. Итоговая стоимость пересчитывается автоматически.</p>
+                        <p className="text-muted mb-0">Выберите доступные для этой двери опции. Итоговая стоимость пересчитывается автоматически.</p>
                     </div>
 
-                    <div className="row g-4 row-cols-1 row-cols-xl-2">
-                        <div className="col"><OptionGroupBlock group={product.orderOptions.box} value={selectedOptions.box} onChange={(value) => changeOption("box", value)} /></div>
-                        <div className="col"><OptionGroupBlock group={product.orderOptions.openingSide} value={selectedOptions.openingSide} onChange={(value) => changeOption("openingSide", value)} /></div>
-                        <div className="col"><OptionGroupBlock group={product.orderOptions.soundproofing} value={selectedOptions.soundproofing} onChange={(value) => changeOption("soundproofing", value)} /></div>
-                        <div className="col"><OptionGroupBlock group={product.orderOptions.threshold} value={selectedOptions.threshold} onChange={(value) => changeOption("threshold", value)} /></div>
-                    </div>
+                    {product.orderOptions.length > 0 ? (
+                        <div className="row g-4 row-cols-1 row-cols-xl-2">
+                            {product.orderOptions.map((group) => (
+                                <div className="col" key={group.key}>
+                                    <OptionGroupBlock
+                                        group={group}
+                                        value={selectedOptions[group.key] ?? group.defaultOptionId}
+                                        onChange={(value) => changeOption(group.key, value)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    ) : <p className="text-muted mb-0">Для этой двери дополнительные опции не настроены.</p>}
                 </div>
 
                 <div className="bg-white p-4 p-lg-5 mb-5">
                     <p className="text-uppercase text-muted mb-2 small">Фурнитура</p>
                     <h2 className="fs-3 mb-4">Фурнитура</h2>
-                    <AccessoriesGroup title="Ручки" items={product.accessories.handles} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
-                    <AccessoriesGroup title="Петли" items={product.accessories.hinges} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
-                    <AccessoriesGroup title="Замки" items={product.accessories.locks} selectedAccessories={selectedAccessories} onQtyChange={changeAccessoryQty} />
+                    {product.accessories.length > 0 ? product.accessories.map((group) => (
+                        <AccessoriesGroup
+                            key={group.key}
+                            title={group.title}
+                            items={group.items}
+                            selectedAccessories={selectedAccessories}
+                            onQtyChange={changeAccessoryQty}
+                        />
+                    )) : <p className="text-muted mb-0">Для этой двери фурнитура не настроена.</p>}
                 </div>
 
                 <div className="bg-white p-4">

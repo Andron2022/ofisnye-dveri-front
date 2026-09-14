@@ -296,8 +296,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
 }
 
+export function useOptionalCart(): CartContextValue | null {
+    return useContext(CartContext);
+}
+
 export function useCart(): CartContextValue {
-    const context = useContext(CartContext);
+    const context = useOptionalCart();
 
     if (!context) {
         throw new Error("useCart должен использоваться внутри CartProvider");

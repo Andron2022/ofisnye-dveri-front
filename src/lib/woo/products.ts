@@ -3,6 +3,7 @@
 import { wooGetList } from "@src/lib/woo/client";
 import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import {
+    getDoorCatalogFilterContract,
     getDoorCatalogFilterTermDictionary,
     getDoorCatalogProductIds,
     getDoorSeoLanding,
@@ -11,6 +12,7 @@ import {
     type DoorSeoLanding,
 } from "@src/lib/wp/door-seo-landings";
 import { buildCatalogFilterGroups } from "@src/lib/woo/catalog-filters";
+import { getDoorProductConfiguration } from "@src/lib/wp/door-product-configuration";
 import {
     buildDoorFilterState,
     doorFilterStateFullyResolvesActiveFilters,
@@ -229,18 +231,28 @@ function getPurpose(product: WooProduct): string[] | undefined {
 }
 
 function mapDoorAttributes(product: WooProduct): DoorCatalogAttributes {
-    return {
-        color: getDoorColor(product),
-        size: getDoorSize(product),
-        leafCount: getLeafCount(product),
-        openingDirection: getOpeningDirection(product),
-        fireResistance: getFireResistance(product),
-        material: getMaterial(product),
-        glazing: getGlazing(product),
-        openingType: getOpeningType(product),
-        glazingType: getGlazingType(product),
-        purpose: getPurpose(product),
-    };
+    const attributes: DoorCatalogAttributes = {};
+    for (const attribute of product.attributes ?? []) {
+        const slug = typeof attribute.slug === "string" ? attribute.slug.trim() : "";
+        if (!slug) continue;
+        const values = Array.isArray(attribute.options)
+            ? attribute.options.map((value) => String(value).trim()).filter(Boolean)
+            : [];
+        if (values.length > 0) attributes[slug] = values;
+    }
+
+    // Compatibility aliases for the existing Kalles/feed/SEO presentation layer.
+    attributes.color = getDoorColor(product);
+    attributes.size = getDoorSize(product);
+    attributes.leafCount = getLeafCount(product);
+    attributes.openingDirection = getOpeningDirection(product);
+    attributes.fireResistance = getFireResistance(product);
+    attributes.material = getMaterial(product);
+    attributes.glazing = getGlazing(product);
+    attributes.openingType = getOpeningType(product);
+    attributes.glazingType = getGlazingType(product);
+    attributes.purpose = getPurpose(product);
+    return attributes;
 }
 
 function normalizeMediaUrl(url: string | undefined): string | null {
@@ -513,152 +525,8 @@ function normalizeDefaultOptionId(metaData: WooMetaDataItem[], keys: string[], f
     return parseSelectValue(value, fallbackId).id;
 }
 
-export function mapDoorOrderOptions(product: WooProduct): DoorOrderOptions {
-    const metaData = product.meta_data;
-
-    const boxDefaultOptionId = normalizeDefaultOptionId(
-        metaData,
-        ["configurator_box_default_option", "box_default_option"],
-        "none",
-    );
-    const openingSideDefaultOptionId = normalizeDefaultOptionId(
-        metaData,
-        [
-            "configurator_opening_side_default_option",
-            "configurator_opening_side_default_options",
-            "configurator_opening_side",
-            "opening_side_default_option",
-        ],
-        "any",
-    );
-    const soundproofingDefaultOptionId = normalizeDefaultOptionId(
-        metaData,
-        ["configurator_soundproofing_default_option", "configurator_sound_insulation", "soundproofing_default_option"],
-        "base",
-    );
-    const thresholdDefaultOptionId = normalizeDefaultOptionId(
-        metaData,
-        ["configurator_slide_threshold_default_option", "configurator_slide_threshold_defoult_option", "slide_threshold_default_option"],
-        "none",
-    );
-
-    return {
-        box: {
-            key: "box",
-            title: "Дверная коробка",
-            defaultOptionId: boxDefaultOptionId,
-            choices: [
-                createChoice({
-                    id: "none",
-                    label: "Без коробки",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_box_none_enabled", "box_none_enabled"], true),
-                    priceDelta: 0,
-                    defaultOptionId: boxDefaultOptionId,
-                }),
-                createChoice({
-                    id: "std_wood",
-                    label: "Стандартная деревянная коробка",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_box_std_enabled", "box_std_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_box_std_price_delta", "box_std_price_delta"]),
-                    defaultOptionId: boxDefaultOptionId,
-                }),
-                createChoice({
-                    id: "aluminium",
-                    label: "Алюминиевая коробка",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_box_aluminium_enabled", "box_aluminium_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_box_aluminium_price_delta", "box_aluminium_price_delta"]),
-                    defaultOptionId: boxDefaultOptionId,
-                }),
-                createChoice({
-                    id: "telescopic",
-                    label: "Телескопическая коробка",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_box_telescopic_enabled", "box_telescopic_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_box_telescopic_price_delta", "box_telescopic_price_delta"]),
-                    defaultOptionId: boxDefaultOptionId,
-                }),
-            ],
-        },
-        openingSide: {
-            key: "openingSide",
-            title: "Сторона открывания",
-            defaultOptionId: openingSideDefaultOptionId,
-            choices: [
-                createChoice({ id: "any", label: "Любое (без фрезеровки)", enabled: true, priceDelta: 0, defaultOptionId: openingSideDefaultOptionId }),
-                createChoice({
-                    id: "right",
-                    label: "Правая",
-                    enabled: true,
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_opening_side_right_price_delta", "opening_side_right_price_delta"]),
-                    defaultOptionId: openingSideDefaultOptionId,
-                }),
-                createChoice({
-                    id: "left",
-                    label: "Левая",
-                    enabled: true,
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_opening_side_left_price_delta", "opening_side_left_price_delta"]),
-                    defaultOptionId: openingSideDefaultOptionId,
-                }),
-            ],
-        },
-        soundproofing: {
-            key: "soundproofing",
-            title: "Шумоизоляция",
-            defaultOptionId: soundproofingDefaultOptionId,
-            choices: [
-                createChoice({ id: "base", label: "Базовый вариант ≥48 дБ", enabled: true, priceDelta: 0, defaultOptionId: soundproofingDefaultOptionId }),
-                createChoice({
-                    id: "plus",
-                    label: "Шумоизоляция Plus",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_soundproofing_plus_enabled", "soundproofing_plus_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_soundproofing_plus_price_delta", "soundproofing_plus_price_delta"]),
-                    defaultOptionId: soundproofingDefaultOptionId,
-                }),
-                createChoice({
-                    id: "premium",
-                    label: "Шумоизоляция Premium",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_soundproofing_premium_enabled", "soundproofing_premium_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, [
-                        "configurator_soundproofing_premium_price_delta",
-                        "configurator_soundproofing_premium_prive_delta",
-                        "configurator_soundproofing_premium_prise_delta",
-                        "soundproofing_premium_price_delta",
-                    ]),
-                    defaultOptionId: soundproofingDefaultOptionId,
-                }),
-            ],
-        },
-        threshold: {
-            key: "threshold",
-            title: "Выдвижной порожек",
-            defaultOptionId: thresholdDefaultOptionId,
-            choices: [
-                createChoice({ id: "none", label: "Без порожка", enabled: true, priceDelta: 0, defaultOptionId: thresholdDefaultOptionId }),
-                createChoice({
-                    id: "plus",
-                    label: "С порожком",
-                    enabled: getMetaBooleanByKeys(metaData, ["configurator_slide_threshold_enabled", "slide_threshold_enabled"]),
-                    priceDelta: getMetaNumberByKeys(metaData, ["configurator_slide_threshold_price_delta", "slide_threshold_price_delta"]),
-                    defaultOptionId: thresholdDefaultOptionId,
-                }),
-            ],
-        },
-    };
-}
-
-function getDoorFamilyCode(product: WooProduct): string | null {
-    return getMetaStringByKeys(product.meta_data, ["door_family", "family_code"]);
-}
-
-function normalizeFamilyCode(value: string | null): string | null {
-    if (!value) return null;
-
-    const normalized = value.trim().toLowerCase();
-    return normalized === "" ? null : normalized;
-}
-
 function mapDoorFamilySibling(product: WooProduct, currentProductId: number, routeContext: DoorRouteContext): DoorFamilySibling {
     const card = mapCatalogProductCard(product, routeContext);
-
     return {
         id: card.id,
         slug: card.slug,
@@ -669,51 +537,6 @@ function mapDoorFamilySibling(product: WooProduct, currentProductId: number, rou
         image: card.image,
         attributes: card.attributes,
         isCurrent: card.id === currentProductId,
-    };
-}
-
-async function getDoorFamilyInfo(
-    currentProduct: WooProduct,
-    categories: WooProductCategoryTerm[],
-    rootCategory: WooProductCategoryTerm,
-    routeContext: DoorRouteContext,
-): Promise<DoorFamilyInfo> {
-    const familyCode = getDoorFamilyCode(currentProduct);
-    const normalizedFamilyCode = normalizeFamilyCode(familyCode);
-
-    if (!normalizedFamilyCode) {
-        return { code: null, siblings: [] };
-    }
-
-    const categoryIds = collectDescendantCategoryIds(categories, rootCategory.id);
-    const response = await wooGetList<WooProduct>("products", {
-        status: "publish",
-        per_page: 100,
-        page: 1,
-        category: categoryIds.join(","),
-        orderby: "date",
-        order: "desc",
-    }, 60);
-
-    const siblings = response.items
-        .filter((product) => normalizeFamilyCode(getDoorFamilyCode(product)) === normalizedFamilyCode)
-        .map((product) => mapDoorFamilySibling(product, currentProduct.id, routeContext));
-
-    return { code: familyCode, siblings };
-}
-
-// -----------------------------------------------------
-// Связанная фурнитура.
-// Relationship-поля ACF сейчас приходят в Woo REST как массивы ID в meta_data.
-// -----------------------------------------------------
-
-function getRelatedAccessoryIds(product: WooProduct): { handles: number[]; hinges: number[]; locks: number[] } {
-    const metaData = product.meta_data;
-
-    return {
-        handles: getMetaNumberArrayByKeys(metaData, ["configurator_related_handles", "configurator_related_handless", "related_handles"]),
-        hinges: getMetaNumberArrayByKeys(metaData, ["configurator_related_hinges", "related_hinges"]),
-        locks: getMetaNumberArrayByKeys(metaData, ["configurator_related_locks", "related_locks"]),
     };
 }
 
@@ -763,30 +586,28 @@ function sortAccessories(items: DoorAccessoryCard[]): DoorAccessoryCard[] {
     ));
 }
 
-async function getRelatedAccessories(product: WooProduct): Promise<DoorProductDetails["accessories"]> {
-    const ids = getRelatedAccessoryIds(product);
-    const handleIds = new Set(ids.handles);
-    const hingeIds = new Set(ids.hinges);
-    const lockIds = new Set(ids.locks);
-    const allIds = [...handleIds, ...hingeIds, ...lockIds];
-
-    try {
-        const products = await getProductsByIds(allIds);
-
-        return {
-            handles: sortAccessories(products.filter((item) => handleIds.has(item.id)).map(mapAccessoryCard)),
-            hinges: sortAccessories(products.filter((item) => hingeIds.has(item.id)).map(mapAccessoryCard)),
-            locks: sortAccessories(products.filter((item) => lockIds.has(item.id)).map(mapAccessoryCard)),
-        };
-    } catch (error) {
-        console.error("Failed to load related accessories for door product:", product.id, error);
-
-        return {
-            handles: [],
-            hinges: [],
-            locks: [],
-        };
-    }
+async function getResolvedAccessories(
+    groups: Awaited<ReturnType<typeof getDoorProductConfiguration>>["accessoryGroups"],
+): Promise<DoorProductDetails["accessories"]> {
+    const allIds = Array.from(new Set(groups.flatMap((group) => group.productIds)));
+    const products = await getProductsByIds(allIds);
+    const byId = new Map(products.map((product) => [product.id, product]));
+    return groups.flatMap((group) => {
+        const items = sortAccessories(
+            group.productIds
+                .map((id) => byId.get(id))
+                .filter((item): item is WooProduct => Boolean(item))
+                .map(mapAccessoryCard),
+        );
+        return items.length > 0 ? [{
+            key: group.key,
+            title: group.title,
+            categoryId: group.categoryId,
+            sourceMode: group.sourceMode,
+            source: group.source,
+            items,
+        }] : [];
+    });
 }
 
 async function mapDoorProductDetails(
@@ -795,13 +616,28 @@ async function mapDoorProductDetails(
     rootCategory: WooProductCategoryTerm,
     routeContext: DoorRouteContext,
 ): Promise<DoorProductDetails> {
+    void categories;
+    void rootCategory;
     const categorySlugs = product.categories.map((category) => category.slug);
     const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);
+    const configuration = await getDoorProductConfiguration(product.id);
 
-    const [family, accessories] = await Promise.all([
-        getDoorFamilyInfo(product, categories, rootCategory, routeContext),
-        getRelatedAccessories(product),
-    ]);
+    const siblingProducts = await getProductsByIds(configuration.family.siblingIds);
+    const siblings = siblingProducts.map((item) => mapDoorFamilySibling(item, product.id, routeContext));
+    const accessories = await getResolvedAccessories(configuration.accessoryGroups);
+    const orderOptions: DoorOrderOptions = configuration.optionGroups.map((group) => ({
+        key: group.key,
+        title: group.title,
+        defaultOptionId: group.defaultOptionId,
+        source: group.source,
+        choices: group.choices.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            enabled: true,
+            priceDelta: choice.priceDelta,
+            isDefault: choice.isDefault,
+        })),
+    }));
 
     return {
         id: product.id,
@@ -815,19 +651,25 @@ async function mapDoorProductDetails(
         stockStatus: product.stock_status ?? null,
         path: buildDoorProductPath({ slug: product.slug, categorySlugs, routeCategoryPath: preferredCategory?.path }),
         image: getCardImage(product),
-        gallery: product.images.map((image) => ({
-            ...image,
-            src: normalizeMediaUrl(image.src) ?? image.src,
-        })),
+        gallery: product.images.map((image) => ({ ...image, src: normalizeMediaUrl(image.src) ?? image.src })),
         categories: product.categories,
         categorySlugs,
         routeCategory: preferredCategory,
         shortDescriptionHtml: getHtmlOrNull(product.short_description),
         descriptionHtml: getHtmlOrNull(product.description),
         attributes: mapDoorAttributes(product),
-        family,
-        orderOptions: mapDoorOrderOptions(product),
+        family: {
+            id: configuration.family.id,
+            code: configuration.family.slug || configuration.family.name || null,
+            name: configuration.family.name || null,
+            source: configuration.family.source,
+            siblings,
+        },
+        variantDimensions: configuration.variantDimensions,
+        variantDimensionsSource: configuration.variantDimensionsSource,
+        orderOptions,
         accessories,
+        configurationWarnings: configuration.warnings,
         modified: product.date_modified,
         seo: normalizeHeadlessSeo(product.headless_seo),
     };
@@ -1067,7 +909,7 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
     // Источник истины для URL/filter values — реальные Woo terms. Товарное совпадение
     // вычисляет WordPress tax_query через полный FilterState; Next только отображает
     // возвращённое множество ID и строит facet UI по исходному category subtree.
-    const termDictionary = await getDoorCatalogFilterTermDictionary();
+    const { definitions: filterDefinitions, termDictionary } = await getDoorCatalogFilterContract();
     const filterState = buildDoorFilterState(effectiveCategory.id, filters, termDictionary);
     const filterStateIsResolved = doorFilterStateFullyResolvesActiveFilters(filterState, filters);
     const [allProducts, matchedProductIds] = await Promise.all([
@@ -1094,7 +936,7 @@ export async function getCatalogProducts(args: GetCatalogProductsArgs): Promise<
         items: pageItems,
         filters: {
             active: filters,
-            groups: buildCatalogFilterGroups(allCards, filters, termDictionary),
+            groups: buildCatalogFilterGroups(allCards, filters, filterDefinitions, termDictionary),
         },
         categoryTree: doorRouteContext.categoryTree,
         currentCategory: currentDoorCategory,

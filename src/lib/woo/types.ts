@@ -83,7 +83,7 @@ export type WooListResponse<T> = {
 
 export type CatalogType = "doors" | "panels";
 
-export type DoorCatalogAttributes = {
+export type DoorCatalogAttributes = Record<string, string[] | undefined> & {
     color?: string[];
     size?: string[];
     leafCount?: string[];
@@ -96,17 +96,7 @@ export type DoorCatalogAttributes = {
     purpose?: string[];
 };
 
-export type DoorCatalogFilterKey =
-    | "tsvet-dveri"
-    | "razmer-dveri"
-    | "kolichestvo-poloten"
-    | "material-dveri"
-    | "osteklenie"
-    | "tip-otkryvaniya"
-    | "naznachenie"
-    | "napravlenie-otkryvaniya"
-    | "ognestoykost"
-    | "tip-ostekleniya";
+export type DoorCatalogFilterKey = string;
 
 export type CatalogActiveFilters = Partial<Record<DoorCatalogFilterKey, string[]>>;
 
@@ -118,6 +108,12 @@ export type CatalogFilterTerm = {
 };
 
 export type CatalogFilterTermDictionary = Partial<Record<DoorCatalogFilterKey, CatalogFilterTerm[]>>;
+
+export type DoorCatalogFilterDefinition = {
+    key: DoorCatalogFilterKey;
+    label: string;
+    taxonomy: string;
+};
 
 export type DoorFilterState = {
     categoryId: number;
@@ -160,6 +156,7 @@ export type CatalogFilterOption = {
 export type CatalogFilterGroup = {
     key: DoorCatalogFilterKey;
     label: string;
+    taxonomy: string;
     options: CatalogFilterOption[];
 };
 
@@ -247,17 +244,21 @@ export type DoorOptionChoice = {
 };
 
 export type DoorOptionGroup = {
-    key: "box" | "openingSide" | "soundproofing" | "threshold";
+    key: string;
     title: string;
     defaultOptionId: string;
     choices: DoorOptionChoice[];
+    source?: string;
 };
 
-export type DoorOrderOptions = {
-    box: DoorOptionGroup;
-    openingSide: DoorOptionGroup;
-    soundproofing: DoorOptionGroup;
-    threshold: DoorOptionGroup;
+export type DoorOrderOptions = DoorOptionGroup[];
+
+export type DoorVariantDimension = {
+    attributeId: number;
+    taxonomy: string;
+    filterKey: string;
+    label: string;
+    source: string;
 };
 
 export type DoorFamilySibling = {
@@ -273,7 +274,10 @@ export type DoorFamilySibling = {
 };
 
 export type DoorFamilyInfo = {
+    id: number;
     code: string | null;
+    name: string | null;
+    source: string;
     siblings: DoorFamilySibling[];
 };
 
@@ -292,11 +296,16 @@ export type DoorAccessoryCard = {
     stockStatus: string | null;
 };
 
-export type DoorRelatedAccessories = {
-    handles: DoorAccessoryCard[];
-    hinges: DoorAccessoryCard[];
-    locks: DoorAccessoryCard[];
+export type DoorAccessoryGroup = {
+    key: string;
+    title: string;
+    categoryId: number;
+    sourceMode: "category" | "explicit" | "legacy";
+    source: string;
+    items: DoorAccessoryCard[];
 };
+
+export type DoorRelatedAccessories = DoorAccessoryGroup[];
 
 export type DoorCartCandidate = {
     productId: number;
@@ -304,16 +313,8 @@ export type DoorCartCandidate = {
     sku: string;
     qty: number;
     basePrice: string | null;
-    selectedOptions: {
-        box: string;
-        openingSide: string;
-        soundproofing: string;
-        threshold: string;
-    };
-    selectedAccessories: Array<{
-        productId: number;
-        qty: number;
-    }>;
+    selectedOptions: Record<string, string>;
+    selectedAccessories: Array<{ productId: number; qty: number }>;
 };
 
 export type DoorProductDetails = {
@@ -336,8 +337,11 @@ export type DoorProductDetails = {
     descriptionHtml: string | null;
     attributes: DoorCatalogAttributes;
     family: DoorFamilyInfo;
+    variantDimensions: DoorVariantDimension[];
+    variantDimensionsSource: string;
     orderOptions: DoorOrderOptions;
     accessories: DoorRelatedAccessories;
+    configurationWarnings: string[];
     modified?: string;
     seo: HeadlessSeo;
 };

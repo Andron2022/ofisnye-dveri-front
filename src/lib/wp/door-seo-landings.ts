@@ -2,6 +2,7 @@ import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import { wpNamespaceGet } from "@src/lib/woo/client";
 import type {
     CatalogFilterTermDictionary,
+    DoorCatalogFilterDefinition,
     DoorCatalogFilterKey,
     DoorFilterState,
 } from "@src/lib/woo/types";
@@ -111,22 +112,10 @@ function asBoolean(value: unknown): boolean {
     return ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
 }
 
-const FILTER_KEYS = new Set<DoorCatalogFilterKey>([
-    "tsvet-dveri",
-    "razmer-dveri",
-    "kolichestvo-poloten",
-    "material-dveri",
-    "osteklenie",
-    "tip-otkryvaniya",
-    "naznachenie",
-    "napravlenie-otkryvaniya",
-    "ognestoykost",
-    "tip-ostekleniya",
-]);
-
 function isDoorFilterKey(value: string): value is DoorCatalogFilterKey {
-    return FILTER_KEYS.has(value as DoorCatalogFilterKey);
+    return /^[a-z0-9][a-zA-Z0-9_-]*$/.test(value);
 }
+
 
 function normalizeTerm(value: unknown): DoorSeoLandingTerm | null {
     const object = asObject(value);
@@ -275,24 +264,35 @@ export async function getDoorCatalogProductIds(filterState: DoorFilterState): Pr
     return normalizeIds(response.ids);
 }
 
-export async function getDoorCatalogFilterTermDictionary(): Promise<CatalogFilterTermDictionary> {
-    const response = await wpNamespaceGet<RawFilterTermsResponse>("od/v1/door-filter-terms", {}, 300);
+export async function getDoorCatalogFilterContract(): Promise<{
+    definitions: DoorCatalogFilterDefinition[];
+    termDictionary: CatalogFilterTermDictionary;
+}> {
+    const response = await wpNamespaceGet<RawFilterTermsResponse>("od/v1/door-filter-terms", {}, 60);
     const groups = Array.isArray(response.groups) ? response.groups : [];
     const dictionary: CatalogFilterTermDictionary = {};
+    const definitions: DoorCatalogFilterDefinition[] = [];
 
     for (const groupValue of groups) {
         const group = asObject(groupValue);
         const filterKey = group ? asString(group.filter_key) : undefined;
         const taxonomy = group ? asString(group.taxonomy) : undefined;
+        const label = group ? asString(group.label) : undefined;
         const terms = group && Array.isArray(group.terms) ? group.terms : [];
-
         if (!filterKey || !isDoorFilterKey(filterKey) || !taxonomy) continue;
-
+        definitions.push({ key: filterKey, label: label || filterKey, taxonomy });
         dictionary[filterKey] = terms.flatMap((termValue) => {
             const term = normalizeTerm(termValue);
             return term ? [{ ...term, taxonomy }] : [];
         });
     }
+    return { definitions, termDictionary: dictionary };
+}
 
-    return dictionary;
+export async function getDoorCatalogFilterTermDictionary(): Promise<CatalogFilterTermDictionary> {
+    return (await getDoorCatalogFilterContract()).termDictionary;
+}
+
+export async function getDoorCatalogFilterKeys(): Promise<string[]> {
+    return (await getDoorCatalogFilterContract()).definitions.map((definition) => definition.key);
 }

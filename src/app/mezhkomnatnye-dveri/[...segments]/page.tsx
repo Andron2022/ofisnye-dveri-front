@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@src/components/Headers/Header";
@@ -33,6 +34,7 @@ import KallesDoorProductGallery from "@src/components/storefront/KallesDoorProdu
 import KallesDoorProductTabs from "@src/components/storefront/KallesDoorProductTabs";
 import { getDoorPdpPageSettings } from "@src/lib/wp/door-pdp-service-tabs";
 import DoorProductConfigurator from "./DoorProductConfigurator";
+import { getDoorCatalogFilterKeys } from "@src/lib/wp/door-seo-landings";
 import {
     buildBreadcrumbListJsonLd,
     buildDoorCategoryMetadata,
@@ -101,6 +103,25 @@ function getDoorCategoryLead(category: DoorCategoryInfo): string {
 type PageParams = Promise<{ segments: string[] }>;
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+// generateMetadata() и сам page renderer могут запрашивать один и тот же route/product
+// в рамках одного RSC-render. React cache дедуплицирует именно этот render-request,
+// не создавая долгоживущий cache для checkout/configuration.
+const resolveDoorRouteForRender = cache(async (segmentsKey: string) => {
+    const segments = segmentsKey.split("/").filter(Boolean);
+    return resolveDoorRoute(segments);
+});
+
+const getDoorProductForRender = cache(async (slug: string, wooCategorySlug: string) => (
+    getDoorProductBySlug({
+        slug,
+        wooCategorySlug: wooCategorySlug || undefined,
+    })
+));
+
+function getSegmentsCacheKey(segments: string[]): string {
+    return segments.join("/");
+}
+
 function getLandingResidualFilters(
     landing: ResolvedDoorSeoLanding,
     queryFilters: CatalogActiveFilters,
@@ -141,7 +162,7 @@ export async function generateMetadata({
     searchParams: PageSearchParams;
 }): Promise<Metadata> {
     const { segments } = await params;
-    const resolvedRoute = await resolveDoorRoute(segments);
+    const resolvedRoute = await resolveDoorRouteForRender(getSegmentsCacheKey(segments));
 
     if (!resolvedRoute) {
         return {
@@ -151,7 +172,7 @@ export async function generateMetadata({
     }
 
     const resolvedSearchParams = await searchParams;
-    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
 
     if (resolvedRoute.kind === "category") {
         if (!hasActiveCatalogFilters(queryFilters)) {
@@ -185,10 +206,10 @@ export async function generateMetadata({
         return buildDoorSeoLandingMetadata(resolvedRoute.landing, queryFilters, productCount);
     }
 
-    const product = await getDoorProductBySlug({
-        slug: resolvedRoute.slug,
-        wooCategorySlug: resolvedRoute.wooCategorySlug,
-    });
+    const product = await getDoorProductForRender(
+        resolvedRoute.slug,
+        resolvedRoute.wooCategorySlug ?? "",
+    );
 
     if (!product) {
         return {
@@ -205,7 +226,7 @@ async function DoorCategoryPage({ category, searchParams }: {
     searchParams: PageSearchParams;
 }) {
     const resolvedSearchParams = await searchParams;
-    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
     const routeHref = category.path;
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let seoLinks: Array<{ href: string; label: string }> = [];
@@ -321,7 +342,7 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
     searchParams: PageSearchParams;
 }) {
     const resolvedSearchParams = await searchParams;
-    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
     const { fullFilters } = buildLandingFilterState(landing, queryFilters);
     const hasQueryFilters = hasActiveCatalogFilters(queryFilters);
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
@@ -414,30 +435,32 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
 // Поэтому переключатели ведут на соседний товар того же door_family.
 // -----------------------------------------------------
 
-type SiblingAttributeKey = "color" | "size" | "leafCount";
-
 type VariantAxisConfig = {
-    key: SiblingAttributeKey;
+    key: string;
     title: string;
     shortTitle: string;
+    isColor: boolean;
 };
-
-const VARIANT_AXES: VariantAxisConfig[] = [
-    { key: "color", title: "Цвет", shortTitle: "Цвет" },
-    { key: "size", title: "Размер", shortTitle: "Размер" },
-    { key: "leafCount", title: "Количество полотен", shortTitle: "Полотна" },
-];
 
 const variantValueCollator = new Intl.Collator("ru", {
     numeric: true,
     sensitivity: "base",
 });
 
-function getSiblingAttributeValue(sibling: DoorFamilySibling, key: SiblingAttributeKey): string | null {
+function getVariantAxes(product: DoorProductDetails): VariantAxisConfig[] {
+    return product.variantDimensions.map((dimension) => ({
+        key: dimension.taxonomy,
+        title: dimension.label,
+        shortTitle: dimension.label,
+        isColor: dimension.filterKey === "tsvet-dveri" || dimension.taxonomy === "pa_tsvet-dveri",
+    }));
+}
+
+function getSiblingAttributeValue(sibling: DoorFamilySibling, key: string): string | null {
     return firstAttributeValue(sibling.attributes[key]);
 }
 
-function getCurrentAttributeValue(product: DoorProductDetails, key: SiblingAttributeKey): string | null {
+function getCurrentAttributeValue(product: DoorProductDetails, key: string): string | null {
     return firstAttributeValue(product.attributes[key]);
 }
 
@@ -445,156 +468,104 @@ function getVariantValueLabel(value: string | null): string {
     return value || "—";
 }
 
-function getFamilyAttributeValues(product: DoorProductDetails, key: SiblingAttributeKey): string[] {
+function getFamilyAttributeValues(product: DoorProductDetails, key: string): string[] {
     const values = new Set<string>();
-
     for (const sibling of product.family.siblings) {
         const value = getSiblingAttributeValue(sibling, key);
         if (value) values.add(value);
     }
-
     const currentValue = getCurrentAttributeValue(product, key);
     if (currentValue) values.add(currentValue);
-
     return Array.from(values).sort((a, b) => variantValueCollator.compare(a, b));
 }
 
-function siblingMatchesExactCombination({
-                                            sibling,
-                                            product,
-                                            changedKey,
-                                            changedValue,
-                                        }: {
+function siblingMatchesExactCombination({ sibling, product, changedKey, changedValue }: {
     sibling: DoorFamilySibling;
     product: DoorProductDetails;
-    changedKey: SiblingAttributeKey;
+    changedKey: string;
     changedValue: string;
 }): boolean {
-    return VARIANT_AXES.every(({ key }) => {
+    return getVariantAxes(product).every(({ key }) => {
         const siblingValue = getSiblingAttributeValue(sibling, key);
-
-        if (key === changedKey) {
-            return siblingValue === changedValue;
-        }
-
-        return siblingValue === getCurrentAttributeValue(product, key);
+        return key === changedKey
+            ? siblingValue === changedValue
+            : siblingValue === getCurrentAttributeValue(product, key);
     });
 }
 
-function findExactSiblingForVariant({
-                                        product,
-                                        changedKey,
-                                        changedValue,
-                                    }: {
+function findExactSiblingForVariant({ product, changedKey, changedValue }: {
     product: DoorProductDetails;
-    changedKey: SiblingAttributeKey;
+    changedKey: string;
     changedValue: string;
 }): DoorFamilySibling | null {
-    return product.family.siblings.find((sibling) => siblingMatchesExactCombination({
-        sibling,
-        product,
-        changedKey,
-        changedValue,
-    })) ?? null;
+    return product.family.siblings.find((sibling) => siblingMatchesExactCombination({ sibling, product, changedKey, changedValue })) ?? null;
 }
 
 function getSortedFamilySiblings(product: DoorProductDetails): DoorFamilySibling[] {
+    const axes = getVariantAxes(product);
     return [...product.family.siblings].sort((a, b) => {
-        for (const { key } of VARIANT_AXES) {
+        for (const { key } of axes) {
             const result = variantValueCollator.compare(
                 getVariantValueLabel(getSiblingAttributeValue(a, key)),
                 getVariantValueLabel(getSiblingAttributeValue(b, key)),
             );
-
             if (result !== 0) return result;
         }
-
         return variantValueCollator.compare(a.name, b.name);
     });
 }
 
 function getColorSwatchClass(value: string): string {
     const lowerValue = value.toLowerCase();
-
     if (lowerValue.includes("графит") || lowerValue.includes("сер") || lowerValue.includes("grey")) return "bg-secondary bg-opacity-50";
     if (lowerValue.includes("бел") || lowerValue.includes("white")) return "bg-white";
     if (lowerValue.includes("чер") || lowerValue.includes("black")) return "bg-dark";
     if (lowerValue.includes("pink") || lowerValue.includes("роз")) return "bg_color_pink";
     if (lowerValue.includes("дерев") || lowerValue.includes("дуб") || lowerValue.includes("wood")) return "bg-warning bg-opacity-25";
-
     return "bg-light";
 }
 
-function VariantColorPicker({ product }: { product: DoorProductDetails }) {
-    const values = getFamilyAttributeValues(product, "color");
-    const currentValue = getCurrentAttributeValue(product, "color");
+function VariantPicker({ product, axis }: { product: DoorProductDetails; axis: VariantAxisConfig }) {
+    const values = getFamilyAttributeValues(product, axis.key);
+    const currentValue = getCurrentAttributeValue(product, axis.key);
     if (values.length === 0) return null;
 
-    return (
-        <div className="mb-2">
-            <h6 className="text-uppercase fw-bold mb-2">Color: <span>{getVariantValueLabel(currentValue)}</span></h6>
-            <div className="product-color-list mt-1 gap-2 d-flex align-items-center flex-wrap">
-                {values.map((value) => {
-                    const exactSibling = findExactSiblingForVariant({ product, changedKey: "color", changedValue: value });
-                    const isCurrentValue = value === currentValue;
-                    const className = `d-inline-block rounded-circle square-xs ${getColorSwatchClass(value)} ${isCurrentValue ? "active" : ""} ${exactSibling ? "" : "opacity-50"}`;
-
-                    if (!exactSibling) {
-                        return <span key={value} className={className} title={`${value}: недоступно`} />;
-                    }
-
-                    return (
-                        <Link
-                            key={`${value}-${exactSibling.id}`}
-                            href={exactSibling.path}
-                            className={className}
-                            aria-current={exactSibling.isCurrent ? "page" : undefined}
-                            title={value}
-                        />
-                    );
-                })}
+    if (axis.isColor) {
+        return (
+            <div className="mb-2">
+                <h6 className="text-uppercase fw-bold mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
+                <div className="product-color-list mt-1 gap-2 d-flex align-items-center flex-wrap">
+                    {values.map((value) => {
+                        const exactSibling = findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value });
+                        const isCurrentValue = value === currentValue;
+                        const className = `d-inline-block rounded-circle square-xs ${getColorSwatchClass(value)} ${isCurrentValue ? "active" : ""} ${exactSibling ? "" : "opacity-50"}`;
+                        return exactSibling ? (
+                            <Link key={`${value}-${exactSibling.id}`} href={exactSibling.path} className={className} aria-current={exactSibling.isCurrent ? "page" : undefined} title={value} />
+                        ) : <span key={value} className={className} title={`${value}: недоступно`} />;
+                    })}
+                </div>
             </div>
-        </div>
-    );
-}
-
-function VariantRadioPicker({ product, axis }: { product: DoorProductDetails; axis: Extract<SiblingAttributeKey, "size" | "leafCount"> }) {
-    const values = getFamilyAttributeValues(product, axis);
-    const currentValue = getCurrentAttributeValue(product, axis);
-    if (values.length === 0) return null;
-
-    const title = axis === "size" ? "Size" : "Полотна";
+        );
+    }
 
     return (
         <div className="pt-1 mb-2 pb-1">
-            <h6 className="text-uppercase fw-bold mt-2 mb-2">{title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
+            <h6 className="text-uppercase fw-bold mt-2 mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
             <div className="d-flex flex-wrap gap-2">
                 {values.map((value) => {
-                    const exactSibling = findExactSiblingForVariant({ product, changedKey: axis, changedValue: value });
+                    const exactSibling = findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value });
                     const isCurrentValue = value === currentValue;
-                    const id = `${axis}-${value}`.replace(/\s+/g, "-");
-
+                    const id = `${axis.key}-${value}`.replace(/\s+/g, "-");
                     return (
-                        <div key={`${axis}-${value}`} className="form-check me-2">
+                        <div key={`${axis.key}-${value}`} className="form-check me-2">
                             {exactSibling ? (
-                                <Link
-                                    href={exactSibling.path}
-                                    className="text-decoration-none text-reset"
-                                    aria-current={exactSibling.isCurrent ? "page" : undefined}
-                                >
-                                    <input
-                                        className="form-check-input product-radio"
-                                        type="radio"
-                                        id={id}
-                                        name={axis}
-                                        checked={isCurrentValue}
-                                        readOnly
-                                    />
+                                <Link href={exactSibling.path} className="text-decoration-none text-reset" aria-current={exactSibling.isCurrent ? "page" : undefined}>
+                                    <input className="form-check-input product-radio" type="radio" id={id} name={axis.key} checked={isCurrentValue} readOnly />
                                     <label className="form-check-label" htmlFor={id}>{value}</label>
                                 </Link>
                             ) : (
                                 <>
-                                    <input className="form-check-input product-radio" type="radio" id={id} name={axis} disabled />
+                                    <input className="form-check-input product-radio" type="radio" id={id} name={axis.key} disabled />
                                     <label className="form-check-label text-muted" htmlFor={id}>{value}</label>
                                 </>
                             )}
@@ -607,68 +578,33 @@ function VariantRadioPicker({ product, axis }: { product: DoorProductDetails; ax
 }
 
 function KallesSummaryVariantSelectors({ product }: { product: DoorProductDetails }) {
-    if (!product.family.code || product.family.siblings.length === 0) return null;
-
-    return (
-        <div className="mb-3">
-            <VariantColorPicker product={product} />
-            <VariantRadioPicker product={product} axis="size" />
-            <VariantRadioPicker product={product} axis="leafCount" />
-        </div>
-    );
+    const axes = getVariantAxes(product);
+    if (!product.family.code || product.family.siblings.length === 0 || axes.length === 0) return null;
+    return <div className="mb-3">{axes.map((axis) => <VariantPicker key={axis.key} product={product} axis={axis} />)}</div>;
 }
 
-function VariantMatrixRow({ axis, product }: {
-    axis: VariantAxisConfig;
-    product: DoorProductDetails;
-}) {
+function VariantMatrixRow({ axis, product }: { axis: VariantAxisConfig; product: DoorProductDetails }) {
     const values = getFamilyAttributeValues(product, axis.key);
     if (values.length === 0) return null;
-
     const currentValue = getCurrentAttributeValue(product, axis.key);
-
     return (
         <div className="mb-3">
             <div className="d-flex justify-content-between gap-3 mb-2">
                 <h3 className="fs-6 text-muted mb-0">{axis.title}</h3>
                 <span className="small text-muted">Текущее: {getVariantValueLabel(currentValue)}</span>
             </div>
-
             <div className="d-flex flex-wrap gap-2">
                 {values.map((value) => {
-                    const exactSibling = findExactSiblingForVariant({
-                        product,
-                        changedKey: axis.key,
-                        changedValue: value,
-                    });
+                    const exactSibling = findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value });
                     const isCurrentValue = value === currentValue;
-                    const label = getVariantValueLabel(value);
-
-                    if (!exactSibling) {
-                        return (
-                            <button
-                                key={`${axis.key}-${value}`}
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary rounded-pill opacity-50"
-                                disabled
-                                title="Такой точной комплектации в этом семействе нет"
-                            >
-                                {label}
-                                <span className="ms-2 small">недоступно</span>
-                            </button>
-                        );
-                    }
-
+                    if (!exactSibling) return (
+                        <button key={`${axis.key}-${value}`} type="button" className="btn btn-sm btn-outline-secondary rounded-pill opacity-50" disabled title="Такой точной комплектации в этом семействе нет">
+                            {value}<span className="ms-2 small">недоступно</span>
+                        </button>
+                    );
                     return (
-                        <Link
-                            key={`${axis.key}-${value}-${exactSibling.id}`}
-                            href={exactSibling.path}
-                            className={`btn btn-sm rounded-pill ${isCurrentValue ? "btn-dark" : "btn-outline-dark"}`}
-                            aria-current={exactSibling.isCurrent ? "page" : undefined}
-                            title={exactSibling.name}
-                        >
-                            {label}
-                            {isCurrentValue ? <span className="ms-2 small">текущий</span> : null}
+                        <Link key={`${axis.key}-${value}-${exactSibling.id}`} href={exactSibling.path} className={`btn btn-sm rounded-pill ${isCurrentValue ? "btn-dark" : "btn-outline-dark"}`} aria-current={exactSibling.isCurrent ? "page" : undefined} title={exactSibling.name}>
+                            {value}{isCurrentValue ? <span className="ms-2 small">текущий</span> : null}
                         </Link>
                     );
                 })}
@@ -680,31 +616,25 @@ function VariantMatrixRow({ axis, product }: {
 function CurrentFamilyCombination({ product }: { product: DoorProductDetails }) {
     return (
         <div className="small text-muted">
-            Текущая комбинация: {VARIANT_AXES.map(({ key, shortTitle }) => (
-                `${shortTitle}: ${getVariantValueLabel(getCurrentAttributeValue(product, key))}`
-            )).join(" / ")}
+            Текущая комбинация: {getVariantAxes(product).map(({ key, shortTitle }) => `${shortTitle}: ${getVariantValueLabel(getCurrentAttributeValue(product, key))}`).join(" / ")}
         </div>
     );
 }
 
 function DoorFamilyTechnicalMatrix({ product }: { product: DoorProductDetails }) {
-    if (!product.family.code || product.family.siblings.length <= 1) return null;
-
+    const axes = getVariantAxes(product);
+    if (!product.family.code || product.family.siblings.length <= 1 || axes.length === 0) return null;
     return (
         <section className="py-4">
             <div className="container">
                 <details className="border rounded-3 p-3 bg-white">
                     <summary className="fw-medium">Техническая проверка вариантов двери</summary>
-                    <div className="small text-muted mt-2 mb-3">Этот блок временно оставлен для проверки sibling-логики simple products.</div>
+                    <div className="small text-muted mt-2 mb-3">Оси вариантов получены из effective configuration: {product.variantDimensionsSource}.</div>
                     <CurrentFamilyCombination product={product} />
-                    <div className="mt-3">
-                        {VARIANT_AXES.map((axis) => (
-                            <VariantMatrixRow key={axis.key} axis={axis} product={product} />
-                        ))}
-                    </div>
-                    <div className="small text-muted border-top pt-3 mt-3">
-                        Серые варианты сейчас недоступны для выбранной комбинации характеристик.
-                    </div>
+                    <div className="mt-3">{axes.map((axis) => <VariantMatrixRow key={axis.key} axis={axis} product={product} />)}</div>
+                    {product.configurationWarnings.length > 0 ? (
+                        <div className="small text-warning-emphasis border-top pt-3 mt-3">{product.configurationWarnings.join(" ")}</div>
+                    ) : null}
                 </details>
             </div>
         </section>
@@ -736,7 +666,7 @@ function DoorFamilyCardsSection({ product }: { product: DoorProductDetails }) {
                                     <h3 className="fs-6 mb-2 fw-medium">
                                         <Link href={sibling.path} className="main_link_acid_green text-decoration-none">{sibling.name}</Link>
                                     </h3>
-                                    <div className="small text-muted mb-2">{getVariantValueLabel(getSiblingAttributeValue(sibling, "color"))} · {getVariantValueLabel(getSiblingAttributeValue(sibling, "size"))} · {getVariantValueLabel(getSiblingAttributeValue(sibling, "leafCount"))}</div>
+                                    <div className="small text-muted mb-2">{getVariantAxes(product).map((axis) => getVariantValueLabel(getSiblingAttributeValue(sibling, axis.key))).join(" · ")}</div>
                                     <div className="d-flex justify-content-between align-items-center gap-2">
                                         <span className="fw-medium">{formatPrice(sibling.price)}</span>
                                         {sibling.isCurrent ? <span className="badge text-bg-dark">Открыто</span> : null}
@@ -906,7 +836,7 @@ export default async function InteriorDoorsSegmentsPage({
     searchParams: PageSearchParams;
 }) {
     const { segments } = await params;
-    const resolvedRoute = await resolveDoorRoute(segments);
+    const resolvedRoute = await resolveDoorRouteForRender(getSegmentsCacheKey(segments));
 
     if (!resolvedRoute) notFound();
 
@@ -928,7 +858,10 @@ export default async function InteriorDoorsSegmentsPage({
         );
     }
 
-    const product = await getDoorProductBySlug({ slug: resolvedRoute.slug, wooCategorySlug: resolvedRoute.wooCategorySlug });
+    const product = await getDoorProductForRender(
+        resolvedRoute.slug,
+        resolvedRoute.wooCategorySlug ?? "",
+    );
     if (!product) notFound();
 
     return <DoorProductPage product={product} />;

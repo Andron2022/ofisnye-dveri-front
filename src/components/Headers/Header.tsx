@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MobileHeader from "@src/components/Headers/MobileHeader";
 import { SiteLogo } from "@src/components/site-chrome/SiteLogo";
-import { useCart } from "@src/lib/cart/CartProvider";
+import { useOptionalCart } from "@src/lib/cart/CartProvider";
 import type { SiteNavigationItem } from "@src/lib/navigation/site-menu";
 import { useHeaderNavigation } from "@src/lib/navigation/NavigationProvider";
 import { useSiteChromeSettings } from "@src/lib/site-chrome/SiteChromeProvider";
@@ -37,8 +37,8 @@ function isItemActive(item: SiteNavigationItem, pathname: string | null): boolea
 }
 
 function CartLink() {
-    const { totals, isHydrated } = useCart();
-    const itemsCount = isHydrated ? totals.itemsCount : 0;
+    const cart = useOptionalCart();
+    const itemsCount = cart?.isHydrated ? cart.totals.itemsCount : 0;
 
     return (
         <Link

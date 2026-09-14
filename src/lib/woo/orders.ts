@@ -11,9 +11,7 @@ import {
 } from "@src/lib/checkout/validation";
 import { buildAbsoluteUrl } from "@src/lib/seo/site";
 import { wooGet, wooPost } from "@src/lib/woo/client";
-import { mapDoorOrderOptions } from "@src/lib/woo/products";
 import type {
-    DoorOptionGroup,
     WooCreateOrderPayload,
     WooCreatedOrder,
     WooMetaDataItem,
@@ -21,23 +19,13 @@ import type {
     WooOrderMetaDataItem,
     WooProduct,
 } from "@src/lib/woo/types";
+import { getDoorProductConfiguration, type DoorResolvedConfiguration } from "@src/lib/wp/door-product-configuration";
 
 const ORDER_STATUS_FOR_MANAGER_PROCESSING = "on-hold";
 const DEFAULT_COUNTRY_CODE = "RU";
 const CHECKOUT_CONTRACT_VERSION = "mvp-checkout-order-v4";
 
-const ALLOWED_DOOR_CATEGORY_SLUGS = new Set(["mezhkomnatnye-dveri"]);
-const ALLOWED_ACCESSORY_CATEGORY_SLUGS = new Set(["furnitura"]);
 
-const DOOR_RELATED_ACCESSORY_META_KEYS = [
-    "configurator_related_handles",
-    "configurator_related_handless",
-    "related_handles",
-    "configurator_related_hinges",
-    "related_hinges",
-    "configurator_related_locks",
-    "related_locks",
-];
 
 type ValidatedDoorItem = {
     lineItem: WooOrderLineItemPayload;
@@ -132,31 +120,6 @@ function getMetaNumberArrayByKeys(metaData: WooMetaDataItem[] | undefined, keys:
     return Array.from(new Set(values));
 }
 
-function getCategorySlugs(product: WooProduct): string[] {
-    return product.categories.map((category) => category.slug);
-}
-
-function hasAnyCategorySlug(product: WooProduct, allowedSlugs: Set<string>): boolean {
-    return getCategorySlugs(product).some((slug) => allowedSlugs.has(slug));
-}
-
-function assertProductHasAllowedCategory(
-    product: WooProduct,
-    allowedSlugs: Set<string>,
-    roleLabel: string,
-): void {
-    if (hasAnyCategorySlug(product, allowedSlugs)) {
-        return;
-    }
-
-    const categoryList = getCategorySlugs(product).join(", ") || "без категории";
-    rejectOrder(`Товар "${product.name}" не может быть оформлен как ${roleLabel}. Категории товара: ${categoryList}`);
-}
-
-function getAllowedAccessoryIdsForDoor(product: WooProduct): Set<number> {
-    return new Set(getMetaNumberArrayByKeys(product.meta_data, DOOR_RELATED_ACCESSORY_META_KEYS));
-}
-
 function getPublicArticleNo(product: WooProduct): string | null {
     if (typeof product.public_article_no === "string" && product.public_article_no.trim() !== "") {
         return product.public_article_no;
@@ -166,20 +129,12 @@ function getPublicArticleNo(product: WooProduct): string | null {
 }
 
 function ensureProductCanBeOrdered(product: WooProduct, role: "door" | "accessory"): void {
-    if (role === "door") {
-        assertProductHasAllowedCategory(product, ALLOWED_DOOR_CATEGORY_SLUGS, "дверь");
-    } else {
-        assertProductHasAllowedCategory(product, ALLOWED_ACCESSORY_CATEGORY_SLUGS, "фурнитуру");
-    }
-
     if (product.status && product.status !== "publish") {
         rejectOrder(`Товар "${product.name}" сейчас не опубликован`);
     }
-
     if (product.stock_status && product.stock_status !== "instock") {
         rejectOrder(`Товар "${product.name}" сейчас не в наличии`);
     }
-
     const price = parseMoney(product.price);
     if (price === null) {
         const label = role === "door" ? "двери" : "фурнитуры";
@@ -208,61 +163,38 @@ function createWooProductLoader(): WooProductLoader {
     };
 }
 
-function getOptionGroupByKey(
+function normalizeDoorOptions(
     product: WooProduct,
-    key: CartOptionSnapshot["groupKey"],
-): DoorOptionGroup {
-    const groups = mapDoorOrderOptions(product);
-    return groups[key];
-}
-
-function normalizeSelectedOption(product: WooProduct, option: CartOptionSnapshot): CartOptionSnapshot {
-    const group = getOptionGroupByKey(product, option.groupKey);
-    const choice = group.choices.find((item) => item.id === option.choiceId);
-
-    if (!choice) {
-        rejectOrder(`У товара "${product.name}" не найдена опция "${option.groupTitle}: ${option.choiceLabel}"`);
-    }
-
-    if (!choice.enabled) {
-        rejectOrder(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
-    }
-
-    return {
-        groupKey: group.key,
-        groupTitle: group.title,
-        choiceId: choice.id,
-        choiceLabel: choice.label,
-        priceDelta: choice.priceDelta,
-    };
-}
-
-function normalizeDoorOptions(product: WooProduct, item: CartItem): CartOptionSnapshot[] {
-    const groups = mapDoorOrderOptions(product);
+    item: CartItem,
+    configuration: DoorResolvedConfiguration,
+): CartOptionSnapshot[] {
     const normalizedOptions: CartOptionSnapshot[] = [];
+    const configuredKeys = new Set(configuration.optionGroups.map((group) => group.key));
 
-    for (const group of Object.values(groups)) {
+    for (const cartOption of item.selectedOptions) {
+        if (!configuredKeys.has(cartOption.groupKey)) {
+            rejectOrder(`Опция "${cartOption.groupTitle}" больше не доступна для товара "${product.name}". Обновите комплектацию в карточке товара.`);
+        }
+    }
+
+    for (const group of configuration.optionGroups) {
         const selectedOption = item.selectedOptions.find((option) => option.groupKey === group.key);
-        const selectedChoiceId = selectedOption?.choiceId ?? group.defaultOptionId;
+        if (!selectedOption) {
+            rejectOrder(`Для товара "${product.name}" изменилась комплектация: появилась опция "${group.title}". Откройте карточку товара и подтвердите комплектацию заново.`);
+        }
+        const selectedChoiceId = selectedOption.choiceId;
         const choice = group.choices.find((itemChoice) => itemChoice.id === selectedChoiceId);
-
         if (!choice) {
-            rejectOrder(`У товара "${product.name}" не найдена опция "${group.title}: ${selectedChoiceId}"`);
+            rejectOrder(`У товара "${product.name}" больше нет опции "${group.title}: ${selectedChoiceId}". Обновите комплектацию.`);
         }
-
-        if (!choice.enabled) {
-            rejectOrder(`Опция "${group.title}: ${choice.label}" недоступна для товара "${product.name}"`);
-        }
-
-        normalizedOptions.push(normalizeSelectedOption(product, {
+        normalizedOptions.push({
             groupKey: group.key,
             groupTitle: group.title,
             choiceId: choice.id,
             choiceLabel: choice.label,
             priceDelta: choice.priceDelta,
-        }));
+        });
     }
-
     return normalizedOptions;
 }
 
@@ -324,7 +256,15 @@ async function validateDoorCartItem(item: CartItem, getWooProduct: WooProductLoa
         rejectOrder(`У двери "${doorProduct.name}" не задана цена`);
     }
 
-    const normalizedOptions = normalizeDoorOptions(doorProduct, item);
+    let configuration: DoorResolvedConfiguration;
+    try {
+        configuration = await getDoorProductConfiguration(doorProduct.id);
+    } catch (error) {
+        const details = error instanceof Error ? error.message : String(error);
+        rejectOrder(`Конфигурация двери "${doorProduct.name}" сейчас некорректна. Обновите карточку товара или обратитесь к менеджеру. ${details}`);
+    }
+
+    const normalizedOptions = normalizeDoorOptions(doorProduct, item, configuration);
     const optionsDelta = normalizedOptions.reduce((sum, option) => sum + option.priceDelta, 0);
     const doorUnitTotal = roundMoney(doorBasePrice + optionsDelta);
     const doorLineTotal = roundMoney(doorUnitTotal * item.quantity);
@@ -338,7 +278,7 @@ async function validateDoorCartItem(item: CartItem, getWooProduct: WooProductLoa
     };
 
     const accessoryLineItems: WooOrderLineItemPayload[] = [];
-    const allowedAccessoryIds = getAllowedAccessoryIdsForDoor(doorProduct);
+    const allowedAccessoryIds = new Set(configuration.accessoryGroups.flatMap((group) => group.productIds));
     let accessoriesTotal = 0;
 
     for (const accessory of item.selectedAccessories.filter((cartAccessory) => cartAccessory.qty > 0)) {

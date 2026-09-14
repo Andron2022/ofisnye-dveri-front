@@ -14,6 +14,7 @@ import {
     parseDoorCatalogFiltersFromSearchParams,
 } from "@src/lib/woo/catalog-filters";
 import CatalogFilters from "./CatalogFilters";
+import { getDoorCatalogFilterKeys } from "@src/lib/wp/door-seo-landings";
 import { KallesCatalogShell } from "@src/components/storefront/KallesCatalog";
 import {
     buildBreadcrumbListJsonLd,
@@ -27,8 +28,8 @@ const ROOT_PATH = "/mezhkomnatnye-dveri";
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata({ searchParams }: { searchParams: PageSearchParams }): Promise<Metadata> {
-    const resolvedSearchParams = await searchParams;
-    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const [resolvedSearchParams, filterKeys] = await Promise.all([searchParams, getDoorCatalogFilterKeys()]);
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, filterKeys);
 
     if (!hasActiveCatalogFilters(filters)) {
         return buildDoorCategoryMetadata(undefined, filters);
@@ -45,8 +46,8 @@ export async function generateMetadata({ searchParams }: { searchParams: PageSea
 }
 
 export default async function DoorsCatalogPage({ searchParams }: { searchParams: PageSearchParams }) {
-    const resolvedSearchParams = await searchParams;
-    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams);
+    const [resolvedSearchParams, filterKeys] = await Promise.all([searchParams, getDoorCatalogFilterKeys()]);
+    const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, filterKeys);
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let seoLinks: Array<{ href: string; label: string }> = [];
     let routingLandings: Awaited<ReturnType<typeof getDoorSeoRoutingDescriptorsForCategory>> = [];

@@ -1,186 +1,84 @@
-// src/lib/woo/catalog-filters.ts
-
 import type {
     CatalogActiveFilters,
     CatalogFilterGroup,
     CatalogFilterTermDictionary,
     DoorCatalogAttributes,
+    DoorCatalogFilterDefinition,
     DoorCatalogFilterKey,
 } from "@src/lib/woo/types";
 
 type SearchParamsLike = Record<string, string | string[] | undefined>;
-type DoorAttributeField = keyof DoorCatalogAttributes;
-
-export type DoorCatalogFilterDefinition = {
-    key: DoorCatalogFilterKey;
-    label: string;
-    attributeField: DoorAttributeField;
-};
-
-// -----------------------------------------------------
-// Единый контракт фильтров каталога дверей.
-// Ключи совпадают со slug глобальных Woo-атрибутов без префикса pa_.
-// Это важно для будущих SEO-фильтров и для перехода на tax_query/WP endpoint.
-// -----------------------------------------------------
-
-export const DOOR_CATALOG_FILTER_DEFINITIONS: DoorCatalogFilterDefinition[] = [
-    { key: "tsvet-dveri", label: "Цвет двери", attributeField: "color" },
-    { key: "razmer-dveri", label: "Размер двери", attributeField: "size" },
-    { key: "kolichestvo-poloten", label: "Количество полотен", attributeField: "leafCount" },
-    { key: "material-dveri", label: "Материал двери", attributeField: "material" },
-    { key: "osteklenie", label: "Остекление", attributeField: "glazing" },
-    { key: "tip-otkryvaniya", label: "Тип открывания", attributeField: "openingType" },
-    { key: "naznachenie", label: "Назначение", attributeField: "purpose" },
-    { key: "napravlenie-otkryvaniya", label: "Направление открывания", attributeField: "openingDirection" },
-    { key: "ognestoykost", label: "Огнестойкость", attributeField: "fireResistance" },
-    { key: "tip-ostekleniya", label: "Тип остекления", attributeField: "glazingType" },
-];
-
-const FILTER_KEYS = new Set<DoorCatalogFilterKey>(
-    DOOR_CATALOG_FILTER_DEFINITIONS.map((definition) => definition.key),
-);
 
 const ruToLat: Record<string, string> = {
-    а: "a",
-    б: "b",
-    в: "v",
-    г: "g",
-    д: "d",
-    е: "e",
-    ё: "e",
-    ж: "zh",
-    з: "z",
-    и: "i",
-    й: "y",
-    к: "k",
-    л: "l",
-    м: "m",
-    н: "n",
-    о: "o",
-    п: "p",
-    р: "r",
-    с: "s",
-    т: "t",
-    у: "u",
-    ф: "f",
-    х: "kh",
-    ц: "ts",
-    ч: "ch",
-    ш: "sh",
-    щ: "sch",
-    ъ: "",
-    ы: "y",
-    ь: "",
-    э: "e",
-    ю: "yu",
-    я: "ya",
+    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y",
+    к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f",
+    х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
 };
 
-function isDoorCatalogFilterKey(key: string): key is DoorCatalogFilterKey {
-    return FILTER_KEYS.has(key as DoorCatalogFilterKey);
-}
-
-// -----------------------------------------------------
-// Woo product response отдаёт labels значений атрибутов. Основной URL-value
-// теперь берём из настоящего Woo term slug через termDictionary. Эта функция
-// остаётся fallback для старых/orphaned значений и безопасного разбора query.
-// -----------------------------------------------------
-
 export function normalizeCatalogFilterValue(value: string): string {
-    const transliterated = value
-        .trim()
-        .toLowerCase()
-        .split("")
-        .map((letter) => ruToLat[letter] ?? letter)
-        .join("");
-
-    return transliterated
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .replace(/-{2,}/g, "-");
+    const transliterated = value.trim().toLowerCase().split("").map((letter) => ruToLat[letter] ?? letter).join("");
+    return transliterated.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-");
 }
 
 function parseRawFilterValues(values: string[]): string[] {
-    const normalizedValues = values
-        .flatMap((value) => value.split(","))
-        .map((value) => normalizeCatalogFilterValue(value))
-        .filter(Boolean);
-
-    return Array.from(new Set(normalizedValues));
+    return Array.from(new Set(values.flatMap((value) => value.split(",")).map(normalizeCatalogFilterValue).filter(Boolean)));
 }
 
-export function parseDoorCatalogFiltersFromSearchParams(searchParams: SearchParamsLike): CatalogActiveFilters {
-    const result: CatalogActiveFilters = {};
+function allowedSet(allowedKeys: Iterable<string>): Set<string> {
+    return new Set(Array.from(allowedKeys).filter(Boolean));
+}
 
+export function parseDoorCatalogFiltersFromSearchParams(
+    searchParams: SearchParamsLike,
+    allowedKeys: Iterable<string>,
+): CatalogActiveFilters {
+    const result: CatalogActiveFilters = {};
+    const allowed = allowedSet(allowedKeys);
     for (const [key, rawValue] of Object.entries(searchParams)) {
-        if (!isDoorCatalogFilterKey(key)) continue;
-        if (rawValue === undefined) continue;
-
-        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
-        const parsedValues = parseRawFilterValues(values);
-
-        if (parsedValues.length > 0) {
-            result[key] = parsedValues;
-        }
+        if (!allowed.has(key) || rawValue === undefined) continue;
+        const parsedValues = parseRawFilterValues(Array.isArray(rawValue) ? rawValue : [rawValue]);
+        if (parsedValues.length > 0) result[key] = parsedValues;
     }
-
     return result;
 }
 
-export function parseDoorCatalogFiltersFromURLSearchParams(searchParams: URLSearchParams): CatalogActiveFilters {
+export function parseDoorCatalogFiltersFromURLSearchParams(
+    searchParams: URLSearchParams,
+    allowedKeys: Iterable<string>,
+): CatalogActiveFilters {
     const result: CatalogActiveFilters = {};
-
-    for (const definition of DOOR_CATALOG_FILTER_DEFINITIONS) {
-        const values = searchParams.getAll(definition.key);
-        const parsedValues = parseRawFilterValues(values);
-
-        if (parsedValues.length > 0) {
-            result[definition.key] = parsedValues;
-        }
+    for (const key of allowedSet(allowedKeys)) {
+        const parsedValues = parseRawFilterValues(searchParams.getAll(key));
+        if (parsedValues.length > 0) result[key] = parsedValues;
     }
-
     return result;
-}
-
-function getAttributeValues(attributes: DoorCatalogAttributes, key: DoorCatalogFilterKey): string[] {
-    const definition = DOOR_CATALOG_FILTER_DEFINITIONS.find((item) => item.key === key);
-    if (!definition) return [];
-
-    return attributes[definition.attributeField] ?? [];
 }
 
 function normalizeTermName(value: string): string {
     return value.trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, " ");
 }
 
-function resolveFilterValueFromLabel(
-    key: DoorCatalogFilterKey,
-    label: string,
-    termDictionary: CatalogFilterTermDictionary,
-): string {
+function resolveFilterValueFromLabel(key: DoorCatalogFilterKey, label: string, termDictionary: CatalogFilterTermDictionary): string {
     const normalizedName = normalizeTermName(label);
     const matchedTerm = termDictionary[key]?.find((term) => normalizeTermName(term.name) === normalizedName);
-
-    // Fallback сохраняет работоспособность каталога, если taxonomy endpoint временно
-    // недоступен или старый товар содержит orphaned label. Новые ссылки при наличии
-    // словаря всегда используют реальный Woo term slug.
     return matchedTerm?.slug || normalizeCatalogFilterValue(label);
+}
+
+function getAttributeValues(attributes: DoorCatalogAttributes, definition: DoorCatalogFilterDefinition): string[] {
+    return attributes[definition.taxonomy] ?? [];
 }
 
 export function catalogItemMatchesActiveFilters(
     attributes: DoorCatalogAttributes,
     activeFilters: CatalogActiveFilters,
+    definitions: DoorCatalogFilterDefinition[],
     termDictionary: CatalogFilterTermDictionary = {},
 ): boolean {
-    return DOOR_CATALOG_FILTER_DEFINITIONS.every((definition) => {
+    return definitions.every((definition) => {
         const selectedValues = activeFilters[definition.key];
         if (!selectedValues || selectedValues.length === 0) return true;
-
-        const productValues = getAttributeValues(attributes, definition.key)
+        const productValues = getAttributeValues(attributes, definition)
             .map((value) => resolveFilterValueFromLabel(definition.key, value, termDictionary));
-
         return selectedValues.some((selectedValue) => productValues.includes(selectedValue));
     });
 }
@@ -192,64 +90,42 @@ export function hasActiveCatalogFilters(activeFilters: CatalogActiveFilters): bo
 export function buildCatalogFilterGroups(
     items: Array<{ attributes: DoorCatalogAttributes }>,
     activeFilters: CatalogActiveFilters,
+    definitions: DoorCatalogFilterDefinition[],
     termDictionary: CatalogFilterTermDictionary = {},
 ): CatalogFilterGroup[] {
-    return DOOR_CATALOG_FILTER_DEFINITIONS.map((definition) => {
+    return definitions.map((definition) => {
         const optionMap = new Map<string, { label: string; count: number }>();
-
         for (const item of items) {
             const uniqueValues = new Map<string, string>();
-
-            for (const label of getAttributeValues(item.attributes, definition.key)) {
+            for (const label of getAttributeValues(item.attributes, definition)) {
                 const value = resolveFilterValueFromLabel(definition.key, label, termDictionary);
-                if (!value) continue;
-                uniqueValues.set(value, label);
+                if (value) uniqueValues.set(value, label);
             }
-
             for (const [value, label] of uniqueValues) {
                 const existing = optionMap.get(value);
-
-                optionMap.set(value, {
-                    label: existing?.label ?? label,
-                    count: (existing?.count ?? 0) + 1,
-                });
+                optionMap.set(value, { label: existing?.label ?? label, count: (existing?.count ?? 0) + 1 });
             }
         }
 
         const selectedValues = activeFilters[definition.key] ?? [];
-
-        // Активное значение должно оставаться видимым даже при count=0. Это особенно
-        // важно для clean SEO landing: зафиксированная path-группа не исчезает из UI.
         for (const selectedValue of selectedValues) {
             if (optionMap.has(selectedValue)) continue;
             const selectedTerm = termDictionary[definition.key]?.find((term) => term.slug === selectedValue);
-            if (selectedTerm) {
-                optionMap.set(selectedValue, { label: selectedTerm.name, count: 0 });
-            }
+            if (selectedTerm) optionMap.set(selectedValue, { label: selectedTerm.name, count: 0 });
         }
 
-        const options = Array.from(optionMap.entries())
-            .map(([value, option]) => {
-                const term = termDictionary[definition.key]?.find((item) => item.slug === value) ?? null;
+        const options = Array.from(optionMap.entries()).map(([value, option]) => {
+            const term = termDictionary[definition.key]?.find((item) => item.slug === value) ?? null;
+            return {
+                value,
+                label: option.label,
+                count: option.count,
+                selected: selectedValues.includes(value),
+                termId: term?.id ?? null,
+                taxonomy: term?.taxonomy ?? definition.taxonomy,
+            };
+        }).sort((a, b) => a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" }));
 
-                return {
-                    value,
-                    label: option.label,
-                    count: option.count,
-                    selected: selectedValues.includes(value),
-                    termId: term?.id ?? null,
-                    taxonomy: term?.taxonomy ?? null,
-                };
-            })
-            .sort((a, b) => a.label.localeCompare(b.label, "ru", {
-                numeric: true,
-                sensitivity: "base",
-            }));
-
-        return {
-            key: definition.key,
-            label: definition.label,
-            options,
-        };
+        return { key: definition.key, label: definition.label, taxonomy: definition.taxonomy, options };
     }).filter((group) => group.options.length > 0);
 }

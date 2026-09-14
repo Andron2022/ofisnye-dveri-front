@@ -1,7 +1,7 @@
 // src/lib/cart/types.ts
 
 export type CartOptionSnapshot = {
-    groupKey: "box" | "openingSide" | "soundproofing" | "threshold";
+    groupKey: string;
     groupTitle: string;
     choiceId: string;
     choiceLabel: string;

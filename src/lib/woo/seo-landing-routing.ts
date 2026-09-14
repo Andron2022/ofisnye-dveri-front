@@ -6,7 +6,6 @@ import type {
     DoorSeoRoutingDescriptor,
     PreferredDoorFilterRoute,
 } from "@src/lib/woo/types";
-import { DOOR_CATALOG_FILTER_DEFINITIONS } from "@src/lib/woo/catalog-filters";
 
 function sortedUniqueNumbers(values: number[]): number[] {
     return Array.from(new Set(values.filter((value) => Number.isInteger(value) && value > 0)))
@@ -36,18 +35,18 @@ export function buildDoorFilterState(
 ): DoorFilterState {
     const selectedTermsByFilter: DoorFilterState["selectedTermsByFilter"] = {};
 
-    for (const definition of DOOR_CATALOG_FILTER_DEFINITIONS) {
-        const slugs = sortedUniqueStrings(activeFilters[definition.key] ?? []);
+    for (const key of Object.keys(activeFilters).sort()) {
+        const slugs = sortedUniqueStrings(activeFilters[key] ?? []);
         if (slugs.length === 0) continue;
 
         const termIds = sortedUniqueNumbers(
             slugs
-                .map((slug) => getTermIdBySlug(dictionary, definition.key, slug))
+                .map((slug) => getTermIdBySlug(dictionary, key, slug))
                 .filter((id): id is number => id !== null),
         );
 
         if (termIds.length > 0) {
-            selectedTermsByFilter[definition.key] = termIds;
+            selectedTermsByFilter[key] = termIds;
         }
     }
 
@@ -61,9 +60,9 @@ export function doorFilterStateFullyResolvesActiveFilters(
     filterState: DoorFilterState,
     activeFilters: CatalogActiveFilters,
 ): boolean {
-    for (const definition of DOOR_CATALOG_FILTER_DEFINITIONS) {
-        const activeSlugs = sortedUniqueStrings(activeFilters[definition.key] ?? []);
-        const termIds = sortedUniqueNumbers(filterState.selectedTermsByFilter[definition.key] ?? []);
+    for (const key of Object.keys(activeFilters)) {
+        const activeSlugs = sortedUniqueStrings(activeFilters[key] ?? []);
+        const termIds = sortedUniqueNumbers(filterState.selectedTermsByFilter[key] ?? []);
         if (activeSlugs.length !== termIds.length) return false;
     }
 
@@ -73,10 +72,10 @@ export function doorFilterStateFullyResolvesActiveFilters(
 export function serializeDoorCatalogFilters(filters: CatalogActiveFilters): string {
     const searchParams = new URLSearchParams();
 
-    for (const definition of DOOR_CATALOG_FILTER_DEFINITIONS) {
-        const values = sortedUniqueStrings(filters[definition.key] ?? []);
+    for (const key of Object.keys(filters).sort()) {
+        const values = sortedUniqueStrings(filters[key] ?? []);
         for (const value of values) {
-            searchParams.append(definition.key, value);
+            searchParams.append(key, value);
         }
     }
 
@@ -84,8 +83,8 @@ export function serializeDoorCatalogFilters(filters: CatalogActiveFilters): stri
 }
 
 function getActiveFilterKeys(activeFilters: CatalogActiveFilters): DoorCatalogFilterKey[] {
-    return DOOR_CATALOG_FILTER_DEFINITIONS
-        .map((definition) => definition.key)
+    return Object.keys(activeFilters)
+        .sort()
         .filter((key) => (activeFilters[key]?.length ?? 0) > 0);
 }
 
@@ -140,10 +139,10 @@ function getResidualFilters(
     const consumedKeys = new Set(landing.rules.map((rule) => rule.filterKey));
     const residual: CatalogActiveFilters = {};
 
-    for (const definition of DOOR_CATALOG_FILTER_DEFINITIONS) {
-        if (consumedKeys.has(definition.key)) continue;
-        const values = sortedUniqueStrings(activeFilters[definition.key] ?? []);
-        if (values.length > 0) residual[definition.key] = values;
+    for (const key of Object.keys(activeFilters).sort()) {
+        if (consumedKeys.has(key)) continue;
+        const values = sortedUniqueStrings(activeFilters[key] ?? []);
+        if (values.length > 0) residual[key] = values;
     }
 
     return residual;
