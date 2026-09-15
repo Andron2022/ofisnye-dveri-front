@@ -388,6 +388,21 @@ sudo cat /var/lib/ofisnye-dveri/wordpress-code/staging.manifest
 
 Git SHA WordPress и storefront должен совпадать.
 
+Проверить runtime-флаг immutable release и отсутствие ошибок записи ISR после открытия нескольких ISR-страниц (`/`, `/kontakty`, `/stenovye-paneli`):
+
+```bash
+grep ^NEXT_IMMUTABLE_RELEASE_RUNTIME= \
+  /srv/ofisnye-dveri/staging/current/.release.env
+
+sudo journalctl \
+  -u ofisnye-dveri@staging.service \
+  --since "10 minutes ago" \
+  --no-pager \
+  | grep -E "EROFS|Failed to update prerender cache" || true
+```
+
+Ожидается `NEXT_IMMUTABLE_RELEASE_RUNTIME=true` и отсутствие новых `EROFS` / `Failed to update prerender cache`.
+
 ---
 
 ## 11. Проверить, что Local DB действительно не переносилась

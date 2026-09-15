@@ -1,3 +1,7 @@
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+
 const baseSecurityHeaders = [
   {
     key: "X-Content-Type-Options",
@@ -34,6 +38,7 @@ const securityHeaders = process.env.NODE_ENV === "production"
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  cacheHandler: require.resolve("./next-runtime-cache-handler.cjs"),
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {

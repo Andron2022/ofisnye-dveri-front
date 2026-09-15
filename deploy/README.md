@@ -64,6 +64,14 @@ matches the expected environment/deployment ID. For closed environments the
 smoke test also verifies `indexingEnabled=false`, `robots.txt`, an empty sitemap
 and the external `X-Robots-Tag` barrier.
 
+Next.js ISR/Data Cache uses the native Next.js filesystem cache for build-time
+prerendering. In immutable standalone runtime, `NEXT_IMMUTABLE_RELEASE_RUNTIME=true`
+is injected via `.release.env`; the cache handler then keeps ISR/Data Cache runtime
+writes in memory instead of mutating `.next/server/app`. The existing writable
+`shared/cache` symlink remains available for runtime caches such as `next/image`.
+Do not put `NEXT_IMMUTABLE_RELEASE_RUNTIME=true` in `/etc/ofisnye-dveri/*.env`,
+because the build phase must keep normal disk prerender output enabled.
+
 Application releases now contain two Git-managed runtime components: the Next.js storefront and `wordpress/mu-plugins`. Use `deploy-environment.sh` for a combined release so both are deployed from the same Git SHA. The WordPress component is tracked by `/var/lib/ofisnye-dveri/wordpress-code/<environment>.manifest`; DB, uploads and environment secrets are not part of this code deploy.
 
 Navigation must keep `/mezhkomnatnye-dveri`; `/catalog` must remain absent.

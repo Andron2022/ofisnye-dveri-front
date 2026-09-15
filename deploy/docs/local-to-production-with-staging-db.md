@@ -485,6 +485,21 @@ sudo cat /srv/ofisnye-dveri/production/current/.release.env
 
 `GIT_COMMIT` storefront и `WORDPRESS_CODE_GIT_COMMIT` должны совпасть.
 
+Проверить runtime-флаг immutable release и после открытия нескольких ISR-страниц убедиться, что Next.js не пытается писать prerender artifacts в read-only release:
+
+```bash
+grep ^NEXT_IMMUTABLE_RELEASE_RUNTIME= \
+  /srv/ofisnye-dveri/production/current/.release.env
+
+sudo journalctl \
+  -u ofisnye-dveri@production.service \
+  --since "10 minutes ago" \
+  --no-pager \
+  | grep -E "EROFS|Failed to update prerender cache" || true
+```
+
+Ожидается `NEXT_IMMUTABLE_RELEASE_RUNTIME=true` и отсутствие новых `EROFS` / `Failed to update prerender cache`.
+
 ---
 
 ## 18. Проверить Door Configuration production readiness

@@ -100,7 +100,7 @@ rm -rf "$RELEASE_DIR/.next/cache"
 ln -s "$SHARED_CACHE" "$RELEASE_DIR/.next/cache"
 printf 'DEPLOYMENT_ID=%s\nGIT_COMMIT=%s\nBUILT_AT=%s\n' \
   "$RELEASE_ID" "$COMMIT" "$(date -u +%FT%TZ)" > "$RELEASE_DIR/.release-meta"
-printf 'DEPLOYMENT_ID=%s\nGIT_COMMIT=%s\n' \
+printf 'DEPLOYMENT_ID=%s\nGIT_COMMIT=%s\nNEXT_IMMUTABLE_RELEASE_RUNTIME=true\n' \
   "$RELEASE_ID" "$COMMIT" > "$RELEASE_DIR/.release.env"
 
 ln -s "$RELEASE_DIR" "$CURRENT_LINK.new"
