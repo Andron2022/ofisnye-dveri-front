@@ -303,7 +303,7 @@ sudo ls -lh /var/tmp/staging-to-production.sql
 Это не переносит DB:
 
 ```bash
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-wordpress-code.sh \
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-wordpress-code.sh \
   production origin/main
 ```
 
@@ -471,7 +471,7 @@ sudo wp db query \
 Production prelaunch защищён Basic Auth. Orchestrator сам скрыто запросит `user:password` перед внешним smoke:
 
 ```bash
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
   production origin/main
 ```
 

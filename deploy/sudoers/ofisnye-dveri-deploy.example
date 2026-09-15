@@ -15,8 +15,9 @@ deploy ALL=(root) NOPASSWD: OFISNYE_DVERI_STAGING, OFISNYE_DVERI_PRODUCTION
 
 # Combined application release: root is required for managed WordPress code,
 # while the orchestrator runs the existing storefront deploy as DEPLOY_USER.
+# Scripts are invoked through /usr/bin/bash so executable bits are not required.
 Cmnd_Alias OFISNYE_DVERI_APPLICATION_DEPLOY = \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main, \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
+  /usr/bin/bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main, \
+  /usr/bin/bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
 
 deploy ALL=(root) NOPASSWD: OFISNYE_DVERI_APPLICATION_DEPLOY

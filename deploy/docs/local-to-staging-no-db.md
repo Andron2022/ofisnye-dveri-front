@@ -149,13 +149,19 @@ sudo chmod 0440 /etc/sudoers.d/ofisnye-dveri-deploy
 sudo visudo -cf /etc/sudoers.d/ofisnye-dveri-deploy
 ```
 
-Проверить executable bits:
+Проверить синтаксис новых deployment scripts. Исполняемый bit (`100755`) не является обязательным: все deployment scripts запускаются явно через `bash`, поэтому файлы `100644` после Windows/ZIP workflow допустимы.
 
 ```bash
-sudo chmod 0755 \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-wordpress-code.sh \
-  /srv/ofisnye-dveri/repository/deploy/scripts/rollback-wordpress-code.sh \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
+bash -n \
+  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-wordpress-code.sh
+
+bash -n \
+  /srv/ofisnye-dveri/repository/deploy/scripts/rollback-wordpress-code.sh
+
+bash -n \
+  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh
+
+bash -n \
   /srv/ofisnye-dveri/repository/deploy/scripts/verify-door-configuration-readiness.sh
 ```
 
@@ -356,7 +362,7 @@ sudo wp search-replace \
 Staging закрыт Basic Auth. Запусти orchestrator; перед внешним smoke он сам скрыто запросит `user:password` и не запишет пароль в shell history:
 
 ```bash
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
   staging origin/main
 ```
 

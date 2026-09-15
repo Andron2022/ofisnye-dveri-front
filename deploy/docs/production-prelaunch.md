@@ -340,7 +340,7 @@ Production only deploys committed `main`:
 
 ```bash
 sudo -iu deploy
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
   production origin/main
 ```
 

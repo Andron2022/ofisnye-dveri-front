@@ -72,11 +72,11 @@ Navigation must keep `/mezhkomnatnye-dveri`; `/catalog` must remain absent.
 After the original environment bootstrap, use:
 
 ```bash
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main
-sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
 ```
 
-The orchestrator deploys project-managed WordPress MU-code first, verifies the WP REST code contract, deploys the Next.js standalone release from the same Git SHA, runs smoke checks and records SHA parity. Closed staging/production-prelaunch environments prompt interactively for Basic Auth credentials before the external storefront smoke.
+The orchestrator deploys project-managed WordPress MU-code first, verifies the WP REST code contract, deploys the Next.js standalone release from the same Git SHA, runs smoke checks and records SHA parity. Deployment shell scripts are invoked explicitly through `bash`; the Unix executable bit is not part of the deployment contract, which keeps the workflow stable when changed files pass through Windows/ZIP. Closed staging/production-prelaunch environments prompt interactively for Basic Auth credentials before the external storefront smoke.
 
 Detailed current runbooks:
 
