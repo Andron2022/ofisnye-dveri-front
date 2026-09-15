@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name staging-wp.example.com;
+    server_name wp-staging.ofisnyedveri.ru;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
@@ -15,14 +15,14 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name staging-wp.example.com;
+    server_name wp-staging.ofisnyedveri.ru;
     server_tokens off;
 
     root /srv/wordpress/staging/public;
     index index.php;
 
-    ssl_certificate /etc/letsencrypt/live/staging-wp.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/staging-wp.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/wp-staging.ofisnyedveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/wp-staging.ofisnyedveri.ru/privkey.pem;
 
     add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
     add_header Strict-Transport-Security "max-age=31536000" always;

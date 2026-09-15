@@ -37,6 +37,22 @@ if [[ -f "$current_release/.release.env" ]]; then
   current_deployment="$(sed -n 's/^DEPLOYMENT_ID=//p' "$current_release/.release.env" | head -1)"
 fi
 
+wp_code_state="/var/lib/ofisnye-dveri/wordpress-code/${ENVIRONMENT}.state"
+wp_code_commit=""
+wp_code_manifest_sha=""
+wp_code_deployed_at=""
+if [[ -f "$wp_code_state" ]]; then
+  # shellcheck disable=SC1090
+  source "$wp_code_state"
+  wp_code_commit="${WORDPRESS_CODE_GIT_COMMIT:-}"
+  wp_code_manifest_sha="${WORDPRESS_CODE_MANIFEST_SHA256:-}"
+  wp_code_deployed_at="${WORDPRESS_CODE_DEPLOYED_AT:-}"
+fi
+sha_parity="unknown"
+if [[ -n "$current_commit" && -n "$wp_code_commit" ]]; then
+  if [[ "$current_commit" == "$wp_code_commit" ]]; then sha_parity="MATCH"; else sha_parity="MISMATCH"; fi
+fi
+
 backup_timer="wordpress-backup.timer"
 if [[ "$ENVIRONMENT" == "production" ]]; then
   backup_timer="wordpress-production-backup.timer"
@@ -76,7 +92,11 @@ source /etc/os-release
   echo "- WordPress root: $WORDPRESS_ROOT"
   echo "- Current release: $current_release"
   echo "- Deployment ID: $current_deployment"
-  echo "- Git commit: $current_commit"
+  echo "- Storefront Git commit: $current_commit"
+  echo "- WordPress code Git commit: $wp_code_commit"
+  echo "- WordPress code manifest SHA256: $wp_code_manifest_sha"
+  echo "- WordPress code deployed at: $wp_code_deployed_at"
+  echo "- Storefront / WordPress Git SHA parity: $sha_parity"
   echo "- Git remote: $(git -C "$REPOSITORY_DIR" remote get-url origin 2>/dev/null || true)"
   echo "- Deploy ref fixed for first deploy: $GIT_DEPLOY_REF"
   echo

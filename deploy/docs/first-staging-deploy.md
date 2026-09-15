@@ -1,3 +1,5 @@
+> **Current release note:** this document describes the original staging bootstrap. For current application releases use `local-to-staging-no-db.md` and `deploy-environment.sh`, which deploy WordPress managed code and the storefront from one Git SHA.
+
 # First real staging deploy
 
 This runbook fixes one canonical layout and deliberately avoids the duplicate

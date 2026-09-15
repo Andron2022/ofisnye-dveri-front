@@ -16,6 +16,13 @@ set +a
 : "${MYSQL_BACKUP_DEFAULTS_FILE:?MYSQL_BACKUP_DEFAULTS_FILE is required}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 OFFSITE_ENABLED="${OFFSITE_ENABLED:-false}"
+WORDPRESS_CODE_MANIFEST_FILE="${WORDPRESS_CODE_MANIFEST_FILE:-}"
+if [[ -z "$WORDPRESS_CODE_MANIFEST_FILE" ]]; then
+  case "$BACKUP_NAME" in
+    wordpress-staging) WORDPRESS_CODE_MANIFEST_FILE=/var/lib/ofisnye-dveri/wordpress-code/staging.manifest ;;
+    wordpress-production) WORDPRESS_CODE_MANIFEST_FILE=/var/lib/ofisnye-dveri/wordpress-code/production.manifest ;;
+  esac
+fi
 
 for command in mysqldump tar gzip sha256sum flock find; do
   command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
@@ -41,11 +48,16 @@ mysqldump --defaults-extra-file="$MYSQL_BACKUP_DEFAULTS_FILE" \
   "$DB_NAME" | gzip -9 > "$TARGET/database.sql.gz"
 
 tar -C "$WP_ROOT" -czf "$TARGET/wp-content.tar.gz" wp-content
+if [[ -n "$WORDPRESS_CODE_MANIFEST_FILE" && -f "$WORDPRESS_CODE_MANIFEST_FILE" ]]; then
+  cp -a "$WORDPRESS_CODE_MANIFEST_FILE" "$TARGET/wordpress-code.manifest"
+fi
 printf 'backup_name=%s\ncreated_at=%s\nwp_root=%s\ndatabase=%s\nhost=%s\n' \
   "$BACKUP_NAME" "$(date -u +%FT%TZ)" "$WP_ROOT" "$DB_NAME" "$(hostname -f)" > "$TARGET/manifest.txt"
 (
   cd "$TARGET"
-  sha256sum database.sql.gz wp-content.tar.gz manifest.txt > SHA256SUMS
+  files=(database.sql.gz wp-content.tar.gz manifest.txt)
+  [[ -f wordpress-code.manifest ]] && files+=(wordpress-code.manifest)
+  sha256sum "${files[@]}" > SHA256SUMS
   sha256sum -c SHA256SUMS
 )
 

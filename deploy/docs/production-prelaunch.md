@@ -1,3 +1,5 @@
+> **Current release note:** this document describes the production-prelaunch contour bootstrap. For current releases and the new `ofisnyedveri.ru` domain use `local-to-production-with-staging-db.md` and `deploy-environment.sh`.
+
 # MVP Production Prelaunch & WP Origin Hardening
 
 This runbook creates a real production contour without performing the public
@@ -34,7 +36,7 @@ that can later move WordPress, MySQL or the storefront to separate hosts.
   `BFF_SECURITY_SECRET`.
 - Keep `SITE_INDEXING_ENABLED=false` throughout this runbook.
 - Keep `ofisnye-dveri-production.conf` disabled. Use only the prelaunch site.
-- If `ofisnye-dveri.ru` currently serves another site, do not change its public
+- If `ofisnyedveri.ru` currently serves another site, do not change its public
   A/AAAA records in this step. Use DNS-01 TLS and `curl --resolve`/a local hosts
   override for prelaunch testing.
 
@@ -51,9 +53,9 @@ bash deploy/scripts/check-production-inventory.sh \
 
 The supplied template already reflects the current project defaults:
 
-- storefront: `ofisnye-dveri.ru`;
-- www redirect: `www.ofisnye-dveri.ru`;
-- suggested production WP origin: `wp.ofisnye-dveri.ru`;
+- storefront: `ofisnyedveri.ru`;
+- www redirect: `www.ofisnyedveri.ru`;
+- suggested production WP origin: `wp.ofisnyedveri.ru`;
 - current VDS IPv4: `153.80.184.15`;
 - storefront port: `3000`;
 - production Git ref: `origin/main`.
@@ -73,10 +75,10 @@ certificate before traffic cutover.
 Test the future storefront against this VDS without public DNS cutover:
 
 ```bash
-CURL_RESOLVE='ofisnye-dveri.ru:443:153.80.184.15' \
+CURL_RESOLVE='ofisnyedveri.ru:443:153.80.184.15' \
 CURL_USER='prelaunch:password' \
   bash deploy/scripts/smoke-test.sh \
-  https://ofisnye-dveri.ru production '' false
+  https://ofisnyedveri.ru production '' false
 ```
 
 A workstation can use a temporary hosts-file override for browser QA.
@@ -147,8 +149,8 @@ Dry run first:
 
 ```bash
 wp search-replace \
-  'https://wp-staging.ofisnye-dveri.ru' \
-  'https://wp.ofisnye-dveri.ru' \
+  'https://wp-staging.ofisnyedveri.ru' \
+  'https://wp.ofisnyedveri.ru' \
   --path=/srv/wordpress/production/public \
   --all-tables-with-prefix \
   --skip-columns=guid \
@@ -159,9 +161,9 @@ wp search-replace \
 Then run the same command without `--dry-run` and fix `home`/`siteurl`:
 
 ```bash
-wp option update home 'https://wp.ofisnye-dveri.ru' \
+wp option update home 'https://wp.ofisnyedveri.ru' \
   --path=/srv/wordpress/production/public --allow-root
-wp option update siteurl 'https://wp.ofisnye-dveri.ru' \
+wp option update siteurl 'https://wp.ofisnyedveri.ru' \
   --path=/srv/wordpress/production/public --allow-root
 ```
 
@@ -235,12 +237,12 @@ HTTP dependency.
 The expected certificate names are:
 
 ```text
-/etc/letsencrypt/live/ofisnye-dveri.ru/
-/etc/letsencrypt/live/wp.ofisnye-dveri.ru/
+/etc/letsencrypt/live/ofisnyedveri.ru/
+/etc/letsencrypt/live/wp.ofisnyedveri.ru/
 ```
 
-The storefront certificate should cover both `ofisnye-dveri.ru` and
-`www.ofisnye-dveri.ru`.
+The storefront certificate should cover both `ofisnyedveri.ru` and
+`www.ofisnyedveri.ru`.
 
 Install the two active prelaunch sites:
 
@@ -286,7 +288,7 @@ sudo bash deploy/scripts/verify-wordpress-origin.sh \
 When public DNS still points elsewhere, add:
 
 ```bash
-CURL_RESOLVE='wp.ofisnye-dveri.ru:443:153.80.184.15' \
+CURL_RESOLVE='wp.ofisnyedveri.ru:443:153.80.184.15' \
   sudo -E bash deploy/scripts/verify-wordpress-origin.sh \
   /etc/ofisnye-dveri/production-inventory.env
 ```
@@ -338,7 +340,7 @@ Production only deploys committed `main`:
 
 ```bash
 sudo -iu deploy
-bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-release.sh \
+sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
   production origin/main
 ```
 
@@ -361,16 +363,16 @@ Then run the external prelaunch smoke test. With normal production DNS:
 ```bash
 CURL_USER='prelaunch:password' \
   bash deploy/scripts/smoke-test.sh \
-  https://ofisnye-dveri.ru production '' false
+  https://ofisnyedveri.ru production '' false
 ```
 
 Without DNS cutover:
 
 ```bash
-CURL_RESOLVE='ofisnye-dveri.ru:443:153.80.184.15' \
+CURL_RESOLVE='ofisnyedveri.ru:443:153.80.184.15' \
 CURL_USER='prelaunch:password' \
   bash deploy/scripts/smoke-test.sh \
-  https://ofisnye-dveri.ru production '' false
+  https://ofisnyedveri.ru production '' false
 ```
 
 ## 13. Verify the real user write scenarios

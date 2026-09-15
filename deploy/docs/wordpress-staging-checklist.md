@@ -12,13 +12,13 @@ Staging WordPress is a separate environment with its own domain, database and
 5. Run a serialized-data-safe URL replacement with WP-CLI:
 
 ```bash
-wp search-replace 'https://old-wordpress.example' 'https://staging-wp.example.com' \
+wp search-replace 'https://ofisnye-dveri.test' 'https://wp-staging.ofisnyedveri.ru' \
   --path=/srv/wordpress/staging/public \
   --all-tables-with-prefix \
   --skip-columns=guid \
   --dry-run
 
-wp search-replace 'https://old-wordpress.example' 'https://staging-wp.example.com' \
+wp search-replace 'https://ofisnye-dveri.test' 'https://wp-staging.ofisnyedveri.ru' \
   --path=/srv/wordpress/staging/public \
   --all-tables-with-prefix \
   --skip-columns=guid
@@ -31,9 +31,7 @@ wp search-replace 'https://old-wordpress.example' 'https://staging-wp.example.co
 ## Required logic and data checks
 
 - WooCommerce and ACF are active.
-- MU-plugins present: `door-family-taxonomy.php`,
-  `headless-seo-foundation.php`, `portfolio-project-cpt.php`,
-  `public-article-no.php`, `storefront-order-idempotency.php`.
+- Project-managed MU-plugins match `/var/lib/ofisnye-dveri/wordpress-code/staging.manifest`; current contract includes `door-product-configuration.php` and `door-seo-landing.php` in addition to the existing headless plugins.
 - Header and footer `wp_navigation` slugs match the storefront env.
 - Navigation contains `/mezhkomnatnye-dveri` and contains no `/catalog`.
 - Homepage `glavnaya` and site chrome page return an `acf` object in REST.

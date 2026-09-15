@@ -12,3 +12,11 @@ Cmnd_Alias OFISNYE_DVERI_PRODUCTION = \
   /usr/bin/systemctl is-active ofisnye-dveri@production.service
 
 deploy ALL=(root) NOPASSWD: OFISNYE_DVERI_STAGING, OFISNYE_DVERI_PRODUCTION
+
+# Combined application release: root is required for managed WordPress code,
+# while the orchestrator runs the existing storefront deploy as DEPLOY_USER.
+Cmnd_Alias OFISNYE_DVERI_APPLICATION_DEPLOY = \
+  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main, \
+  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
+
+deploy ALL=(root) NOPASSWD: OFISNYE_DVERI_APPLICATION_DEPLOY

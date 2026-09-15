@@ -6,38 +6,38 @@ upstream ofisnye_dveri_production {
 server {
     listen 80;
     listen [::]:80;
-    server_name ofisnye-dveri.ru www.ofisnye-dveri.ru;
+    server_name ofisnyedveri.ru www.ofisnyedveri.ru;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
     }
 
     location / {
-        return 301 https://ofisnye-dveri.ru$request_uri;
+        return 301 https://ofisnyedveri.ru$request_uri;
     }
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name www.ofisnye-dveri.ru;
+    server_name www.ofisnyedveri.ru;
     server_tokens off;
 
-    ssl_certificate /etc/letsencrypt/live/ofisnye-dveri.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ofisnye-dveri.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ofisnyedveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ofisnyedveri.ru/privkey.pem;
 
     add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
-    return 301 https://ofisnye-dveri.ru$request_uri;
+    return 301 https://ofisnyedveri.ru$request_uri;
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name ofisnye-dveri.ru;
+    server_name ofisnyedveri.ru;
     server_tokens off;
 
-    ssl_certificate /etc/letsencrypt/live/ofisnye-dveri.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ofisnye-dveri.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ofisnyedveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ofisnyedveri.ru/privkey.pem;
 
     # Prelaunch has two independent safety barriers:
     # 1) HTTP Basic Auth at Nginx;

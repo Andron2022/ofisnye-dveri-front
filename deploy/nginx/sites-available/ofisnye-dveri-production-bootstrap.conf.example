@@ -3,7 +3,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name ofisnye-dveri.ru www.ofisnye-dveri.ru wp.ofisnye-dveri.ru;
+    server_name ofisnyedveri.ru www.ofisnyedveri.ru wp.ofisnyedveri.ru;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;

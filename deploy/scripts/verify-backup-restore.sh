@@ -59,9 +59,25 @@ fi
 mkdir -p "$WORK_DIR/wp-content-restore"
 tar -C "$WORK_DIR/wp-content-restore" -xzf "$WORK_DIR/backup/wp-content.tar.gz"
 [[ -d "$WORK_DIR/wp-content-restore/wp-content/uploads" ]] || { echo "Restored uploads directory is missing" >&2; exit 1; }
-for plugin in door-family-taxonomy.php door-seo-landing.php headless-seo-foundation.php portfolio-project-cpt.php public-article-no.php storefront-order-idempotency.php; do
-  [[ -f "$WORK_DIR/wp-content-restore/wp-content/mu-plugins/$plugin" ]] || { echo "Missing restored MU-plugin: $plugin" >&2; exit 1; }
-done
+if [[ -f "$WORK_DIR/backup/wordpress-code.manifest" ]]; then
+  while read -r sum plugin; do
+    [[ "$sum" =~ ^[0-9a-f]{64}$ && "$plugin" =~ ^[A-Za-z0-9._-]+\.php$ ]] || continue
+    restored="$WORK_DIR/wp-content-restore/wp-content/mu-plugins/$plugin"
+    [[ -f "$restored" ]] || { echo "Missing restored managed MU-plugin: $plugin" >&2; exit 1; }
+    actual="$(sha256sum "$restored" | awk '{print $1}')"
+    [[ "$actual" == "$sum" ]] || { echo "Restored MU-plugin checksum mismatch: $plugin" >&2; exit 1; }
+  done < <(grep -E '^[0-9a-f]{64}  [A-Za-z0-9._-]+\.php$' "$WORK_DIR/backup/wordpress-code.manifest" || true)
+else
+  # Legacy backup compatibility: before managed-code manifests existed there is no
+  # reliable way to infer the exact application-code generation from the archive.
+  # Verify that MU-code was restored, then require exact checksums on every backup
+  # created after the managed deployment foundation is installed.
+  legacy_mu_dir="$WORK_DIR/wp-content-restore/wp-content/mu-plugins"
+  [[ -d "$legacy_mu_dir" ]] || { echo "Restored legacy MU-plugin directory is missing" >&2; exit 1; }
+  legacy_mu_count="$(find "$legacy_mu_dir" -maxdepth 1 -type f -name '*.php' | wc -l)"
+  (( legacy_mu_count > 0 )) || { echo "Restored legacy backup has no MU-plugin PHP files" >&2; exit 1; }
+  echo "WARNING: legacy backup has no WordPress managed-code manifest; exact MU-plugin checksum verification is unavailable" >&2
+fi
 
 mysql --defaults-extra-file="$MYSQL_RESTORE_DEFAULTS_FILE" \
   -e "DROP DATABASE IF EXISTS \`$RESTORE_TEST_DB_NAME\`; CREATE DATABASE \`$RESTORE_TEST_DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"

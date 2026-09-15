@@ -64,6 +64,21 @@ matches the expected environment/deployment ID. For closed environments the
 smoke test also verifies `indexingEnabled=false`, `robots.txt`, an empty sitemap
 and the external `X-Robots-Tag` barrier.
 
-`repomix-output-wp8.md` contains the current headless SEO and order-idempotency
-MU-plugins. Navigation must keep `/mezhkomnatnye-dveri`; `/catalog` must remain
-absent.
+Application releases now contain two Git-managed runtime components: the Next.js storefront and `wordpress/mu-plugins`. Use `deploy-environment.sh` for a combined release so both are deployed from the same Git SHA. The WordPress component is tracked by `/var/lib/ofisnye-dveri/wordpress-code/<environment>.manifest`; DB, uploads and environment secrets are not part of this code deploy.
+
+Navigation must keep `/mezhkomnatnye-dveri`; `/catalog` must remain absent.
+## Current application release
+
+After the original environment bootstrap, use:
+
+```bash
+sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main
+sudo /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
+```
+
+The orchestrator deploys project-managed WordPress MU-code first, verifies the WP REST code contract, deploys the Next.js standalone release from the same Git SHA, runs smoke checks and records SHA parity. Closed staging/production-prelaunch environments prompt interactively for Basic Auth credentials before the external storefront smoke.
+
+Detailed current runbooks:
+
+- `docs/local-to-staging-no-db.md`;
+- `docs/local-to-production-with-staging-db.md`.

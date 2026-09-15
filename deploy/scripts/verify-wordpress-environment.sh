@@ -25,7 +25,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 WP_URL="https://$WORDPRESS_DOMAIN"
 
-for command in curl node wp; do
+for command in curl node wp sha256sum; do
   command -v "$command" >/dev/null || {
     echo "Missing command: $command" >&2
     exit 1
@@ -46,20 +46,30 @@ site_url="$("${wp_cmd[@]}" option get siteurl)"
   exit 1
 }
 
-# Проверяем обязательные MU-плагины headless-логики.
-for plugin in \
-  door-family-taxonomy.php \
-  door-seo-landing.php \
-  headless-seo-foundation.php \
-  portfolio-project-cpt.php \
-  public-article-no.php \
-  storefront-order-idempotency.php; do
+# Проверяем точный project-managed MU-code contract, развернутый из Git.
+WORDPRESS_CODE_STATE_ROOT="${WORDPRESS_CODE_STATE_ROOT:-/var/lib/ofisnye-dveri/wordpress-code}"
+WORDPRESS_CODE_MANIFEST_FILE="$WORDPRESS_CODE_STATE_ROOT/${ENVIRONMENT}.manifest"
+WORDPRESS_CODE_STATE_FILE="$WORDPRESS_CODE_STATE_ROOT/${ENVIRONMENT}.state"
+[[ -f "$WORDPRESS_CODE_MANIFEST_FILE" ]] || { echo "WordPress managed-code manifest is missing" >&2; exit 1; }
+[[ -f "$WORDPRESS_CODE_STATE_FILE" ]] || { echo "WordPress managed-code state is missing" >&2; exit 1; }
+managed_count=0
+while read -r sum plugin; do
+  [[ "$sum" =~ ^[0-9a-f]{64}$ && "$plugin" =~ ^[A-Za-z0-9._-]+\.php$ ]] || continue
+  live="$WORDPRESS_ROOT/wp-content/mu-plugins/$plugin"
+  [[ -f "$live" ]] || { echo "Missing managed MU-plugin: $plugin" >&2; exit 1; }
+  actual="$(sha256sum "$live" | awk '{print $1}')"
+  [[ "$actual" == "$sum" ]] || { echo "Managed MU-plugin checksum mismatch: $plugin" >&2; exit 1; }
+  managed_count=$((managed_count + 1))
+done < <(grep -E '^[0-9a-f]{64}  [A-Za-z0-9._-]+\.php$' "$WORDPRESS_CODE_MANIFEST_FILE" || true)
+(( managed_count > 0 )) || { echo "WordPress managed-code manifest has no PHP files" >&2; exit 1; }
 
-  [[ -f "$WORDPRESS_ROOT/wp-content/mu-plugins/$plugin" ]] || {
-    echo "Missing MU-plugin: $plugin" >&2
-    exit 1
-  }
-done
+manifest_commit="$(sed -n 's/^GIT_COMMIT=//p' "$WORDPRESS_CODE_MANIFEST_FILE" | head -1)"
+# shellcheck disable=SC1090
+source "$WORDPRESS_CODE_STATE_FILE"
+[[ -n "$manifest_commit" && "${WORDPRESS_CODE_GIT_COMMIT:-}" == "$manifest_commit" ]] || {
+  echo "WordPress managed-code state/manifest commit mismatch" >&2
+  exit 1
+}
 
 # Проверяем WooCommerce и ACF.
 "${wp_cmd[@]}" plugin list --format=json > "$tmpdir/plugins.json"
@@ -117,6 +127,35 @@ if (!root.namespaces?.includes("od/v1")) {
 
 if (!root.routes?.["/od/v1/door-catalog-products"]) {
   throw new Error("Door catalog products REST route is missing");
+}
+
+if (!root.routes?.["/od/v1/door-configuration/schema"]) {
+  throw new Error("Door configuration schema REST route is missing");
+}
+NODE
+
+# Проверяем code-health нового Door Product Schema contract. Это не readiness-check:
+# fallback может быть включен, пока staging configuration ещё настраивается.
+curl "${curl_opts[@]}" \
+  "$WP_URL/wp-json/od/v1/door-configuration/schema" \
+  > "$tmpdir/door-configuration-schema.json"
+
+DOOR_CONFIGURATION_SCHEMA_FILE="$tmpdir/door-configuration-schema.json" node <<'NODE'
+const fs = require("node:fs");
+const schema = JSON.parse(
+  fs.readFileSync(process.env.DOOR_CONFIGURATION_SCHEMA_FILE, "utf8") || "{}"
+);
+if (schema.schema_version !== 2) throw new Error("Door configuration schema_version must be 2");
+for (const key of ["attributes", "catalog_filters", "option_groups", "accessory_groups"]) {
+  if (!Array.isArray(schema[key])) throw new Error(`Door configuration ${key} must be an array`);
+}
+if (!schema.fallback_modes || typeof schema.fallback_modes !== "object") {
+  throw new Error("Door configuration fallback_modes is missing");
+}
+for (const key of ["family", "variant_dimensions", "order_options", "accessories"]) {
+  if (typeof schema.fallback_modes[key] !== "boolean") {
+    throw new Error(`Door configuration fallback_modes.${key} must be boolean`);
+  }
 }
 NODE
 

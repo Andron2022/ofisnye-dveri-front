@@ -1,0 +1,39 @@
+# Transitional redirect-only hosts after the canonical domain moves to ofisnyedveri.ru.
+# Enable only while the old certificates and DNS records remain under project control.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ofisnye-dveri.ru www.ofisnye-dveri.ru;
+    return 301 https://ofisnyedveri.ru$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ofisnye-dveri.ru www.ofisnye-dveri.ru;
+
+    ssl_certificate /etc/letsencrypt/live/ofisnye-dveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ofisnye-dveri.ru/privkey.pem;
+
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    return 301 https://ofisnyedveri.ru$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name wp.ofisnye-dveri.ru;
+    return 301 https://wp.ofisnyedveri.ru$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name wp.ofisnye-dveri.ru;
+
+    ssl_certificate /etc/letsencrypt/live/wp.ofisnye-dveri.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/wp.ofisnye-dveri.ru/privkey.pem;
+
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    return 301 https://wp.ofisnyedveri.ru$request_uri;
+}
