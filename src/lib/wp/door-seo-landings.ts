@@ -278,9 +278,10 @@ export async function getDoorCatalogFilterContract(): Promise<{
         const filterKey = group ? asString(group.filter_key) : undefined;
         const taxonomy = group ? asString(group.taxonomy) : undefined;
         const label = group ? asString(group.label) : undefined;
+        const collapsedVisibleCount = group ? Math.max(0, asInt(group.collapsed_visible_count)) : 0;
         const terms = group && Array.isArray(group.terms) ? group.terms : [];
         if (!filterKey || !isDoorFilterKey(filterKey) || !taxonomy) continue;
-        definitions.push({ key: filterKey, label: label || filterKey, taxonomy });
+        definitions.push({ key: filterKey, label: label || filterKey, taxonomy, collapsedVisibleCount });
         dictionary[filterKey] = terms.flatMap((termValue) => {
             const term = normalizeTerm(termValue);
             return term ? [{ ...term, taxonomy }] : [];

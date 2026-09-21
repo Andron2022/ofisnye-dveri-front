@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Door SEO Landing (MU)
  * Description: Manages explicit SEO landing pages for door catalog filters and exposes a headless REST contract.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -464,11 +464,18 @@ final class OD_Door_SEO_Landing {
                 continue;
             }
 
+            $orderby = function_exists( 'wc_attribute_orderby' )
+                ? wc_attribute_orderby( $config['taxonomy'] )
+                : 'name';
+            if ( ! in_array( $orderby, array( 'menu_order', 'name', 'name_num', 'id' ), true ) ) {
+                $orderby = 'name';
+            }
+
             $terms = get_terms(
                 array(
                     'taxonomy'   => $config['taxonomy'],
                     'hide_empty' => false,
-                    'orderby'    => 'name',
+                    'orderby'    => $orderby,
                     'order'      => 'ASC',
                 )
             );
@@ -481,6 +488,7 @@ final class OD_Door_SEO_Landing {
                 'filter_key' => $filter_key,
                 'taxonomy'   => $config['taxonomy'],
                 'label'      => $config['label'],
+                'collapsed_visible_count' => max( 0, (int) ( $config['collapsed_visible_count'] ?? 0 ) ),
                 'terms'      => array_values(
                     array_map(
                         static function ( WP_Term $term ): array {

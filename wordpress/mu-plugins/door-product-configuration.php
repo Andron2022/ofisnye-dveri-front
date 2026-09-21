@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Door Product Schema & Configuration Policy (MU)
  * Description: Data-driven door schema registry, configuration policies, dependency guards and resolved headless contract.
- * Version: 2.0.0
+ * Version: 2.0.2
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -193,18 +193,21 @@ final class OD_Door_Product_Configuration {
             $taxonomy = function_exists( 'wc_attribute_taxonomy_name' ) ? wc_attribute_taxonomy_name( $name ) : 'pa_' . $name;
             $legacy = self::LEGACY_FILTERS[ $name ] ?? null;
             $existing = isset( $stored[ $taxonomy ] ) && is_array( $stored[ $taxonomy ] ) ? $stored[ $taxonomy ] : array();
+            $woo_label = sanitize_text_field( (string) ( $attribute->attribute_label ?? '' ) );
+            if ( '' === $woo_label ) $woo_label = $name;
 
             $live[ $taxonomy ] = array(
                 'attribute_id' => $attribute_id,
                 'taxonomy' => $taxonomy,
                 'filter_key' => self::clean_key( $existing['filter_key'] ?? $name ),
-                'label' => sanitize_text_field( (string) ( $existing['label'] ?? $attribute->attribute_label ?? $name ) ),
+                'label' => $woo_label,
                 'exists' => true,
                 'catalog_filter_enabled' => array_key_exists( 'catalog_filter_enabled', $existing )
                     ? self::bool_value( $existing['catalog_filter_enabled'] )
                     : null !== $legacy,
                 'catalog_filter_order' => (int) ( $existing['catalog_filter_order'] ?? ( $legacy['order'] ?? 1000 + $attribute_id ) ),
                 'display_type' => sanitize_key( (string) ( $existing['display_type'] ?? ( $legacy['display_type'] ?? 'checkbox' ) ) ),
+                'catalog_filter_collapsed_visible_count' => max( 0, (int) ( $existing['catalog_filter_collapsed_visible_count'] ?? 0 ) ),
             );
             unset( $history[ $taxonomy ] );
         }
@@ -261,6 +264,7 @@ final class OD_Door_Product_Configuration {
                 'attribute_id' => (int) ( $entry['attribute_id'] ?? 0 ),
                 'order' => (int) ( $entry['catalog_filter_order'] ?? 0 ),
                 'display_type' => sanitize_key( (string) ( $entry['display_type'] ?? 'checkbox' ) ),
+                'collapsed_visible_count' => max( 0, (int) ( $entry['catalog_filter_collapsed_visible_count'] ?? 0 ) ),
             );
         }
         return $out;
@@ -1294,6 +1298,7 @@ final class OD_Door_Product_Configuration {
                 $entry['catalog_filter_enabled'] = $next_enabled;
                 $entry['catalog_filter_order'] = (int) ( $row['order'] ?? $entry['catalog_filter_order'] );
                 $entry['display_type'] = sanitize_key( (string) ( $row['display_type'] ?? $entry['display_type'] ) );
+                $entry['catalog_filter_collapsed_visible_count'] = max( 0, (int) ( $row['collapsed_visible_count'] ?? $entry['catalog_filter_collapsed_visible_count'] ?? 0 ) );
             }
             unset( $entry );
             update_option( self::OPTION_ATTRIBUTE_REGISTRY, $registry, false );
@@ -1498,14 +1503,16 @@ final class OD_Door_Product_Configuration {
         $registry = self::get_attribute_registry();
         self::form_open( 'attributes' );
         echo '<p>Woo attributes обнаруживаются автоматически. Новый атрибут появляется здесь выключенным и не становится фильтром без явного выбора.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Attribute</th><th>Taxonomy</th><th>Filter key</th><th>Фильтр каталога</th><th>Порядок</th><th>UI</th></tr></thead><tbody>';
+        echo '<p><strong>Показывать до «Посмотреть все»:</strong> 0 = показывать все значения сразу.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Attribute</th><th>Taxonomy</th><th>Filter key</th><th>Фильтр каталога</th><th>Порядок</th><th>UI</th><th>Показывать до «Все»</th></tr></thead><tbody>';
         foreach ( $registry as $taxonomy => $row ) {
             echo '<tr><td><strong>' . esc_html( $row['label'] ) . '</strong><br><small>ID ' . (int) $row['attribute_id'] . '</small></td><td><code>' . esc_html( $taxonomy ) . '</code></td><td><code>' . esc_html( $row['filter_key'] ) . '</code></td>';
             echo '<td><label><input type="checkbox" name="attributes[' . esc_attr( $taxonomy ) . '][enabled]" value="1" ' . checked( ! empty( $row['catalog_filter_enabled'] ), true, false ) . '> использовать</label></td>';
             echo '<td><input type="number" style="width:90px" name="attributes[' . esc_attr( $taxonomy ) . '][order]" value="' . (int) $row['catalog_filter_order'] . '"></td>';
             echo '<td><select name="attributes[' . esc_attr( $taxonomy ) . '][display_type]">';
             foreach ( array( 'checkbox', 'color', 'buttons', 'select' ) as $type ) echo '<option value="' . esc_attr( $type ) . '" ' . selected( $row['display_type'], $type, false ) . '>' . esc_html( $type ) . '</option>';
-            echo '</select></td></tr>';
+            echo '</select></td>';
+            echo '<td><input type="number" min="0" step="1" style="width:110px" name="attributes[' . esc_attr( $taxonomy ) . '][collapsed_visible_count]" value="' . max( 0, (int) ( $row['catalog_filter_collapsed_visible_count'] ?? 0 ) ) . '"></td></tr>';
         }
         echo '</tbody></table>'; submit_button( 'Сохранить фильтры' ); echo '</form>';
         $history = get_option( self::OPTION_ATTRIBUTE_HISTORY, array() );
@@ -1748,6 +1755,7 @@ final class OD_Door_Product_Configuration {
             $roles[] = array(
                 'taxonomy' => $entry['taxonomy'], 'filter_key' => $entry['filter_key'], 'label' => $entry['label'],
                 'catalog_filter_enabled' => ! empty( $entry['catalog_filter_enabled'] ), 'catalog_filter_order' => (int) $entry['catalog_filter_order'], 'display_type' => $entry['display_type'],
+                'catalog_filter_collapsed_visible_count' => max( 0, (int) ( $entry['catalog_filter_collapsed_visible_count'] ?? 0 ) ),
             );
         }
         return array(
@@ -1777,10 +1785,12 @@ final class OD_Door_Product_Configuration {
             $taxonomy = sanitize_key( (string) ( $role['taxonomy'] ?? '' ) );
             if ( ! isset( $registry[ $taxonomy ] ) ) { $errors[] = 'Attribute отсутствует: ' . $taxonomy; continue; }
             $registry[ $taxonomy ]['filter_key'] = self::clean_key( $role['filter_key'] ?? $registry[ $taxonomy ]['filter_key'] );
-            $registry[ $taxonomy ]['label'] = sanitize_text_field( (string) ( $role['label'] ?? $registry[ $taxonomy ]['label'] ) );
+            // Attribute label belongs to the current Woo attribute and is intentionally
+            // not imported from another environment. The manifest only promotes roles.
             $registry[ $taxonomy ]['catalog_filter_enabled'] = self::bool_value( $role['catalog_filter_enabled'] ?? false );
             $registry[ $taxonomy ]['catalog_filter_order'] = (int) ( $role['catalog_filter_order'] ?? 0 );
             $registry[ $taxonomy ]['display_type'] = sanitize_key( (string) ( $role['display_type'] ?? 'checkbox' ) );
+            $registry[ $taxonomy ]['catalog_filter_collapsed_visible_count'] = max( 0, (int) ( $role['catalog_filter_collapsed_visible_count'] ?? $registry[ $taxonomy ]['catalog_filter_collapsed_visible_count'] ?? 0 ) );
         }
         $options = self::normalize_option_registry( (array) ( $manifest['option_registry'] ?? array() ) );
         if ( empty( $options ) ) $errors[] = 'Option Registry manifest пуст.';

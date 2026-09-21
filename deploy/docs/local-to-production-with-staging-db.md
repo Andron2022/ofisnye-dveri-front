@@ -1,3 +1,5 @@
+> **DEPRECATED / НЕ ИСПОЛЬЗОВАТЬ ДЛЯ ТЕКУЩИХ RELEASES.** Production DB уже боевая. Полная замена Production DB копией Staging/Local запрещена штатной политикой проекта. Для обычного release использовать `local-to-production-no-db.md`. Этот документ сохранён только как исторический prelaunch-сценарий.
+
 # Approved Local code → Production prelaunch with full Staging DB promotion
 
 ## Цель
@@ -20,6 +22,8 @@ Source staging:
 Storefront: https://staging.ofisnyedveri.ru
 WordPress:  https://wp-staging.ofisnyedveri.ru
 ```
+
+Актуальная кодовая база для этого runbook: `client46/wp11` плюс patch `Door Product Schema 2.0.1`, где Woo `attribute_label` является источником display label, а manifest не перезаписывает label другого окружения.
 
 ---
 
@@ -276,6 +280,20 @@ sudo test -s /root/production-woo-api-keys.sql
 
 ## 9. Получить свежий staging DB dump
 
+Перед копированием DB подтвердить, что staging уже содержит правильный Woo label и согласованный Registry. Для примера `pa_razmer-dveri`:
+
+```bash
+sudo wp eval 'OD_Door_Product_Configuration::sync_attribute_registry();' \
+  --path=/srv/wordpress/staging/public \
+  --allow-root
+
+curl -fsS \
+  https://wp-staging.ofisnyedveri.ru/wp-json/od/v1/door-configuration/schema \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); x=next(a for a in d['attributes'] if a['taxonomy']=='pa_razmer-dveri'); print(json.dumps(x, ensure_ascii=False, indent=2))"
+```
+
+Проверить, что `label` соответствует текущему Woo, а `taxonomy`, `filter_key`, `catalog_filter_enabled`, `catalog_filter_order`, `display_type` соответствуют принятому staging.
+
 Сначала ещё один staging backup после финального acceptance:
 
 ```bash
@@ -504,6 +522,16 @@ sudo journalctl \
 
 ## 18. Проверить Door Configuration production readiness
 
+После full staging DB promotion production уже получает staging Woo attribute names и Registry. Дополнительно выполнить идемпотентную синхронизацию Registry с текущими production Woo attributes:
+
+```bash
+sudo wp eval 'OD_Door_Product_Configuration::sync_attribute_registry();' \
+  --path=/srv/wordpress/production/public \
+  --allow-root
+```
+
+Проверить readiness:
+
 ```bash
 sudo bash \
   /srv/ofisnye-dveri/repository/deploy/scripts/verify-door-configuration-readiness.sh \
@@ -511,6 +539,25 @@ sudo bash \
 ```
 
 Так как DB целиком пришла из уже принятого staging, все четыре fallback должны остаться OFF и все door products должны быть valid.
+
+Проверить label contract, например для `pa_razmer-dveri`:
+
+```bash
+curl -fsS \
+  https://wp.ofisnyedveri.ru/wp-json/od/v1/door-configuration/schema \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); x=next(a for a in d['attributes'] if a['taxonomy']=='pa_razmer-dveri'); print(json.dumps(x, ensure_ascii=False, indent=2))"
+```
+
+Production должен совпасть со staging по:
+
+```text
+label
+taxonomy
+filter_key
+catalog_filter_enabled
+catalog_filter_order
+display_type
+```
 
 ---
 
@@ -521,10 +568,10 @@ sudo bash \
 ```text
 Главная
 Каталог
-Фильтры
+Фильтры, включая новое Woo display label
 SEO landing
 PDP
-family variants
+family variants, включая новое название variant axis
 options
 accessories
 Cart
@@ -582,6 +629,23 @@ sudo rm -f \
   /var/tmp/staging-to-production.sql \
   /root/production-woo-api-keys.sql
 ```
+
+---
+
+## 21.1. Что не требуется менять на VDS для этого patch
+
+Для `Door Product Schema 2.0.1` не нужны новые:
+
+```text
+Nginx virtual hosts
+systemd units
+env variables
+MySQL schema/tables
+REST routes
+storefront routes
+```
+
+На VDS требуется только доставить тот же approved Git SHA стандартным managed deploy и один раз выполнить Registry sync-команду, указанную выше, если в Registry могли остаться labels, сохранённые до patch.
 
 ---
 

@@ -1,4 +1,4 @@
-> **Current release note:** this document describes the production-prelaunch contour bootstrap. For current releases and the new `ofisnyedveri.ru` domain use `local-to-production-with-staging-db.md` and `deploy-environment.sh`.
+> **Current release note:** this document describes the historical production-prelaunch contour bootstrap. Production now has a live DB. For current releases use `local-to-production-no-db.md` and `deploy-environment.sh`; do not overwrite Production DB from Local/Staging.
 
 # MVP Production Prelaunch & WP Origin Hardening
 

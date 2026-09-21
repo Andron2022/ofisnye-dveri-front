@@ -81,7 +81,7 @@ After the original environment bootstrap, use:
 
 ```bash
 sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production origin/main
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production <APPROVED_SHA>
 ```
 
 The orchestrator deploys project-managed WordPress MU-code first, verifies the WP REST code contract, deploys the Next.js standalone release from the same Git SHA, runs smoke checks and records SHA parity. Deployment shell scripts are invoked explicitly through `bash`; the Unix executable bit is not part of the deployment contract, which keeps the workflow stable when changed files pass through Windows/ZIP. Closed staging/production-prelaunch environments prompt interactively for Basic Auth credentials before the external storefront smoke.
@@ -89,4 +89,6 @@ The orchestrator deploys project-managed WordPress MU-code first, verifies the W
 Detailed current runbooks:
 
 - `docs/local-to-staging-no-db.md`;
-- `docs/local-to-production-with-staging-db.md`.
+- `docs/local-to-production-no-db.md`.
+
+`docs/local-to-production-with-staging-db.md` is retained only as a deprecated historical prelaunch procedure. Production now has a live DB and normal releases must never overwrite it from Local/Staging.

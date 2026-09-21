@@ -1,103 +1,211 @@
-# Local → Staging: code promotion without Local DB transfer
+# Local → Staging: code release without DB transfer
 
-## Цель
+## Назначение
 
-Продвинуть проверенный Local application code в существующий staging на VDS, **не импортируя Local WordPress DB**.
+Штатный release-runbook для продвижения проверенного кода из Local/GitHub в существующий staging-контур **без переноса WordPress DB**.
 
-В staging остаётся существующая staging DB предыдущего шага. Новый `client45/wp10` code должен подняться поверх неё, после чего Schema/Policy настраивается непосредственно в staging.
+Актуально для изменений `Door Catalog Filter Presentation`:
 
-Новые canonical staging hosts:
+- Woo задаёт порядок значений global attribute через `Default sort order`;
+- Door Attribute Registry хранит `Показывать до «Посмотреть все»`;
+- storefront отображает первые N значений, выбранные значения всегда видимы;
+- остальные значения остаются в DOM и раскрываются кнопкой `Посмотреть все`;
+- `filterKey`, taxonomy, term ID, SEO landing rules и routing не меняются.
+
+Staging:
 
 ```text
 Storefront: https://staging.ofisnyedveri.ru
 WordPress:  https://wp-staging.ofisnyedveri.ru
+WP root:    /srv/wordpress/staging/public
+App root:   /srv/ofisnye-dveri/staging
 ```
 
-Внутренние пути не переименовываются:
+## 0. Что принципиально НЕ делаем
 
-```text
-/srv/ofisnye-dveri
-/etc/ofisnye-dveri
-/srv/wordpress/staging/public
-```
-
----
-
-## 0. Что НЕ делаем
-
-На этом цикле запрещено:
+В этом release запрещено:
 
 ```text
 Local DB → Staging DB
-Local uploads → Staging uploads как полный overwrite
-Local Schema/Policy manifest → Staging
+wp db import локального dump в staging
+полная замена staging wp-content/uploads
 ```
 
-Разрешается только изменение существующей staging DB, необходимое для смены staging hostname и последующей ручной настройки Schema/Policy.
+Изменения Woo/Registry выполняются **точечно в существующей staging DB** через админку. Это изменение данных, но не перенос БД.
 
 ---
 
-## 1. Local: финальная фиксация кода
+## 1. Local: применить изменённые файлы
 
-В PowerShell:
+В корне проекта должен находиться актуальный `client46` с ранее применённым label-sync fix и новым filter presentation fix.
+
+Проверить:
 
 ```powershell
 cd "E:\Practic\ofisnye-dveri-front"
 
-git status
+git status --short
 git diff --check
+git diff --stat
+```
+
+Изменения должны быть только ожидаемыми файлами шага.
+
+---
+
+## 2. Local: PHP и frontend verification
+
+Если PHP доступен из Local Site Shell:
+
+```bash
+php -l wordpress/mu-plugins/door-product-configuration.php
+php -l wordpress/mu-plugins/door-seo-landing.php
+```
+
+В PowerShell:
+
+```powershell
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-После проверки:
+Дальше не идти при ошибках.
+
+---
+
+## 3. Local WordPress: настроить и проверить функционал
+
+### 3.1. Настроить порядок term values в Woo
+
+Открыть:
+
+```text
+Товары → Атрибуты → нужный атрибут → Редактировать
+```
+
+Для ручного drag-and-drop порядка установить:
+
+```text
+Порядок сортировки по умолчанию = Произвольный порядок / Custom ordering
+```
+
+Затем открыть `Настроить значения` и расставить значения в нужном порядке.
+
+Пример:
+
+```text
+1. Для АЗС
+2. Для автосалонов
+3. Для офисов
+...
+```
+
+Если у атрибута выбрано `Name`, `Name (numeric)` или `Term ID`, storefront должен следовать именно этому Woo-режиму, а не drag-and-drop.
+
+### 3.2. Настроить лимит отображения
+
+Открыть:
+
+```text
+Товары → Конфигурация дверей → Атрибуты и фильтры
+```
+
+В колонке:
+
+```text
+Показывать до «Все»
+```
+
+указать, например:
+
+```text
+5
+```
+
+Семантика:
+
+```text
+0 = показывать все значения сразу
+N > 0 = показать первые N и кнопку «Посмотреть все»
+```
+
+Нажать `Сохранить фильтры`.
+
+### 3.3. Проверить REST
+
+Открыть/запросить:
+
+```text
+https://ofisnye-dveri.test/wp-json/od/v1/door-filter-terms
+```
+
+Для нужной группы проверить:
+
+```json
+{
+  "filter_key": "naznachenie",
+  "collapsed_visible_count": 5,
+  "terms": [
+    { "name": "Для АЗС" },
+    { "name": "Для автосалонов" }
+  ]
+}
+```
+
+Порядок `terms[]` должен совпадать с выбранным Woo `Default sort order`.
+
+### 3.4. Проверить storefront
+
+Открыть реальную категорию:
+
+```text
+/mezhkomnatnye-dveri
+```
+
+или дочернюю категорию с этим фильтром.
+
+Проверить:
+
+1. первые N значений соответствуют Woo-порядку;
+2. если значений больше N — есть `Посмотреть все`;
+3. после клика видны остальные значения и появляется `Свернуть`;
+4. после `Свернуть` остаются первые N;
+5. выбранное значение ниже N остаётся видимым даже в свёрнутом состоянии;
+6. фильтрация и preferred SEO URL продолжают работать;
+7. чистые SEO landing links не исчезли из DOM.
+
+---
+
+## 4. Git: зафиксировать release
+
+После успешной Local-проверки:
 
 ```powershell
 git add .
-git commit -m "chore(deploy): add wordpress code promotion foundation"
-git -c http.version=HTTP/1.1 push
+git commit -m "feat(filters): add Woo ordering and collapsed value limit"
+git push
 ```
 
-Убедиться, что нужный commit находится в `origin/main` после merge.
-
-Зафиксировать SHA:
+После merge в `main`:
 
 ```powershell
-git rev-parse origin/main
+git switch main
+git pull --ff-only
+git rev-parse HEAD
+```
+
+Сохранить полный SHA как:
+
+```text
+APPROVED_SHA=<full sha>
 ```
 
 ---
 
-## 2. DNS: создать новые staging records
+## 5. Staging: backup перед точечными изменениями данных
 
-У DNS-провайдера:
-
-```text
-A staging    → 153.80.184.15
-A wp-staging → 153.80.184.15
-```
-
-Проверить из Windows:
-
-```powershell
-Resolve-DnsName staging.ofisnyedveri.ru -Type A -Server 1.1.1.1
-Resolve-DnsName wp-staging.ofisnyedveri.ru -Type A -Server 1.1.1.1
-```
-
-Оба имени должны вернуть:
-
-```text
-153.80.184.15
-```
-
-Старые staging hostnames пока не удалять.
-
----
-
-## 3. VDS: сделать backup текущего staging
-
-Под `root`:
+Под `root` на VDS:
 
 ```bash
 sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/backup-wordpress.sh \
@@ -107,18 +215,13 @@ sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/verify-backup-restore.sh 
   /etc/ofisnye-dveri/wordpress-backup.env local
 ```
 
-Если настроен offsite Restic:
+Если restore-test не прошёл — release остановить.
 
-```bash
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/verify-backup-restore.sh \
-  /etc/ofisnye-dveri/wordpress-backup.env offsite
-```
-
-До успешного restore-test дальше не идти.
+Этот backup не переносится из Local: он создаётся из текущей staging DB.
 
 ---
 
-## 4. VDS: обновить canonical Git repository
+## 6. Staging: обновить repository и проверить SHA
 
 ```bash
 sudo -iu deploy
@@ -132,365 +235,128 @@ git rev-parse HEAD
 exit
 ```
 
-SHA должен совпасть с подтверждённым `origin/main` с Local/GitHub.
+Полученный SHA должен быть равен `APPROVED_SHA`.
 
 ---
 
-## 5. Установить обновлённые deploy scripts и sudoers
+## 7. Staging: deploy кода без DB import
 
-Под `root`:
+Запустить единый штатный orchestrator именно по подтверждённому SHA:
 
 ```bash
-sudo cp \
-  /srv/ofisnye-dveri/repository/deploy/sudoers/ofisnye-dveri-deploy.example \
-  /etc/sudoers.d/ofisnye-dveri-deploy
-
-sudo chmod 0440 /etc/sudoers.d/ofisnye-dveri-deploy
-sudo visudo -cf /etc/sudoers.d/ofisnye-dveri-deploy
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
+  staging \
+  "$APPROVED_SHA" \
+  /etc/ofisnye-dveri/staging-inventory.env
 ```
 
-Проверить синтаксис новых deployment scripts. Исполняемый bit (`100755`) не является обязательным: все deployment scripts запускаются явно через `bash`, поэтому файлы `100644` после Windows/ZIP workflow допустимы.
+Для закрытого staging скрипт запросит Basic Auth для external smoke test.
 
-```bash
-bash -n \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-wordpress-code.sh
+Успешный итог должен содержать:
 
-bash -n \
-  /srv/ofisnye-dveri/repository/deploy/scripts/rollback-wordpress-code.sh
-
-bash -n \
-  /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh
-
-bash -n \
-  /srv/ofisnye-dveri/repository/deploy/scripts/verify-door-configuration-readiness.sh
+```text
+Combined application release passed
 ```
 
 ---
 
-## 6. Получить TLS certificates для новых staging hosts
+## 8. Staging: точечно повторить настройки данных
 
-Сначала установить HTTP bootstrap:
+Поскольку БД не переносится, Local-настройки сами в staging не появятся.
+
+В `https://wp-staging.ofisnyedveri.ru/wp-admin/` вручную:
+
+1. у нужного Woo attribute выставить правильный `Default sort order`;
+2. если используется `Custom ordering`, расставить terms drag-and-drop;
+3. `Товары → Конфигурация дверей → Атрибуты и фильтры`;
+4. установить тот же `Показывать до «Все»`;
+5. сохранить.
+
+Это точечное изменение staging DB, а не её перенос.
+
+---
+
+## 9. Staging: проверить REST-контракт
+
+Пример для `naznachenie`:
 
 ```bash
-sudo cp \
-  /srv/ofisnye-dveri/repository/deploy/nginx/sites-available/ofisnye-dveri-staging-bootstrap.conf.example \
-  /etc/nginx/sites-available/ofisnye-dveri-staging-new-domain-bootstrap
-
-sudo ln -sfn \
-  /etc/nginx/sites-available/ofisnye-dveri-staging-new-domain-bootstrap \
-  /etc/nginx/sites-enabled/ofisnye-dveri-staging-new-domain-bootstrap
-
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-Получить certificates:
-
-```bash
-sudo certbot certonly --webroot \
-  -w /var/www/letsencrypt \
-  -d staging.ofisnyedveri.ru
-
-sudo certbot certonly --webroot \
-  -w /var/www/letsencrypt \
-  -d wp-staging.ofisnyedveri.ru
+curl -fsS \
+  https://wp-staging.ofisnyedveri.ru/wp-json/od/v1/door-filter-terms \
+  | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+g=next(x for x in d["groups"] if x["filter_key"]=="naznachenie")
+print("collapsed_visible_count=", g.get("collapsed_visible_count"))
+for i,t in enumerate(g["terms"],1):
+    print(i, t["id"], t["name"], t["slug"])
+'
 ```
 
 Проверить:
 
-```bash
-sudo ls -la /etc/letsencrypt/live/staging.ofisnyedveri.ru/
-sudo ls -la /etc/letsencrypt/live/wp-staging.ofisnyedveri.ru/
-```
+- `collapsed_visible_count` равен настройке;
+- порядок вывода term совпадает с Woo;
+- `filter_key` и taxonomy не изменились.
 
 ---
 
-## 7. Обновить staging inventory и storefront env
+## 10. Staging: проверить UI и SEO-регрессию
 
-Не перезаписывать реальные secret-файлы `.example`-файлами целиком.
+В браузере открыть:
 
-Открыть:
-
-```bash
-sudo nano /etc/ofisnye-dveri/staging-inventory.env
+```text
+https://staging.ofisnyedveri.ru/mezhkomnatnye-dveri
 ```
+
+Проверить реальный сценарий:
+
+```text
+Woo order
+→ REST order
+→ filter UI order
+→ collapse/expand
+→ выбор значения
+→ preferred URL
+→ корректная товарная выборка
+```
+
+Обязательно проверить выбранное значение, находящееся ниже лимита: оно должно оставаться видимым после навигации.
+
+Если есть SEO landing для одного из скрываемых значений, через DevTools Elements убедиться, что соответствующая `<a href>` присутствует в DOM даже в свёрнутом состоянии.
+
+---
+
+## 11. Staging: зафиксировать acceptance
 
 Зафиксировать:
 
 ```text
-STOREFRONT_DOMAIN=staging.ofisnyedveri.ru
-WORDPRESS_DOMAIN=wp-staging.ofisnyedveri.ru
-STOREFRONT_CERT_NAME=staging.ofisnyedveri.ru
-WORDPRESS_CERT_NAME=wp-staging.ofisnyedveri.ru
-GIT_DEPLOY_REF=origin/main
+APPROVED_SHA=<sha>
+Staging deploy=PASS
+WP REST order=PASS
+collapsed_visible_count=PASS
+Catalog UI=PASS
+Selected-below-limit=PASS
+SEO routing=PASS
 ```
 
-Проверить остальные существующие значения, особенно VDS IP, repository paths и backup paths.
-
-Затем:
-
-```bash
-sudo nano /etc/ofisnye-dveri/staging.env
-```
-
-Изменить только URL-dependent values:
-
-```text
-NEXT_PUBLIC_SITE_URL=https://staging.ofisnyedveri.ru
-SITE_URL=https://staging.ofisnyedveri.ru
-WORDPRESS_URL=https://wp-staging.ofisnyedveri.ru
-BFF_ALLOWED_ORIGINS=https://staging.ofisnyedveri.ru
-```
-
-Woo keys, `BFF_SECURITY_SECRET` и остальные staging secrets не менять.
-
-Проверить inventory:
-
-```bash
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/check-staging-inventory.sh \
-  /etc/ofisnye-dveri/staging-inventory.env
-```
+Только этот SHA разрешается продвигать в production.
 
 ---
 
-## 8. Переключить Nginx на новые staging hosts
+## 12. Rollback
 
-Скопировать актуальные templates:
+При code-регрессии orchestrator выполняет component rollback автоматически при неуспешном deploy.
 
-```bash
-sudo cp \
-  /srv/ofisnye-dveri/repository/deploy/nginx/sites-available/ofisnye-dveri-staging.conf.example \
-  /etc/nginx/sites-available/ofisnye-dveri-staging
+Для ручного отката использовать существующие project scripts, а не DB import.
 
-sudo cp \
-  /srv/ofisnye-dveri/repository/deploy/nginx/sites-available/ofisnye-dveri-wp-staging.conf.example \
-  /etc/nginx/sites-available/ofisnye-dveri-wp-staging
-
-sudo ln -sfn /etc/nginx/sites-available/ofisnye-dveri-staging \
-  /etc/nginx/sites-enabled/ofisnye-dveri-staging
-sudo ln -sfn /etc/nginx/sites-available/ofisnye-dveri-wp-staging \
-  /etc/nginx/sites-enabled/ofisnye-dveri-wp-staging
-
-sudo rm -f /etc/nginx/sites-enabled/ofisnye-dveri-staging-new-domain-bootstrap
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
----
-
-## 9. Изменить staging WordPress origin БЕЗ импорта другой DB
-
-Это изменение текущей staging DB, не перенос Local DB.
-
-Dry-run:
-
-```bash
-sudo wp search-replace \
-  'https://wp-staging.ofisnye-dveri.ru' \
-  'https://wp-staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public \
-  --all-tables-with-prefix \
-  --skip-columns=guid \
-  --precise \
-  --dry-run \
-  --allow-root
-```
-
-Если результат корректен:
-
-```bash
-sudo wp search-replace \
-  'https://wp-staging.ofisnye-dveri.ru' \
-  'https://wp-staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public \
-  --all-tables-with-prefix \
-  --skip-columns=guid \
-  --precise \
-  --allow-root
-```
-
-Зафиксировать origin:
-
-```bash
-sudo wp option update home 'https://wp-staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public --allow-root
-sudo wp option update siteurl 'https://wp-staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public --allow-root
-sudo wp cache flush --path=/srv/wordpress/staging/public --allow-root
-```
-
-Проверить:
-
-```bash
-sudo wp option get home --path=/srv/wordpress/staging/public --allow-root
-sudo wp option get siteurl --path=/srv/wordpress/staging/public --allow-root
-```
-
-Проверить возможные абсолютные ссылки старого staging storefront domain в Navigation / ACF / content. Сначала только dry-run:
-
-```bash
-sudo wp search-replace \
-  'https://staging.ofisnye-dveri.ru' \
-  'https://staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public \
-  --all-tables-with-prefix \
-  --skip-columns=guid \
-  --precise \
-  --dry-run \
-  --allow-root
-```
-
-Если dry-run показывает актуальные Navigation / ACF / content URL, выполнить ту же команду без `--dry-run`:
-
-```bash
-sudo wp search-replace \
-  'https://staging.ofisnye-dveri.ru' \
-  'https://staging.ofisnyedveri.ru' \
-  --path=/srv/wordpress/staging/public \
-  --all-tables-with-prefix \
-  --skip-columns=guid \
-  --precise \
-  --allow-root
-```
-
-Это по-прежнему изменение существующей staging DB, а не импорт Local DB.
-
----
-
-## 10. Первый managed application release
-
-Staging закрыт Basic Auth. Запусти orchestrator; перед внешним smoke он сам скрыто запросит `user:password` и не запишет пароль в shell history:
-
-```bash
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh \
-  staging origin/main
-```
-
-Orchestrator выполняет:
+Если требуется отменить только новую UI-настройку до code rollback:
 
 ```text
-same Git SHA
-→ managed WordPress MU-code
-→ WP REST code-health
-→ Next immutable release
-→ storefront health
-→ external smoke
-→ SHA parity
-→ deployment record
+Показывать до «Все» = 0
 ```
 
-Проверить WordPress code state:
+Это возвращает отображение всех значений сразу.
 
-```bash
-sudo cat /var/lib/ofisnye-dveri/wordpress-code/staging.state
-sudo cat /var/lib/ofisnye-dveri/wordpress-code/staging.manifest
-```
-
-Git SHA WordPress и storefront должен совпадать.
-
-Проверить runtime-флаг immutable release и отсутствие ошибок записи ISR после открытия нескольких ISR-страниц (`/`, `/kontakty`, `/stenovye-paneli`):
-
-```bash
-grep ^NEXT_IMMUTABLE_RELEASE_RUNTIME= \
-  /srv/ofisnye-dveri/staging/current/.release.env
-
-sudo journalctl \
-  -u ofisnye-dveri@staging.service \
-  --since "10 minutes ago" \
-  --no-pager \
-  | grep -E "EROFS|Failed to update prerender cache" || true
-```
-
-Ожидается `NEXT_IMMUTABLE_RELEASE_RUNTIME=true` и отсутствие новых `EROFS` / `Failed to update prerender cache`.
-
----
-
-## 11. Проверить, что Local DB действительно не переносилась
-
-До ручной настройки Schema/Policy staging должен содержать прежние staging business data.
-
-Проверить несколько известных staging товаров/категорий/SEO landing и отсутствие Local-only тестовых записей.
-
-Никакой команды вида:
-
-```text
-wp db import <local dump>
-```
-
-в этом runbook нет и быть не должно.
-
----
-
-## 12. Настроить Door Schema/Policy непосредственно на staging
-
-Через WordPress admin staging настроить:
-
-```text
-Attribute Registry
-Catalog filters
-Canonical configuration category
-Variant dimensions
-Order options
-Accessory groups
-Family/product policies
-```
-
-Сначала fallback можно оставить ON.
-
-После настройки проверять отдельный readiness-layer:
-
-```bash
-sudo bash \
-  /srv/ofisnye-dveri/repository/deploy/scripts/verify-door-configuration-readiness.sh \
-  /etc/ofisnye-dveri/staging-inventory.env false
-```
-
-Затем отключать fallback по одному:
-
-```text
-family             OFF
-variant_dimensions OFF
-order_options      OFF
-accessories        OFF
-```
-
-Финальный acceptance:
-
-```bash
-sudo bash \
-  /srv/ofisnye-dveri/repository/deploy/scripts/verify-door-configuration-readiness.sh \
-  /etc/ofisnye-dveri/staging-inventory.env true
-```
-
----
-
-## 13. Финальный staging vertical smoke
-
-Обязательно вручную проверить:
-
-```text
-Каталог
-→ фильтры
-→ существующая SEO landing
-→ PDP family
-→ variant selectors
-→ options
-→ accessory groups
-→ Cart
-→ Checkout
-→ Woo order
-```
-
-Проверить idempotency checkout повторным запросом с тем же key.
-
-Сделать свежий backup уже после успешной настройки staging:
-
-```bash
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/backup-wordpress.sh \
-  /etc/ofisnye-dveri/wordpress-backup.env
-
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/verify-backup-restore.sh \
-  /etc/ofisnye-dveri/wordpress-backup.env local
-```
-
-После этого staging является источником проверенной DB для prelaunch production promotion.
+Полный Local DB → Staging DB для rollback этого шага не нужен.

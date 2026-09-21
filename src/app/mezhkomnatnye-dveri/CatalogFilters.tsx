@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { resolvePreferredDoorFilterRoute } from "@src/lib/woo/seo-landing-routing";
 import type {
@@ -87,6 +88,7 @@ export default function CatalogFilters({
     landings: DoorSeoRoutingDescriptor[];
 }) {
     const router = useRouter();
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     if (filters.groups.length === 0) {
         return null;
@@ -116,49 +118,77 @@ export default function CatalogFilters({
             ) : null}
 
             <form key={activeFiltersSignature || "empty"} method="get" action={categoryPath}>
-                {filters.groups.map((group) => (
-                    <div key={group.key} className="mb-4">
-                        <SidebarFilterTitle label={group.label} />
+                {filters.groups.map((group) => {
+                    const collapsedVisibleCount = Math.max(0, group.collapsedVisibleCount);
+                    const expanded = Boolean(expandedGroups[group.key]);
+                    const hasCollapsibleOptions = collapsedVisibleCount > 0
+                        && group.options.some((option, index) => index >= collapsedVisibleCount && !option.selected);
 
-                        <div className="mt-3">
-                            {group.options.map((option) => {
-                                const id = `${group.key}-${option.value}`;
-                                const navigation = getNavigation(group.key, option.value);
-                                const isCrawlableExactLanding = !option.selected && navigation.kind === "clean_landing";
+                    return (
+                        <div key={group.key} className="mb-4">
+                            <SidebarFilterTitle label={group.label} />
 
-                                return (
-                                    <div key={id} className="form-check mb-2 d-flex justify-content-between gap-2">
-                                        <div>
-                                            <input
-                                                className="form-check-input"
-                                                type="checkbox"
-                                                name={group.key}
-                                                value={option.value}
-                                                id={id}
-                                                checked={option.selected}
-                                                aria-label={option.label}
-                                                onChange={() => router.push(navigation.href)}
-                                            />
-                                            {isCrawlableExactLanding ? (
-                                                <Link
-                                                    href={navigation.href}
-                                                    className="ms-1 text-reset text-decoration-none"
-                                                >
-                                                    {option.label}
-                                                </Link>
-                                            ) : (
-                                                <label className="form-check-label ms-1" htmlFor={id} style={{ cursor: "pointer" }}>
-                                                    {option.label}
-                                                </label>
-                                            )}
+                            <div className="mt-3">
+                                {group.options.map((option, index) => {
+                                    const id = `${group.key}-${option.value}`;
+                                    const navigation = getNavigation(group.key, option.value);
+                                    const isCrawlableExactLanding = !option.selected && navigation.kind === "clean_landing";
+                                    const hiddenWhileCollapsed = hasCollapsibleOptions
+                                        && !expanded
+                                        && index >= collapsedVisibleCount
+                                        && !option.selected;
+
+                                    return (
+                                        <div
+                                            key={id}
+                                            className={`form-check mb-2 d-flex justify-content-between gap-2${hiddenWhileCollapsed ? " d-none" : ""}`}
+                                        >
+                                            <div>
+                                                <input
+                                                    className="form-check-input"
+                                                    type="checkbox"
+                                                    name={group.key}
+                                                    value={option.value}
+                                                    id={id}
+                                                    checked={option.selected}
+                                                    aria-label={option.label}
+                                                    onChange={() => router.push(navigation.href)}
+                                                />
+                                                {isCrawlableExactLanding ? (
+                                                    <Link
+                                                        href={navigation.href}
+                                                        className="ms-1 text-reset text-decoration-none"
+                                                    >
+                                                        {option.label}
+                                                    </Link>
+                                                ) : (
+                                                    <label className="form-check-label ms-1" htmlFor={id} style={{ cursor: "pointer" }}>
+                                                        {option.label}
+                                                    </label>
+                                                )}
+                                            </div>
+                                            <span className="text-muted small">{option.count}</span>
                                         </div>
-                                        <span className="text-muted small">{option.count}</span>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+
+                                {hasCollapsibleOptions ? (
+                                    <button
+                                        type="button"
+                                        className="btn btn-link p-0 text-decoration-none"
+                                        aria-expanded={expanded}
+                                        onClick={() => setExpandedGroups((current) => ({
+                                            ...current,
+                                            [group.key]: !expanded,
+                                        }))}
+                                    >
+                                        {expanded ? "Свернуть" : "Посмотреть все"}
+                                    </button>
+                                ) : null}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 <div className="d-grid gap-2 mt-4">
                     <Link href={categoryPath} className="btn btn-outline-secondary rounded-pill px-4">

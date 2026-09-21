@@ -114,8 +114,11 @@ export function buildCatalogFilterGroups(
             if (selectedTerm) optionMap.set(selectedValue, { label: selectedTerm.name, count: 0 });
         }
 
+        const terms = termDictionary[definition.key] ?? [];
+        const termOrder = new Map(terms.map((term, index) => [term.slug, index]));
+
         const options = Array.from(optionMap.entries()).map(([value, option]) => {
-            const term = termDictionary[definition.key]?.find((item) => item.slug === value) ?? null;
+            const term = terms.find((item) => item.slug === value) ?? null;
             return {
                 value,
                 label: option.label,
@@ -124,8 +127,21 @@ export function buildCatalogFilterGroups(
                 termId: term?.id ?? null,
                 taxonomy: term?.taxonomy ?? definition.taxonomy,
             };
-        }).sort((a, b) => a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" }));
+        }).sort((a, b) => {
+            const aOrder = termOrder.get(a.value);
+            const bOrder = termOrder.get(b.value);
+            if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+            if (aOrder !== undefined) return -1;
+            if (bOrder !== undefined) return 1;
+            return a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" });
+        });
 
-        return { key: definition.key, label: definition.label, taxonomy: definition.taxonomy, options };
+        return {
+            key: definition.key,
+            label: definition.label,
+            taxonomy: definition.taxonomy,
+            collapsedVisibleCount: definition.collapsedVisibleCount,
+            options,
+        };
     }).filter((group) => group.options.length > 0);
 }

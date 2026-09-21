@@ -113,6 +113,7 @@ export type DoorCatalogFilterDefinition = {
     key: DoorCatalogFilterKey;
     label: string;
     taxonomy: string;
+    collapsedVisibleCount: number;
 };
 
 export type DoorFilterState = {
@@ -157,6 +158,7 @@ export type CatalogFilterGroup = {
     key: DoorCatalogFilterKey;
     label: string;
     taxonomy: string;
+    collapsedVisibleCount: number;
     options: CatalogFilterOption[];
 };
 
