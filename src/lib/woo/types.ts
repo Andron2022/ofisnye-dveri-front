@@ -319,6 +319,19 @@ export type DoorCartCandidate = {
     selectedAccessories: Array<{ productId: number; qty: number }>;
 };
 
+export type DoorPdpPresentationRow = {
+    key: string;
+    kind: "attribute" | "custom";
+    label: string;
+    values: string[];
+    order: number;
+};
+
+export type DoorPdpPresentation = {
+    summaryRows: DoorPdpPresentationRow[];
+    characteristicRows: DoorPdpPresentationRow[];
+};
+
 export type DoorProductDetails = {
     id: number;
     slug: string;
@@ -338,6 +351,7 @@ export type DoorProductDetails = {
     shortDescriptionHtml: string | null;
     descriptionHtml: string | null;
     attributes: DoorCatalogAttributes;
+    presentation: DoorPdpPresentation;
     family: DoorFamilyInfo;
     variantDimensions: DoorVariantDimension[];
     variantDimensionsSource: string;

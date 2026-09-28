@@ -32,6 +32,16 @@ if (schema.schema_version !== 2) throw new Error("Door configuration schema_vers
 for (const key of ["attributes", "catalog_filters", "option_groups", "accessory_groups"]) {
   if (!Array.isArray(schema[key])) throw new Error(`Door configuration ${key} must be an array`);
 }
+for (const attribute of schema.attributes) {
+  if (!attribute || typeof attribute !== "object") throw new Error("Door configuration attribute entry must be an object");
+  if (typeof attribute.taxonomy !== "string" || !attribute.taxonomy) throw new Error("Door configuration attribute taxonomy is missing");
+  for (const key of ["pdp_summary_enabled", "pdp_characteristics_enabled"]) {
+    if (typeof attribute[key] !== "boolean") throw new Error(`Door configuration attribute ${attribute.taxonomy}.${key} must be boolean`);
+  }
+  for (const key of ["pdp_summary_order", "pdp_characteristics_order"]) {
+    if (!Number.isInteger(attribute[key]) || attribute[key] < 0) throw new Error(`Door configuration attribute ${attribute.taxonomy}.${key} must be a non-negative integer`);
+  }
+}
 const modes = schema.fallback_modes;
 if (!modes || typeof modes !== "object") throw new Error("fallback_modes is missing");
 for (const key of ["family", "variant_dimensions", "order_options", "accessories"]) {

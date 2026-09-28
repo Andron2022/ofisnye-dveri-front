@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Door Product Schema & Configuration Policy (MU)
  * Description: Data-driven door schema registry, configuration policies, dependency guards and resolved headless contract.
- * Version: 2.0.2
+ * Version: 2.1.0
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -19,6 +19,7 @@ final class OD_Door_Product_Configuration {
     private const OPTION_FALLBACK_MODES = 'od_door_fallback_modes_v2';
     private const POLICY_META = 'od_door_configuration_policy_v2';
     private const CANONICAL_CATEGORY_META = 'od_door_configuration_category_id_v2';
+    private const PRODUCT_META_PDP_CUSTOM_CHARACTERISTICS = 'od_door_pdp_custom_characteristics_v1';
 
     private const ADMIN_PAGE = 'od-door-configuration-v2';
 
@@ -52,6 +53,9 @@ final class OD_Door_Product_Configuration {
         add_action( 'woocommerce_attribute_deleted', array( __CLASS__, 'sync_attribute_registry' ), 20, 0 );
         add_action( 'pre_delete_term', array( __CLASS__, 'guard_term_delete' ), 10, 2 );
         add_action( 'before_delete_post', array( __CLASS__, 'guard_product_delete' ), 10, 1 );
+        add_filter( 'woocommerce_product_data_tabs', array( __CLASS__, 'add_product_pdp_characteristics_tab' ) );
+        add_action( 'woocommerce_product_data_panels', array( __CLASS__, 'render_product_pdp_characteristics_panel' ) );
+        add_action( 'woocommerce_admin_process_product_object', array( __CLASS__, 'save_product_pdp_characteristics' ), 90, 1 );
         add_action( 'woocommerce_admin_process_product_object', array( __CLASS__, 'validate_product_before_admin_save' ), 100, 1 );
         add_action( 'set_object_terms', array( __CLASS__, 'validate_family_terms_after_set' ), 100, 6 );
     }
@@ -68,6 +72,54 @@ final class OD_Door_Product_Configuration {
         if ( is_bool( $value ) ) return $value;
         if ( is_numeric( $value ) ) return 1 === (int) $value;
         return in_array( strtolower( trim( (string) $value ) ), array( '1', 'true', 'yes', 'on' ), true );
+    }
+
+    private static function pdp_presentation_defaults( string $taxonomy, int $attribute_id ): array {
+        $summary_order = array(
+            'pa_material-dveri' => 40,
+            'pa_osteklenie' => 50,
+            'pa_tip-otkryvaniya' => 60,
+            'pa_napravlenie-otkryvaniya' => 80,
+            'pa_ognestoykost' => 90,
+            'pa_tip-ostekleniya' => 100,
+        );
+        $characteristics_order = array(
+            'pa_tsvet-dveri' => 10,
+            'pa_razmer-dveri' => 20,
+            'pa_kolichestvo-poloten' => 30,
+            'pa_material-dveri' => 40,
+            'pa_osteklenie' => 50,
+            'pa_tip-otkryvaniya' => 60,
+            'pa_naznachenie' => 70,
+            'pa_napravlenie-otkryvaniya' => 80,
+            'pa_ognestoykost' => 90,
+            'pa_tip-ostekleniya' => 100,
+        );
+        $fallback_order = 1000 + max( 0, $attribute_id );
+
+        return array(
+            'pdp_summary_enabled' => isset( $summary_order[ $taxonomy ] ),
+            'pdp_summary_order' => (int) ( $summary_order[ $taxonomy ] ?? $fallback_order ),
+            'pdp_characteristics_enabled' => isset( $characteristics_order[ $taxonomy ] ),
+            'pdp_characteristics_order' => (int) ( $characteristics_order[ $taxonomy ] ?? $fallback_order ),
+        );
+    }
+
+    private static function normalize_attribute_presentation( array $entry ): array {
+        $taxonomy = sanitize_key( (string) ( $entry['taxonomy'] ?? '' ) );
+        $defaults = self::pdp_presentation_defaults( $taxonomy, (int) ( $entry['attribute_id'] ?? 0 ) );
+
+        foreach ( $defaults as $key => $default ) {
+            if ( str_ends_with( $key, '_enabled' ) ) {
+                $entry[ $key ] = array_key_exists( $key, $entry ) && null !== $entry[ $key ]
+                    ? self::bool_value( $entry[ $key ] )
+                    : (bool) $default;
+            } else {
+                $entry[ $key ] = max( 0, (int) ( null !== ( $entry[ $key ] ?? null ) ? $entry[ $key ] : $default ) );
+            }
+        }
+
+        return $entry;
     }
 
     private static function int_list( $value ): array {
@@ -196,7 +248,7 @@ final class OD_Door_Product_Configuration {
             $woo_label = sanitize_text_field( (string) ( $attribute->attribute_label ?? '' ) );
             if ( '' === $woo_label ) $woo_label = $name;
 
-            $live[ $taxonomy ] = array(
+            $live[ $taxonomy ] = self::normalize_attribute_presentation( array(
                 'attribute_id' => $attribute_id,
                 'taxonomy' => $taxonomy,
                 'filter_key' => self::clean_key( $existing['filter_key'] ?? $name ),
@@ -208,7 +260,11 @@ final class OD_Door_Product_Configuration {
                 'catalog_filter_order' => (int) ( $existing['catalog_filter_order'] ?? ( $legacy['order'] ?? 1000 + $attribute_id ) ),
                 'display_type' => sanitize_key( (string) ( $existing['display_type'] ?? ( $legacy['display_type'] ?? 'checkbox' ) ) ),
                 'catalog_filter_collapsed_visible_count' => max( 0, (int) ( $existing['catalog_filter_collapsed_visible_count'] ?? 0 ) ),
-            );
+                'pdp_summary_enabled' => $existing['pdp_summary_enabled'] ?? null,
+                'pdp_summary_order' => $existing['pdp_summary_order'] ?? null,
+                'pdp_characteristics_enabled' => $existing['pdp_characteristics_enabled'] ?? null,
+                'pdp_characteristics_order' => $existing['pdp_characteristics_order'] ?? null,
+            ) );
             unset( $history[ $taxonomy ] );
         }
 
@@ -238,7 +294,13 @@ final class OD_Door_Product_Configuration {
                 : self::sync_attribute_registry();
         }
 
-        $registry = self::$attribute_registry_cache;
+        $registry = array();
+        foreach ( self::$attribute_registry_cache as $taxonomy => $entry ) {
+            if ( ! is_array( $entry ) ) continue;
+            if ( empty( $entry['taxonomy'] ) ) $entry['taxonomy'] = (string) $taxonomy;
+            $registry[ $taxonomy ] = self::normalize_attribute_presentation( $entry );
+        }
+        self::$attribute_registry_cache = $registry;
         uasort( $registry, static function ( array $a, array $b ): int {
             $order = (int) $a['catalog_filter_order'] <=> (int) $b['catalog_filter_order'];
             return 0 !== $order ? $order : strcasecmp( (string) $a['label'], (string) $b['label'] );
@@ -1074,6 +1136,8 @@ final class OD_Door_Product_Configuration {
         $registry = self::get_attribute_registry();
         $entry = $registry[ $taxonomy ] ?? null;
         if ( is_array( $entry ) && ! empty( $entry['catalog_filter_enabled'] ) ) $deps[] = 'включён в фильтры каталога';
+        if ( is_array( $entry ) && ! empty( $entry['pdp_summary_enabled'] ) ) $deps[] = 'используется в кратком блоке PDP';
+        if ( is_array( $entry ) && ! empty( $entry['pdp_characteristics_enabled'] ) ) $deps[] = 'используется в характеристиках PDP';
         if ( is_array( $entry ) && self::seo_uses_filter_key( (string) $entry['filter_key'] ) ) $deps[] = 'используется SEO-посадочной';
 
         if ( taxonomy_exists( $taxonomy ) ) {
@@ -1239,6 +1303,135 @@ final class OD_Door_Product_Configuration {
         wp_die( esc_html( 'Изменение door_family отменено: ' . $problem ), 'Door Configuration Guard', array( 'response' => 409 ) );
     }
 
+    public static function add_product_pdp_characteristics_tab( array $tabs ): array {
+        $tabs['od_door_pdp_characteristics'] = array(
+            'label' => 'Доп. характеристики PDP',
+            'target' => 'od_door_pdp_characteristics_product_data',
+            'class' => array( 'show_if_simple' ),
+            'priority' => 80,
+        );
+        return $tabs;
+    }
+
+    private static function get_product_pdp_custom_characteristics( int $product_id ): array {
+        $stored = get_post_meta( $product_id, self::PRODUCT_META_PDP_CUSTOM_CHARACTERISTICS, true );
+        if ( ! is_array( $stored ) ) return array();
+
+        $rows = array();
+        foreach ( $stored as $index => $row ) {
+            if ( ! is_array( $row ) ) continue;
+            $label = sanitize_text_field( (string) ( $row['label'] ?? '' ) );
+            $value = sanitize_textarea_field( (string) ( $row['value'] ?? '' ) );
+            if ( '' === $label || '' === $value ) continue;
+            $rows[] = array(
+                'label' => $label,
+                'value' => $value,
+                'order' => max( 0, (int) ( $row['order'] ?? ( (int) $index + 1 ) * 10 ) ),
+            );
+        }
+
+        usort( $rows, static fn( array $a, array $b ): int => ( $a['order'] <=> $b['order'] ) ?: strcasecmp( $a['label'], $b['label'] ) );
+        return $rows;
+    }
+
+    public static function render_product_pdp_characteristics_panel(): void {
+        global $post;
+        $product_id = $post instanceof WP_Post ? (int) $post->ID : 0;
+        $rows = $product_id > 0 ? self::get_product_pdp_custom_characteristics( $product_id ) : array();
+        $next_index = count( $rows );
+
+        echo '<div id="od_door_pdp_characteristics_product_data" class="panel woocommerce_options_panel hidden">';
+        echo '<div class="options_group">';
+        echo '<p style="padding:0 12px">Свободные характеристики только для этого товара. Повторяемые характеристики лучше создавать как Woo global attributes и включать через «Товары → Конфигурация дверей → Отображение PDP».</p>';
+        wp_nonce_field( 'od_door_pdp_characteristics_save', 'od_door_pdp_characteristics_nonce' );
+        echo '<div style="padding:0 12px 12px;overflow:auto">';
+        echo '<table class="widefat striped" id="od-door-pdp-characteristics-table">';
+        echo '<thead><tr><th style="width:25%">Название</th><th>Описание / значение</th><th style="width:90px">Порядок</th><th style="width:80px"></th></tr></thead>';
+        echo '<tbody id="od-door-pdp-characteristics-rows" data-next-index="' . (int) $next_index . '">';
+        foreach ( $rows as $index => $row ) {
+            echo '<tr>';
+            echo '<td><input type="text" style="width:100%" name="od_door_pdp_custom_characteristics[' . (int) $index . '][label]" value="' . esc_attr( $row['label'] ) . '"></td>';
+            echo '<td><textarea rows="2" style="width:100%" name="od_door_pdp_custom_characteristics[' . (int) $index . '][value]">' . esc_textarea( $row['value'] ) . '</textarea></td>';
+            echo '<td><input type="number" min="0" step="1" style="width:80px" name="od_door_pdp_custom_characteristics[' . (int) $index . '][order]" value="' . (int) $row['order'] . '"></td>';
+            echo '<td><button type="button" class="button od-remove-pdp-characteristic">Удалить</button></td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+        echo '<p><button type="button" class="button" id="od-add-pdp-characteristic">+ Добавить строку</button></p>';
+        echo '</div></div>';
+
+        echo <<<'HTML'
+<script>
+jQuery(function($) {
+    const $tbody = $('#od-door-pdp-characteristics-rows');
+    if (!$tbody.length) return;
+
+    let nextIndex = Number($tbody.data('next-index')) || 0;
+
+    $('#od-add-pdp-characteristic').on('click', function() {
+        const index = nextIndex++;
+        const defaultOrder = (index + 1) * 10;
+        $tbody.append(
+            '<tr>' +
+                '<td><input type="text" style="width:100%" name="od_door_pdp_custom_characteristics[' + index + '][label]" value=""></td>' +
+                '<td><textarea rows="2" style="width:100%" name="od_door_pdp_custom_characteristics[' + index + '][value]"></textarea></td>' +
+                '<td><input type="number" min="0" step="1" style="width:80px" name="od_door_pdp_custom_characteristics[' + index + '][order]" value="' + defaultOrder + '"></td>' +
+                '<td><button type="button" class="button od-remove-pdp-characteristic">Удалить</button></td>' +
+            '</tr>'
+        );
+    });
+
+    $tbody.on('click', '.od-remove-pdp-characteristic', function() {
+        $(this).closest('tr').remove();
+    });
+});
+</script>
+HTML;
+        echo '</div>';
+    }
+
+    public static function save_product_pdp_characteristics( $product ): void {
+        if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) || ! method_exists( $product, 'update_meta_data' ) ) return;
+        $product_id = (int) $product->get_id();
+        if ( $product_id <= 0 || ! current_user_can( 'edit_post', $product_id ) ) return;
+
+        $nonce = isset( $_POST['od_door_pdp_characteristics_nonce'] )
+            ? sanitize_text_field( wp_unslash( $_POST['od_door_pdp_characteristics_nonce'] ) )
+            : '';
+        if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'od_door_pdp_characteristics_save' ) ) return;
+
+        $submitted = is_array( $_POST['od_door_pdp_custom_characteristics'] ?? null )
+            ? wp_unslash( $_POST['od_door_pdp_custom_characteristics'] )
+            : array();
+
+        $rows = array();
+        $sequence = 0;
+        foreach ( $submitted as $row ) {
+            if ( ! is_array( $row ) ) continue;
+            $label = sanitize_text_field( (string) ( $row['label'] ?? '' ) );
+            $value = sanitize_textarea_field( (string) ( $row['value'] ?? '' ) );
+            if ( '' === $label || '' === $value ) continue;
+            $rows[] = array(
+                'label' => $label,
+                'value' => $value,
+                'order' => max( 0, (int) ( $row['order'] ?? 0 ) ),
+                '_sequence' => $sequence++,
+            );
+        }
+
+        usort( $rows, static fn( array $a, array $b ): int => ( $a['order'] <=> $b['order'] ) ?: ( $a['_sequence'] <=> $b['_sequence'] ) );
+        $rows = array_map( static function ( array $row ): array {
+            unset( $row['_sequence'] );
+            return $row;
+        }, $rows );
+
+        if ( empty( $rows ) ) {
+            $product->delete_meta_data( self::PRODUCT_META_PDP_CUSTOM_CHARACTERISTICS );
+        } else {
+            $product->update_meta_data( self::PRODUCT_META_PDP_CUSTOM_CHARACTERISTICS, $rows );
+        }
+    }
+
     /* ---------------------------------------------------------------------
      * Admin UI / save
      * ------------------------------------------------------------------ */
@@ -1303,6 +1496,22 @@ final class OD_Door_Product_Configuration {
             unset( $entry );
             update_option( self::OPTION_ATTRIBUTE_REGISTRY, $registry, false );
             self::redirect_admin( 'attributes', 'Реестр атрибутов и фильтров сохранён.' );
+        }
+
+        if ( 'pdp_presentation' === $section ) {
+            $registry = self::get_attribute_registry();
+            $submitted = is_array( $_POST['pdp'] ?? null ) ? wp_unslash( $_POST['pdp'] ) : array();
+            foreach ( $registry as $taxonomy => &$entry ) {
+                $row = is_array( $submitted[ $taxonomy ] ?? null ) ? $submitted[ $taxonomy ] : array();
+                $entry['pdp_summary_enabled'] = ! empty( $row['summary_enabled'] );
+                $entry['pdp_summary_order'] = max( 0, (int) ( $row['summary_order'] ?? $entry['pdp_summary_order'] ?? 0 ) );
+                $entry['pdp_characteristics_enabled'] = ! empty( $row['characteristics_enabled'] );
+                $entry['pdp_characteristics_order'] = max( 0, (int) ( $row['characteristics_order'] ?? $entry['pdp_characteristics_order'] ?? 0 ) );
+            }
+            unset( $entry );
+            update_option( self::OPTION_ATTRIBUTE_REGISTRY, $registry, false );
+            self::$attribute_registry_cache = $registry;
+            self::redirect_admin( 'pdp', 'Настройки отображения PDP сохранены.' );
         }
 
         if ( 'fallbacks' === $section ) {
@@ -1477,13 +1686,14 @@ final class OD_Door_Product_Configuration {
         if ( ! current_user_can( 'manage_woocommerce' ) ) return;
         $tab = sanitize_key( $_GET['tab'] ?? 'attributes' );
         $message = isset( $_GET['od_message'] ) ? sanitize_text_field( wp_unslash( $_GET['od_message'] ) ) : '';
-        $tabs = array( 'attributes' => 'Атрибуты и фильтры', 'options' => 'Опции заказа', 'policies' => 'Политики', 'fallbacks' => 'Fallback / диагностика', 'manifest' => 'Export / Import' );
+        $tabs = array( 'attributes' => 'Атрибуты и фильтры', 'pdp' => 'Отображение PDP', 'options' => 'Опции заказа', 'policies' => 'Политики', 'fallbacks' => 'Fallback / диагностика', 'manifest' => 'Export / Import' );
         echo '<div class="wrap"><h1>Конфигурация дверей</h1>';
         if ( $message ) echo '<div class="notice notice-info is-dismissible"><p>' . esc_html( rawurldecode( $message ) ) . '</p></div>';
         echo '<nav class="nav-tab-wrapper">';
         foreach ( $tabs as $key => $label ) echo '<a class="nav-tab ' . ( $tab === $key ? 'nav-tab-active' : '' ) . '" href="' . esc_url( self::admin_url( $key ) ) . '">' . esc_html( $label ) . '</a>';
         echo '</nav><div style="margin-top:20px;max-width:1200px">';
         if ( 'attributes' === $tab ) self::render_attributes_tab();
+        elseif ( 'pdp' === $tab ) self::render_pdp_presentation_tab();
         elseif ( 'options' === $tab ) self::render_options_tab();
         elseif ( 'policies' === $tab ) self::render_policies_tab();
         elseif ( 'fallbacks' === $tab ) self::render_fallbacks_tab();
@@ -1517,6 +1727,27 @@ final class OD_Door_Product_Configuration {
         echo '</tbody></table>'; submit_button( 'Сохранить фильтры' ); echo '</form>';
         $history = get_option( self::OPTION_ATTRIBUTE_HISTORY, array() );
         echo '<details style="margin-top:24px"><summary><strong>Удалённые / недоступные атрибуты</strong></summary><pre style="background:#fff;padding:12px;overflow:auto">' . esc_html( wp_json_encode( $history, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ) . '</pre></details>';
+    }
+
+    private static function render_pdp_presentation_tab(): void {
+        $registry = self::get_attribute_registry();
+        self::form_open( 'pdp_presentation' );
+        echo '<p>Настройки управляют только отображением Woo attributes на карточке двери. Названия всегда синхронизируются из Woo и здесь не переопределяются.</p>';
+        echo '<p>Новые Woo attributes по умолчанию не показываются на PDP, пока их явно не включить.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Attribute</th><th>Taxonomy</th><th>Краткий блок</th><th>Порядок</th><th>Характеристики</th><th>Порядок</th></tr></thead><tbody>';
+        foreach ( $registry as $taxonomy => $row ) {
+            echo '<tr>';
+            echo '<td><strong>' . esc_html( $row['label'] ) . '</strong><br><small>ID ' . (int) $row['attribute_id'] . '</small></td>';
+            echo '<td><code>' . esc_html( $taxonomy ) . '</code></td>';
+            echo '<td><label><input type="checkbox" name="pdp[' . esc_attr( $taxonomy ) . '][summary_enabled]" value="1" ' . checked( ! empty( $row['pdp_summary_enabled'] ), true, false ) . '> показывать</label></td>';
+            echo '<td><input type="number" min="0" step="1" style="width:90px" name="pdp[' . esc_attr( $taxonomy ) . '][summary_order]" value="' . max( 0, (int) ( $row['pdp_summary_order'] ?? 0 ) ) . '"></td>';
+            echo '<td><label><input type="checkbox" name="pdp[' . esc_attr( $taxonomy ) . '][characteristics_enabled]" value="1" ' . checked( ! empty( $row['pdp_characteristics_enabled'] ), true, false ) . '> показывать</label></td>';
+            echo '<td><input type="number" min="0" step="1" style="width:90px" name="pdp[' . esc_attr( $taxonomy ) . '][characteristics_order]" value="' . max( 0, (int) ( $row['pdp_characteristics_order'] ?? 0 ) ) . '"></td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+        submit_button( 'Сохранить отображение PDP' );
+        echo '</form>';
     }
 
     private static function render_options_tab(): void {
@@ -1756,6 +1987,10 @@ final class OD_Door_Product_Configuration {
                 'taxonomy' => $entry['taxonomy'], 'filter_key' => $entry['filter_key'], 'label' => $entry['label'],
                 'catalog_filter_enabled' => ! empty( $entry['catalog_filter_enabled'] ), 'catalog_filter_order' => (int) $entry['catalog_filter_order'], 'display_type' => $entry['display_type'],
                 'catalog_filter_collapsed_visible_count' => max( 0, (int) ( $entry['catalog_filter_collapsed_visible_count'] ?? 0 ) ),
+                'pdp_summary_enabled' => ! empty( $entry['pdp_summary_enabled'] ),
+                'pdp_summary_order' => max( 0, (int) ( $entry['pdp_summary_order'] ?? 0 ) ),
+                'pdp_characteristics_enabled' => ! empty( $entry['pdp_characteristics_enabled'] ),
+                'pdp_characteristics_order' => max( 0, (int) ( $entry['pdp_characteristics_order'] ?? 0 ) ),
             );
         }
         return array(
@@ -1791,6 +2026,10 @@ final class OD_Door_Product_Configuration {
             $registry[ $taxonomy ]['catalog_filter_order'] = (int) ( $role['catalog_filter_order'] ?? 0 );
             $registry[ $taxonomy ]['display_type'] = sanitize_key( (string) ( $role['display_type'] ?? 'checkbox' ) );
             $registry[ $taxonomy ]['catalog_filter_collapsed_visible_count'] = max( 0, (int) ( $role['catalog_filter_collapsed_visible_count'] ?? $registry[ $taxonomy ]['catalog_filter_collapsed_visible_count'] ?? 0 ) );
+            $registry[ $taxonomy ]['pdp_summary_enabled'] = self::bool_value( $role['pdp_summary_enabled'] ?? $registry[ $taxonomy ]['pdp_summary_enabled'] ?? false );
+            $registry[ $taxonomy ]['pdp_summary_order'] = max( 0, (int) ( $role['pdp_summary_order'] ?? $registry[ $taxonomy ]['pdp_summary_order'] ?? 0 ) );
+            $registry[ $taxonomy ]['pdp_characteristics_enabled'] = self::bool_value( $role['pdp_characteristics_enabled'] ?? $registry[ $taxonomy ]['pdp_characteristics_enabled'] ?? false );
+            $registry[ $taxonomy ]['pdp_characteristics_order'] = max( 0, (int) ( $role['pdp_characteristics_order'] ?? $registry[ $taxonomy ]['pdp_characteristics_order'] ?? 0 ) );
         }
         $options = self::normalize_option_registry( (array) ( $manifest['option_registry'] ?? array() ) );
         if ( empty( $options ) ) $errors[] = 'Option Registry manifest пуст.';

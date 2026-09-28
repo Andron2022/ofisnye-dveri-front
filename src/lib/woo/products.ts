@@ -12,7 +12,7 @@ import {
     type DoorSeoLanding,
 } from "@src/lib/wp/door-seo-landings";
 import { buildCatalogFilterGroups } from "@src/lib/woo/catalog-filters";
-import { getDoorProductConfiguration } from "@src/lib/wp/door-product-configuration";
+import { getDoorConfigurationSchema, getDoorProductConfiguration } from "@src/lib/wp/door-product-configuration";
 import {
     buildDoorFilterState,
     doorFilterStateFullyResolvesActiveFilters,
@@ -32,6 +32,8 @@ import type {
     DoorFeedProduct,
     DoorOptionChoice,
     DoorOrderOptions,
+    DoorPdpPresentation,
+    DoorPdpPresentationRow,
     DoorProductDetails,
     DoorRouteCategory,
     DoorSeoRoutingDescriptor,
@@ -48,6 +50,7 @@ const ROOT_CATEGORY_BY_TYPE: Record<CatalogType, string> = {
 };
 
 const DOOR_ROOT_CATEGORY_SLUG = ROOT_CATEGORY_BY_TYPE.doors;
+const ACCESSORY_ROOT_CATEGORY_SLUG = "furnitura";
 
 const WOO_CATEGORY_SLUG_TO_ROUTE_SLUG_ALIAS: Record<string, string> = {
     "skrytye-dveri": "skrytye",
@@ -228,6 +231,89 @@ function getGlazingType(product: WooProduct): string[] | undefined {
 
 function getPurpose(product: WooProduct): string[] | undefined {
     return getAttributeOptionsBySlugs(product, ["pa_naznachenie", "naznachenie"]);
+}
+
+const DOOR_PDP_CUSTOM_CHARACTERISTICS_META = "od_door_pdp_custom_characteristics_v1";
+
+function normalizeDoorPdpCustomCharacteristics(product: WooProduct): DoorPdpPresentationRow[] {
+    const rawValue = getMetaValue(product.meta_data, DOOR_PDP_CUSTOM_CHARACTERISTICS_META);
+    let rawRows: unknown = rawValue;
+
+    if (typeof rawRows === "string") {
+        try {
+            rawRows = JSON.parse(rawRows);
+        } catch {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(rawRows)) return [];
+
+    return rawRows.flatMap((rowValue, index) => {
+        if (!rowValue || typeof rowValue !== "object" || Array.isArray(rowValue)) return [];
+        const row = rowValue as Record<string, unknown>;
+        const label = typeof row.label === "string" ? row.label.trim() : "";
+        const value = typeof row.value === "string" ? row.value.trim() : "";
+        if (!label || !value) return [];
+        const parsedOrder = Number(row.order);
+        return [{
+            key: `custom:${index}:${label}`,
+            kind: "custom" as const,
+            label,
+            values: [value],
+            order: Number.isFinite(parsedOrder) && parsedOrder >= 0 ? Math.trunc(parsedOrder) : (index + 1) * 10,
+        }];
+    });
+}
+
+function sortDoorPdpRows(rows: DoorPdpPresentationRow[]): DoorPdpPresentationRow[] {
+    return [...rows].sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order;
+        if (a.kind !== b.kind) return a.kind === "attribute" ? -1 : 1;
+        return a.label.localeCompare(b.label, "ru");
+    });
+}
+
+function buildDoorPdpPresentation(
+    product: WooProduct,
+    attributes: DoorCatalogAttributes,
+    schemaAttributes: Awaited<ReturnType<typeof getDoorConfigurationSchema>>["attributes"],
+): DoorPdpPresentation {
+    const summaryRows: DoorPdpPresentationRow[] = [];
+    const characteristicRows: DoorPdpPresentationRow[] = [];
+
+    for (const schemaAttribute of schemaAttributes) {
+        if (!schemaAttribute.exists) continue;
+        const values = attributes[schemaAttribute.taxonomy];
+        if (!values || values.length === 0) continue;
+
+        if (schemaAttribute.pdpSummaryEnabled) {
+            summaryRows.push({
+                key: schemaAttribute.taxonomy,
+                kind: "attribute",
+                label: schemaAttribute.label,
+                values,
+                order: schemaAttribute.pdpSummaryOrder,
+            });
+        }
+
+        if (schemaAttribute.pdpCharacteristicsEnabled) {
+            characteristicRows.push({
+                key: schemaAttribute.taxonomy,
+                kind: "attribute",
+                label: schemaAttribute.label,
+                values,
+                order: schemaAttribute.pdpCharacteristicsOrder,
+            });
+        }
+    }
+
+    characteristicRows.push(...normalizeDoorPdpCustomCharacteristics(product));
+
+    return {
+        summaryRows: sortDoorPdpRows(summaryRows),
+        characteristicRows: sortDoorPdpRows(characteristicRows),
+    };
 }
 
 function mapDoorAttributes(product: WooProduct): DoorCatalogAttributes {
@@ -588,11 +674,23 @@ function sortAccessories(items: DoorAccessoryCard[]): DoorAccessoryCard[] {
 
 async function getResolvedAccessories(
     groups: Awaited<ReturnType<typeof getDoorProductConfiguration>>["accessoryGroups"],
+    categories: WooProductCategoryTerm[],
 ): Promise<DoorProductDetails["accessories"]> {
+    const accessoryRoot = categories.find((category) => category.slug === ACCESSORY_ROOT_CATEGORY_SLUG);
+    const groupOrder = new Map<string, number>();
+    if (accessoryRoot) {
+        for (const category of categories) {
+            if (category.parent !== accessoryRoot.id) continue;
+            if (typeof category.menu_order === "number" && Number.isFinite(category.menu_order)) {
+                groupOrder.set(category.slug, category.menu_order);
+            }
+        }
+    }
+
     const allIds = Array.from(new Set(groups.flatMap((group) => group.productIds)));
     const products = await getProductsByIds(allIds);
     const byId = new Map(products.map((product) => [product.id, product]));
-    return groups.flatMap((group) => {
+    const resolved = groups.flatMap((group) => {
         const items = sortAccessories(
             group.productIds
                 .map((id) => byId.get(id))
@@ -608,6 +706,12 @@ async function getResolvedAccessories(
             items,
         }] : [];
     });
+    // The group key is the direct Woo subcategory slug even when a policy
+    // selects products from a deeper category within that group.
+    return resolved.sort((a, b) => (
+        (groupOrder.get(a.key) ?? Number.MAX_SAFE_INTEGER)
+        - (groupOrder.get(b.key) ?? Number.MAX_SAFE_INTEGER)
+    ));
 }
 
 async function mapDoorProductDetails(
@@ -616,15 +720,19 @@ async function mapDoorProductDetails(
     rootCategory: WooProductCategoryTerm,
     routeContext: DoorRouteContext,
 ): Promise<DoorProductDetails> {
-    void categories;
     void rootCategory;
     const categorySlugs = product.categories.map((category) => category.slug);
     const preferredCategory = getPreferredDoorCategoryNodeForProduct(product, routeContext);
-    const configuration = await getDoorProductConfiguration(product.id);
+    const [configuration, schema] = await Promise.all([
+        getDoorProductConfiguration(product.id),
+        getDoorConfigurationSchema(),
+    ]);
+    const attributes = mapDoorAttributes(product);
+    const presentation = buildDoorPdpPresentation(product, attributes, schema.attributes);
 
     const siblingProducts = await getProductsByIds(configuration.family.siblingIds);
     const siblings = siblingProducts.map((item) => mapDoorFamilySibling(item, product.id, routeContext));
-    const accessories = await getResolvedAccessories(configuration.accessoryGroups);
+    const accessories = await getResolvedAccessories(configuration.accessoryGroups, categories);
     const orderOptions: DoorOrderOptions = configuration.optionGroups.map((group) => ({
         key: group.key,
         title: group.title,
@@ -657,7 +765,8 @@ async function mapDoorProductDetails(
         routeCategory: preferredCategory,
         shortDescriptionHtml: getHtmlOrNull(product.short_description),
         descriptionHtml: getHtmlOrNull(product.description),
-        attributes: mapDoorAttributes(product),
+        attributes,
+        presentation,
         family: {
             id: configuration.family.id,
             code: configuration.family.slug || configuration.family.name || null,

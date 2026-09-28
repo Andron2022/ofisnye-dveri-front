@@ -7,6 +7,23 @@ export type DoorConfigurationFallbackModes = {
     accessories: boolean;
 };
 
+export type DoorConfigurationSchemaAttribute = {
+    attributeId: number;
+    taxonomy: string;
+    filterKey: string;
+    label: string;
+    exists: boolean;
+    pdpSummaryEnabled: boolean;
+    pdpSummaryOrder: number;
+    pdpCharacteristicsEnabled: boolean;
+    pdpCharacteristicsOrder: number;
+};
+
+export type DoorConfigurationSchema = {
+    schemaVersion: number;
+    attributes: DoorConfigurationSchemaAttribute[];
+};
+
 export type DoorConfigurationVariantDimension = {
     attributeId: number;
     taxonomy: string;
@@ -98,6 +115,36 @@ function stringArray(value: unknown): string[] {
 function intArray(value: unknown): number[] {
     if (!Array.isArray(value)) return [];
     return Array.from(new Set(value.map(integer).filter((id) => id > 0)));
+}
+
+function normalizeSchemaAttribute(value: unknown): DoorConfigurationSchemaAttribute | null {
+    const raw = object(value);
+    if (!raw) return null;
+    const taxonomy = str(raw.taxonomy);
+    if (!taxonomy) return null;
+    return {
+        attributeId: integer(raw.attribute_id),
+        taxonomy,
+        filterKey: str(raw.filter_key) || taxonomy.replace(/^pa_/, ""),
+        label: str(raw.label) || taxonomy,
+        exists: bool(raw.exists),
+        pdpSummaryEnabled: bool(raw.pdp_summary_enabled),
+        pdpSummaryOrder: Math.max(0, integer(raw.pdp_summary_order)),
+        pdpCharacteristicsEnabled: bool(raw.pdp_characteristics_enabled),
+        pdpCharacteristicsOrder: Math.max(0, integer(raw.pdp_characteristics_order)),
+    };
+}
+
+export async function getDoorConfigurationSchema(revalidateSeconds = 60): Promise<DoorConfigurationSchema> {
+    const raw = await wpNamespaceGet<RawObject>("od/v1/door-configuration/schema", {}, revalidateSeconds);
+    return {
+        schemaVersion: integer(raw.schema_version),
+        attributes: Array.isArray(raw.attributes)
+            ? raw.attributes
+                .map(normalizeSchemaAttribute)
+                .filter((item): item is DoorConfigurationSchemaAttribute => Boolean(item))
+            : [],
+    };
 }
 
 function normalizeFamily(value: unknown): DoorConfigurationFamily {

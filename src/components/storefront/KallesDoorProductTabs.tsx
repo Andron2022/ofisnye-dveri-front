@@ -1,29 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { DoorCatalogAttributes } from "@src/lib/woo/types";
+import type { DoorPdpPresentationRow } from "@src/lib/woo/types";
 import type { DoorPdpServiceTabsContent } from "@src/lib/wp/door-pdp-service-tabs";
 
 type TabKey = "description" | "additional" | "care" | "warranty";
 
 type KallesDoorProductTabsProps = {
     descriptionHtml: string | null;
-    attributes: DoorCatalogAttributes;
+    characteristicRows: DoorPdpPresentationRow[];
     serviceTabs: DoorPdpServiceTabsContent;
 };
 
-function joinAttributeValues(values?: string[]): string {
-    if (!values || values.length === 0) return "—";
-    return values.join(", ");
-}
-
-function AttributeRow({ label, value }: { label: string; value?: string[] }) {
-    if (!value || value.length === 0) return null;
+function SpecificationRow({ row }: { row: DoorPdpPresentationRow }) {
+    if (row.values.length === 0) return null;
 
     return (
         <tr>
-            <th scope="row" className="fw-semibold" style={{ width: "30%" }}>{label}</th>
-            <td>{joinAttributeValues(value)}</td>
+            <th scope="row" className="fw-semibold" style={{ width: "30%" }}>{row.label}</th>
+            <td style={row.kind === "custom" ? { whiteSpace: "pre-line" } : undefined}>
+                {row.values.join(", ")}
+            </td>
         </tr>
     );
 }
@@ -41,21 +38,16 @@ function DescriptionPane({ descriptionHtml }: { descriptionHtml: string | null }
     );
 }
 
-function AdditionalPane({ attributes }: { attributes: DoorCatalogAttributes }) {
+function AdditionalPane({ rows }: { rows: DoorPdpPresentationRow[] }) {
+    if (rows.length === 0) {
+        return <p className="mb-0 text-muted">Характеристики для этого товара уточняются.</p>;
+    }
+
     return (
         <div className="table-responsive">
             <table className="table table-bordered align-middle mb-0">
                 <tbody>
-                <AttributeRow label="Цвет" value={attributes.color} />
-                <AttributeRow label="Размер" value={attributes.size} />
-                <AttributeRow label="Количество полотен" value={attributes.leafCount} />
-                <AttributeRow label="Материал" value={attributes.material} />
-                <AttributeRow label="Остекление" value={attributes.glazing} />
-                <AttributeRow label="Тип открывания" value={attributes.openingType} />
-                <AttributeRow label="Назначение" value={attributes.purpose} />
-                <AttributeRow label="Направление открывания" value={attributes.openingDirection} />
-                <AttributeRow label="Огнестойкость" value={attributes.fireResistance} />
-                <AttributeRow label="Тип остекления" value={attributes.glazingType} />
+                {rows.map((row) => <SpecificationRow key={row.key} row={row} />)}
                 </tbody>
             </table>
         </div>
@@ -99,7 +91,7 @@ function ServiceHtmlPane({ contentHtml }: { contentHtml: string }) {
     );
 }
 
-export default function KallesDoorProductTabs({ descriptionHtml, attributes, serviceTabs }: KallesDoorProductTabsProps) {
+export default function KallesDoorProductTabs({ descriptionHtml, characteristicRows, serviceTabs }: KallesDoorProductTabsProps) {
     const [activeTab, setActiveTab] = useState<TabKey>("description");
 
     const tabs: Array<{ key: TabKey; label: string }> = [
@@ -134,7 +126,7 @@ export default function KallesDoorProductTabs({ descriptionHtml, attributes, ser
 
                 <div className="tab-content">
                     {activeTab === "description" ? <DescriptionPane descriptionHtml={descriptionHtml} /> : null}
-                    {activeTab === "additional" ? <AdditionalPane attributes={attributes} /> : null}
+                    {activeTab === "additional" ? <AdditionalPane rows={characteristicRows} /> : null}
                     {activeTab === "care" ? <ServiceHtmlPane contentHtml={serviceTabs.care.contentHtml} /> : null}
                     {activeTab === "warranty" ? <ServiceHtmlPane contentHtml={serviceTabs.warranty.contentHtml} /> : null}
                 </div>

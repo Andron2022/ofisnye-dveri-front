@@ -22,7 +22,6 @@ import {
 } from "@src/lib/woo/catalog-filters";
 import type {
     CatalogActiveFilters,
-    DoorCatalogAttributes,
     DoorCatalogFilterKey,
     DoorCategoryInfo,
     DoorFamilySibling,
@@ -55,44 +54,8 @@ function formatPrice(price: string | null): string {
     return `${new Intl.NumberFormat("ru-RU").format(normalized)} ₽`;
 }
 
-function joinAttributeValues(values?: string[]): string {
-    if (!values || values.length === 0) return "—";
-    return values.join(", ");
-}
-
 function firstAttributeValue(values?: string[]): string | null {
     return values?.[0] ?? null;
-}
-
-function ProductSpecRow({ label, value }: { label: string; value?: string[] }) {
-    return (
-        <li className="d-flex justify-content-between gap-3 py-2 border-bottom small">
-            <span className="text-muted">{label}</span>
-            <span className="text-end">{joinAttributeValues(value)}</span>
-        </li>
-    );
-}
-
-function OptionalProductSpecRow({ label, value }: { label: string; value?: string[] }) {
-    if (!value || value.length === 0) return null;
-    return <ProductSpecRow label={label} value={value} />;
-}
-
-function DoorAttributesList({ attributes }: { attributes: DoorCatalogAttributes }) {
-    return (
-        <ul className="list-unstyled mb-0">
-            <ProductSpecRow label="Цвет" value={attributes.color} />
-            <ProductSpecRow label="Размер" value={attributes.size} />
-            <ProductSpecRow label="Полотна" value={attributes.leafCount} />
-            <ProductSpecRow label="Материал" value={attributes.material} />
-            <ProductSpecRow label="Остекление" value={attributes.glazing} />
-            <ProductSpecRow label="Открывание" value={attributes.openingType} />
-            <OptionalProductSpecRow label="Назначение" value={attributes.purpose} />
-            <OptionalProductSpecRow label="Направление" value={attributes.openingDirection} />
-            <OptionalProductSpecRow label="Огнестойкость" value={attributes.fireResistance} />
-            <OptionalProductSpecRow label="Тип остекления" value={attributes.glazingType} />
-        </ul>
-    );
 }
 
 function getDoorCategoryLead(category: DoorCategoryInfo): string {
@@ -692,19 +655,6 @@ function ProductMetaLinks() {
     );
 }
 
-const PRODUCT_META_ATTRIBUTE_ROWS: Array<{
-    key: Exclude<keyof DoorCatalogAttributes, "color" | "size" | "leafCount">;
-    label: string;
-}> = [
-    { key: "material", label: "Материал" },
-    { key: "glazing", label: "Остекление" },
-    { key: "openingType", label: "Тип открывания" },
-    // { key: "purpose", label: "Назначение" },
-    { key: "openingDirection", label: "Направление открывания" },
-    { key: "fireResistance", label: "Огнестойкость" },
-    { key: "glazingType", label: "Тип остекления" },
-];
-
 function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
     return (
         <div className="mt-3 small">
@@ -718,17 +668,12 @@ function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
                     ))}</span>
                 </p>
             ) : null}
-            {PRODUCT_META_ATTRIBUTE_ROWS.map(({ key, label }) => {
-                const values = product.attributes[key];
-                if (!values || values.length === 0) return null;
-
-                return (
-                    <p key={key} className="mb-1">
-                        <span>{label}:</span>
-                        <span className="text-muted"> {values.join(", ")}</span>
-                    </p>
-                );
-            })}
+            {product.presentation.summaryRows.map((row) => (
+                <p key={row.key} className="mb-1">
+                    <span>{row.label}:</span>
+                    <span className="text-muted"> {row.values.join(", ")}</span>
+                </p>
+            ))}
         </div>
     );
 }
@@ -818,7 +763,7 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
                 <DoorProductConfigurator product={product} />
                 <KallesDoorProductTabs
                     descriptionHtml={product.descriptionHtml}
-                    attributes={product.attributes}
+                    characteristicRows={product.presentation.characteristicRows}
                     serviceTabs={doorPdpSettings.serviceTabs}
                 />
                 <DoorFamilyCardsSection product={product} />
