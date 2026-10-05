@@ -11,6 +11,7 @@ import type {
     DoorOptionGroup,
     DoorProductDetails,
 } from "@src/lib/woo/types";
+import type { DoorPdpConfiguratorComplectContent } from "@src/lib/wp/door-pdp-service-tabs";
 
 type SelectedOptions = DoorCartCandidate["selectedOptions"];
 type SelectedAccessoryMap = Record<number, number>;
@@ -190,7 +191,7 @@ function AccessoryRow({ item, qty, onQtyChange }: {
             </td>
             <td className="text-nowrap fw-medium">{formatPrice(item.price)}</td>
             <td className="text-nowrap">
-                <div className="input-step border rounded-pill bg-white mx-auto">
+                <div className="input-step border rounded-pill bg-white">
                     <button type="button" aria-label="Уменьшить количество" onClick={() => onQtyChange(Math.max(0, qty - 1))}>−</button>
                     <input
                         id={`accessory-${item.id}`}
@@ -207,16 +208,6 @@ function AccessoryRow({ item, qty, onQtyChange }: {
                 </div>
             </td>
             <td className="text-nowrap fw-medium">{formatPrice(lineTotal)}</td>
-            <td className="text-end">
-                <button
-                    type="button"
-                    className="btn btn-info text-white rounded-3 px-3 text-nowrap"
-                    onClick={() => onQtyChange(Math.max(qty, item.recommendedQty || 1))}
-                >
-                    <i className="iccl iccl-cart me-2" />
-                    Добавить к комплекту
-                </button>
-            </td>
         </tr>
     );
 }
@@ -230,7 +221,7 @@ function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
     if (items.length === 0) return null;
 
     return (
-        <div className="mb-5">
+        <div className="mb-4">
             <h3 className="fs-5 mb-3">{title}</h3>
             <div className="table-responsive">
                 <table className="table align-middle mb-0">
@@ -239,9 +230,8 @@ function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
                         <th scope="col">Фото</th>
                         <th scope="col">Фурнитура</th>
                         <th scope="col">Цена</th>
-                        <th scope="col" className="text-center">Количество</th>
+                        <th scope="col">Количество</th>
                         <th scope="col">Стоимость</th>
-                        <th scope="col" className="text-end">Выбор</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -260,7 +250,10 @@ function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
     );
 }
 
-export default function DoorProductConfigurator({ product }: { product: DoorProductDetails }) {
+export default function DoorProductConfigurator({ product, complectContent }: {
+    product: DoorProductDetails;
+    complectContent: DoorPdpConfiguratorComplectContent;
+}) {
     const { addItem, isHydrated } = useCart();
     const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>(() => getInitialSelectedOptions(product));
     const [selectedAccessories, setSelectedAccessories] = useState<SelectedAccessoryMap>({});
@@ -310,11 +303,11 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
     return (
         <section id="door-configurator" className="py-5 bg-light border-top">
             <div className="container">
-                <div className="bg-white p-4 p-lg-5 mb-5">
-                    <div className="mb-4 pb-4 border-bottom">
-                        <p className="text-uppercase text-muted mb-2 small">Выбор комплектации</p>
-                        <h2 className="fs-3 mb-2">Комплектация двери</h2>
-                        <p className="text-muted mb-0">Выберите доступные для этой двери опции. Итоговая стоимость пересчитывается автоматически.</p>
+                <div className="bg-white p-3 p-lg-4 mb-5">
+                    <div className="mb-4 pb-4 border-bottom text-center">
+                        <p className="text-uppercase text-muted mb-2 small">{complectContent.eyebrow}</p>
+                        <h2 className="fs-3 mb-2">{complectContent.title}</h2>
+                        <p className="text-muted mb-0">{complectContent.description}</p>
                     </div>
 
                     {product.orderOptions.length > 0 ? (
@@ -332,9 +325,8 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                     ) : <p className="text-muted mb-0">Для этой двери дополнительные опции не настроены.</p>}
                 </div>
 
-                <div className="bg-white p-4 p-lg-5 mb-5">
-                    <p className="text-uppercase text-muted mb-2 small">Фурнитура</p>
-                    <h2 className="fs-3 mb-4">Фурнитура</h2>
+                <div className="bg-white p-4 mb-5">
+                    <h2 className="fs-3 mb-4 text-center">Фурнитура</h2>
                     {product.accessories.length > 0 ? product.accessories.map((group) => (
                         <AccessoriesGroup
                             key={group.key}
@@ -347,7 +339,7 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                 </div>
 
                 <div className="bg-white p-4">
-                    <div className="mb-3 pb-3 border-bottom">
+                    <div className="mb-3 pb-3 border-bottom text-center">
                         <h3 className="fs-5 mb-1">Добавить выбранный комплект в корзину</h3>
                         <p className="text-muted mb-0 small">Проверьте состав комплекта перед добавлением в корзину.</p>
                     </div>
@@ -411,19 +403,20 @@ export default function DoorProductConfigurator({ product }: { product: DoorProd
                                 </button>
                             </div>
 
+                            {addedItemKey ? (
+                                <div className="alert alert-success mb-0 d-flex flex-column gap-2 align-items-start" role="status">
+                                    <span>Комплект добавлен в корзину.</span>
+                                    <Link href="/shopping-cart" className="btn btn-sm btn-outline-dark rounded-pill">
+                                        Перейти в корзину
+                                    </Link>
+                                </div>
+                            ) : null}
+
                             <p className="text-muted mb-0 small">В корзину попадёт дверь, выбранная комплектация и отмеченная фурнитура. Доставка и установка подтверждаются менеджером.</p>
                         </div>
                     </div>
                 </div>
 
-                {addedItemKey ? (
-                    <div className="alert alert-success mt-3 mb-0 d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
-                        <span>Комплект добавлен в корзину.</span>
-                        <Link href="/shopping-cart" className="btn btn-sm btn-outline-dark rounded-pill">
-                            Перейти в корзину
-                        </Link>
-                    </div>
-                ) : null}
             </div>
         </section>
     );

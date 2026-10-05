@@ -495,7 +495,7 @@ function VariantPicker({ product, axis }: { product: DoorProductDetails; axis: V
 
     if (axis.isColor) {
         return (
-            <div className="mb-2">
+            <div className="mb-1">
                 <h6 className="text-uppercase fw-bold mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
                 <div className="product-color-list mt-1 gap-2 d-flex align-items-center flex-wrap">
                     {values.map((value) => {
@@ -512,8 +512,8 @@ function VariantPicker({ product, axis }: { product: DoorProductDetails; axis: V
     }
 
     return (
-        <div className="pt-1 mb-2 pb-1">
-            <h6 className="text-uppercase fw-bold mt-2 mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
+        <div className="pt-1 mb-1">
+            <h6 className="text-uppercase fw-bold mt-1 mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
             <div className="d-flex flex-wrap gap-2">
                 {values.map((value) => {
                     const exactSibling = findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value });
@@ -609,7 +609,7 @@ function DoorFamilyCardsSection({ product }: { product: DoorProductDetails }) {
     if (!product.family.code || siblings.length === 0) return null;
 
     return (
-        <section className="py-5 bg-white">
+        <section className="py-4 bg-white">
             <div className="container">
                 <h2 className="fs-4 text-center mb-4">Другие варианты этой коллекции</h2>
                 <div className="row g-3 row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-5">
@@ -657,7 +657,7 @@ function ProductMetaLinks() {
 
 function ProductMetaBlock({ product }: { product: DoorProductDetails }) {
     return (
-        <div className="mt-3 small">
+        <div className="mt-3 fs-6 lh-sm">
             {product.publicArticleNo ? <p className="mb-1"><span>Арт.:</span><span className="text-muted"> {product.publicArticleNo}</span></p> : null}
             <p className="mb-1"><span>Наличие:</span><span className="text-muted"> {product.stockStatus === "instock" ? "в наличии" : product.stockStatus || "уточняется"}</span></p>
             {product.categories.length > 0 ? (
@@ -720,9 +720,9 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
                     </div>
                 </section>
 
-                <section className="py-4">
+                <section className="pt-3 pb-4">
                     <div className="container">
-                        <div className="row py-3 gx-xl-5 gy-4 align-items-start">
+                        <div className="row pt-1 pb-3 gx-xl-5 gy-4 align-items-start">
                             <div className="col-12 col-lg-6">
                                 <KallesDoorProductGallery
                                     productName={product.name}
@@ -734,7 +734,7 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
                             <div className="col-12 col-lg-6">
                                 <h1 className="fs-3 fw-semibold mb-2">{product.name}</h1>
 
-                                <div className="d-flex flex-wrap gap-3 align-items-center mb-3">
+                                <div className="d-flex flex-wrap gap-3 align-items-center mb-2">
                                     <strong className="fs-2 fw-semibold">{formatPrice(product.price)}</strong>
                                     {product.regularPrice && product.salePrice && product.regularPrice !== product.salePrice ? (
                                         <span className="text-muted text-decoration-line-through fs-5">{formatPrice(product.regularPrice)}</span>
@@ -760,7 +760,7 @@ async function DoorProductPage({ product }: { product: DoorProductDetails }) {
                 </section>
 
                 {doorPdpSettings.showFamilyTechnicalMatrix ? <DoorFamilyTechnicalMatrix product={product} /> : null}
-                <DoorProductConfigurator product={product} />
+                <DoorProductConfigurator product={product} complectContent={doorPdpSettings.configuratorComplect} />
                 <KallesDoorProductTabs
                     descriptionHtml={product.descriptionHtml}
                     characteristicRows={product.presentation.characteristicRows}

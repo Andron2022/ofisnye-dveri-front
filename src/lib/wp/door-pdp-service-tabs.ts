@@ -20,6 +20,13 @@ export type DoorPdpServiceTabsContent = {
 export type DoorPdpPageSettings = {
     serviceTabs: DoorPdpServiceTabsContent;
     showFamilyTechnicalMatrix: boolean;
+    configuratorComplect: DoorPdpConfiguratorComplectContent;
+};
+
+export type DoorPdpConfiguratorComplectContent = {
+    eyebrow: string;
+    title: string;
+    description: string;
 };
 
 const FALLBACK_DOOR_PDP_SERVICE_TABS: DoorPdpServiceTabsContent = {
@@ -125,6 +132,7 @@ export function getFallbackDoorPdpPageSettings(): DoorPdpPageSettings {
     return {
         serviceTabs: FALLBACK_DOOR_PDP_SERVICE_TABS,
         showFamilyTechnicalMatrix: DEFAULT_SHOW_FAMILY_TECHNICAL_MATRIX,
+        configuratorComplect: { eyebrow: "", title: "", description: "" },
     };
 }
 
@@ -143,6 +151,11 @@ function normalizeDoorPdpPageSettings(acf: WpPageAcf): DoorPdpPageSettings {
             }),
         },
         showFamilyTechnicalMatrix: asOptionalBoolean(acf.door_pdp_family_matrix_enabled) ?? DEFAULT_SHOW_FAMILY_TECHNICAL_MATRIX,
+        configuratorComplect: {
+            eyebrow: asString(acf.door_pdp_configurator_complect_eyebrow),
+            title: asString(acf.door_pdp_configurator_complect_title),
+            description: asString(acf.door_pdp_configurator_complect_description),
+        },
     };
 }
 

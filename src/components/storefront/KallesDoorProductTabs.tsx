@@ -102,7 +102,7 @@ export default function KallesDoorProductTabs({ descriptionHtml, characteristicR
     ];
 
     return (
-        <section className="mt-4 mb-5 py-5 main-project-section">
+        <section className="mt-4 mb-4 py-4 main-project-section">
             <div className="container">
                 <div className="nav tab_header justify-content-center row mb-5">
                     <div className="col">
