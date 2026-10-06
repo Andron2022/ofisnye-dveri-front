@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Door Product Schema & Configuration Policy (MU)
  * Description: Data-driven door schema registry, configuration policies, dependency guards and resolved headless contract.
- * Version: 2.1.0
+ * Version: 2.1.1
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -1240,7 +1240,7 @@ final class OD_Door_Product_Configuration {
     public static function validate_product_before_admin_save( $product ): void {
         if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) || ! method_exists( $product, 'get_attributes' ) ) return;
         $product_id = (int) $product->get_id();
-        if ( $product_id <= 0 ) return;
+        if ( $product_id <= 0 || ! self::product_in_door_tree( $product_id ) ) return;
 
         $resolved = self::resolve_product( $product_id );
         if ( 'legacy_static_fallback' === ( $resolved['variant_dimensions_source'] ?? '' ) ) return;
@@ -1280,14 +1280,21 @@ final class OD_Door_Product_Configuration {
 
     public static function validate_family_terms_after_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ): void {
         unset( $terms, $tt_ids, $append );
-        if ( self::$family_terms_rollback || 'door_family' !== $taxonomy || 'product' !== get_post_type( (int) $object_id ) ) return;
-        $assigned = get_the_terms( (int) $object_id, 'door_family' );
+        $product_id = (int) $object_id;
+        if (
+            self::$family_terms_rollback
+            || 'door_family' !== $taxonomy
+            || 'product' !== get_post_type( $product_id )
+            || ! self::product_in_door_tree( $product_id )
+        ) return;
+
+        $assigned = get_the_terms( $product_id, 'door_family' );
         $assigned = is_array( $assigned ) ? array_values( array_filter( $assigned, static fn( $term ): bool => $term instanceof WP_Term ) ) : array();
         $problem = '';
         if ( count( $assigned ) > 1 ) $problem = 'Товару нельзя назначить больше одного door_family.';
         if ( 0 === count( $assigned ) && ! self::get_fallback_modes()['family'] ) $problem = 'Family fallback выключен: опубликованная дверь должна иметь один door_family.';
         if ( '' === $problem ) {
-            $variant_issues = self::strict_variant_issues_for_product( (int) $object_id );
+            $variant_issues = self::strict_variant_issues_for_product( $product_id );
             if ( ! empty( $variant_issues ) ) $problem = implode( ' ', $variant_issues );
         }
         if ( '' === $problem ) return;
@@ -1298,7 +1305,7 @@ final class OD_Door_Product_Configuration {
             if ( $term instanceof WP_Term ) $old_term_ids[] = (int) $term->term_id;
         }
         self::$family_terms_rollback = true;
-        wp_set_object_terms( (int) $object_id, $old_term_ids, 'door_family', false );
+        wp_set_object_terms( $product_id, $old_term_ids, 'door_family', false );
         self::$family_terms_rollback = false;
         wp_die( esc_html( 'Изменение door_family отменено: ' . $problem ), 'Door Configuration Guard', array( 'response' => 409 ) );
     }
