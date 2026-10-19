@@ -4,7 +4,8 @@ import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
 import { ContentHtmlWithLightbox } from "@src/components/content/ContentHtmlWithLightbox";
 import { ContentImageGallery } from "@src/components/content/ContentImageGallery";
-import { ContentInfiniteGrid } from "@src/components/content/ContentInfiniteGrid";
+import { ContentArchivePagination } from "@src/components/content/ContentArchivePagination";
+import type { ContentPagination } from "@src/lib/content/pagination";
 import type { CatalogProductCard } from "@src/lib/woo/types";
 import type { WpContentDetails, WpContentNavigation, WpContentPreview } from "@src/lib/wp/content";
 
@@ -327,7 +328,11 @@ function PortfolioFacts({ item }: { item: WpContentDetails }) {
     );
 }
 
-export function KallesNewsArchivePage({ items, emptyState }: { items: WpContentPreview[]; emptyState: EmptyState }) {
+export function KallesNewsArchivePage({ items, emptyState, pagination }: {
+    items: WpContentPreview[];
+    emptyState: EmptyState;
+    pagination: ContentPagination;
+}) {
     return (
         <>
             <TopBanner />
@@ -338,17 +343,13 @@ export function KallesNewsArchivePage({ items, emptyState }: { items: WpContentP
                 <section>
                     <div className="container">
                         {items.length > 0 ? (
-                            <ContentInfiniteGrid
-                                className="kalles-blog-grid my-4 g-4 row"
-                                itemClassName="col-sm-6"
-                                initialCount={6}
-                                step={6}
-                            >
-                                {items.map((item) => <NewsArchiveCard key={item.id} item={item} />)}
-                            </ContentInfiniteGrid>
+                            <div className="kalles-blog-grid my-4 g-4 row">
+                                {items.map((item) => <div key={item.id} className="col-sm-6"><NewsArchiveCard item={item} /></div>)}
+                            </div>
                         ) : (
                             <EmptyArchiveState state={emptyState} />
                         )}
+                        <ContentArchivePagination path="/novosti-i-stati" {...pagination} />
                     </div>
                 </section>
             </main>
@@ -358,7 +359,11 @@ export function KallesNewsArchivePage({ items, emptyState }: { items: WpContentP
     );
 }
 
-export function KallesPortfolioArchivePage({ items, emptyState }: { items: WpContentPreview[]; emptyState: EmptyState }) {
+export function KallesPortfolioArchivePage({ items, emptyState, pagination }: {
+    items: WpContentPreview[];
+    emptyState: EmptyState;
+    pagination: ContentPagination;
+}) {
     return (
         <>
             <TopBanner />
@@ -370,18 +375,14 @@ export function KallesPortfolioArchivePage({ items, emptyState }: { items: WpCon
                     <div className="container">
                         <div id="pills-tabContent" className="tab-content mt-4">
                             {items.length > 0 ? (
-                                <ContentInfiniteGrid
-                                    className="row g-2 g-lg-4"
-                                    itemClassName="col-md-6"
-                                    initialCount={6}
-                                    step={6}
-                                >
-                                    {items.map((item) => <PortfolioCard key={item.id} item={item} />)}
-                                </ContentInfiniteGrid>
+                                <div className="row g-2 g-lg-4">
+                                    {items.map((item) => <div key={item.id} className="col-md-6"><PortfolioCard item={item} /></div>)}
+                                </div>
                             ) : (
                                 <EmptyArchiveState state={emptyState} />
                             )}
                         </div>
+                        <ContentArchivePagination path="/portfolio" {...pagination} />
                     </div>
                 </section>
             </main>

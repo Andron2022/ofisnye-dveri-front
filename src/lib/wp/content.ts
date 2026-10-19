@@ -5,6 +5,7 @@ import { buildSeoMetadata } from "@src/lib/seo/site";
 import { shouldIncludeSeoInSitemap } from "@src/lib/seo/canonical";
 import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import type { HeadlessSeo } from "@src/lib/seo/types";
+import { CONTENT_PAGE_SIZE, contentPagePath } from "@src/lib/content/pagination";
 import {
     buildTrustPageMetadata,
     getTrustPageContent,
@@ -19,7 +20,7 @@ import type {
 } from "@src/lib/content/trust-pages";
 import { getPrimaryRelatedProductsByIds } from "@src/lib/woo/products";
 import type { CatalogProductCard } from "@src/lib/woo/types";
-import { wpPublicGet, wpPublicGetList } from "@src/lib/wp/client";
+import { wpPublicGet, wpPublicGetAll, wpPublicGetList } from "@src/lib/wp/client";
 import { getRenderedText, getRenderedValue, stripHtml, truncateText } from "@src/lib/wp/format";
 import type {
     WpAcfImageObject,
@@ -91,6 +92,19 @@ export type WpContentNavigation = {
     archivePath: string;
     archiveLabel: string;
 };
+
+export type WpContentPage = {
+    items: WpContentPreview[];
+    page: number;
+    total: number;
+    totalPages: number;
+};
+
+type WpContentCollection = "posts" | "portfolio_project";
+type WpContentIndexItem = Pick<WpBaseContentItem, "id" | "slug" | "date" | "modified" | "headless_seo"> & {
+    acf?: Pick<WpPortfolioProjectAcf, "portfolio_card_order"> | [];
+};
+type WpContentIndexEntry = Pick<WpContentPreview, "id" | "path" | "date" | "modified" | "seo" | "sortOrder">;
 
 export type WpContentDetails = WpContentPreview & {
     contentHtml: string;
@@ -610,13 +624,14 @@ export async function buildWpArchiveMetadata(args: {
     path: string;
     title: string;
     description: string;
+    page?: number;
 }): Promise<Metadata> {
     const data = await getWpArchiveSeoData(args.slug, args.path);
 
     return buildSeoMetadata({
         title: args.title,
         description: args.description,
-        path: args.path,
+        path: contentPagePath(args.path, args.page ?? 1),
         image: data.image,
         imageAlt: data.imageAlt,
         seo: data.seo,
@@ -671,6 +686,75 @@ export async function getWpPosts(limit = 20): Promise<WpContentPreview[]> {
     return items.map((item) => normalizeContentPreview(item, "/novosti-i-stati"));
 }
 
+async function getWpContentIndex(collection: WpContentCollection): Promise<WpContentIndexEntry[]> {
+    // Global ordering needs only this small projection, not article HTML or media.
+    const items = await wpPublicGetAll<WpContentIndexItem>(collection, {
+        status: "publish",
+        orderby: "date",
+        order: "desc",
+        _fields: collection === "posts"
+            ? "id,slug,date,modified,headless_seo"
+            : "id,slug,date,modified,headless_seo,acf.portfolio_card_order",
+    }, CONTENT_REVALIDATE_SECONDS);
+    const path = collection === "posts" ? "/novosti-i-stati" : "/portfolio";
+    const entries = items.map((item) => ({
+        id: item.id,
+        path: `${path}/${item.slug}`,
+        date: item.date,
+        modified: item.modified,
+        seo: normalizeHeadlessSeo(item.headless_seo),
+        sortOrder: isPlainObject(item.acf) ? asNumber(item.acf.portfolio_card_order) : null,
+    }));
+    return collection === "posts" ? entries : sortPortfolioPreviews(entries);
+}
+
+async function loadWpContentPreviewsByIds(collection: WpContentCollection, ids: number[]): Promise<WpContentPreview[]> {
+    if (ids.length === 0) return [];
+    const items = await wpPublicGetAll<WpPostRestItem | WpPortfolioProjectRestItem>(collection, {
+        include: ids.join(","),
+        status: "publish",
+        orderby: "include",
+        _embed: "wp:featuredmedia,wp:term",
+    }, CONTENT_REVALIDATE_SECONDS);
+    const byId = new Map(items.map((item) => [item.id, item]));
+    return Promise.all(ids.flatMap((id) => {
+        const item = byId.get(id);
+        if (!item) return [];
+        return [collection === "posts"
+            ? normalizeContentPreview(item, "/novosti-i-stati")
+            : normalizePortfolioProjectPreview(item as WpPortfolioProjectRestItem)];
+    }));
+}
+
+async function getWpContentPage(collection: WpContentCollection, page: number): Promise<WpContentPage> {
+    if (!Number.isSafeInteger(page) || page < 1) throw new RangeError("Invalid content page");
+    const index = await getWpContentIndex(collection);
+    const totalPages = Math.max(1, Math.ceil(index.length / CONTENT_PAGE_SIZE));
+    const ids = index.slice((page - 1) * CONTENT_PAGE_SIZE, page * CONTENT_PAGE_SIZE).map((item) => item.id);
+    return { items: await loadWpContentPreviewsByIds(collection, ids), page, total: index.length, totalPages };
+}
+
+export function getWpPostsPage(page = 1): Promise<WpContentPage> {
+    return getWpContentPage("posts", page);
+}
+
+export function getWpPortfolioProjectsPage(page = 1): Promise<WpContentPage> {
+    return getWpContentPage("portfolio_project", page);
+}
+
+async function getWpContentNeighbors(collection: WpContentCollection, currentId: number) {
+    const index = await getWpContentIndex(collection);
+    const currentIndex = index.findIndex((item) => item.id === currentId);
+    const previousId = currentIndex >= 0 ? index[currentIndex + 1]?.id : undefined;
+    const nextId = currentIndex > 0 ? index[currentIndex - 1]?.id : undefined;
+    const ids = [previousId, nextId].filter((id): id is number => id !== undefined);
+    const items = await loadWpContentPreviewsByIds(collection, ids);
+    return {
+        previous: items.find((item) => item.id === previousId),
+        next: items.find((item) => item.id === nextId),
+    };
+}
+
 export async function getWpPostsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
     const uniqueIds = Array.from(new Set(ids))
         .filter((id) => Number.isInteger(id) && id > 0 && id !== excludeId);
@@ -678,24 +762,7 @@ export async function getWpPostsByIds(ids: number[], excludeId?: number): Promis
     if (uniqueIds.length === 0) return [];
 
     try {
-        const { items } = await wpPublicGetList<WpPostRestItem>(
-            "posts",
-            {
-                include: uniqueIds.join(","),
-                per_page: Math.min(uniqueIds.length, 100),
-                status: "publish",
-                orderby: "include",
-                _embed: "wp:featuredmedia,wp:term",
-            },
-            CONTENT_REVALIDATE_SECONDS,
-        );
-
-        const byId = new Map(items.map((item) => [item.id, item]));
-
-        return uniqueIds
-            .map((id) => byId.get(id))
-            .filter((item): item is WpPostRestItem => Boolean(item))
-            .map((item) => normalizeContentPreview(item, "/novosti-i-stati"));
+        return await loadWpContentPreviewsByIds("posts", uniqueIds);
     } catch (error) {
         console.error("Failed to load related WP posts", error);
         return [];
@@ -706,14 +773,10 @@ async function getWpPostNavigation(currentId: number): Promise<WpContentNavigati
     const archivePath = "/novosti-i-stati";
 
     try {
-        const items = await getWpPosts(100);
-        const currentIndex = items.findIndex((item) => item.id === currentId);
-
         return {
             archivePath,
             archiveLabel: "Все новости и статьи",
-            previous: currentIndex >= 0 ? items[currentIndex + 1] : undefined,
-            next: currentIndex > 0 ? items[currentIndex - 1] : undefined,
+            ...await getWpContentNeighbors("posts", currentId),
         };
     } catch (error) {
         console.error("Failed to load WP post navigation", error);
@@ -775,7 +838,7 @@ function getPortfolioGalleryAcfValues(acf: WpPortfolioProjectAcf): WpAcfImageVal
     ];
 }
 
-function sortPortfolioPreviews(items: WpContentPreview[]): WpContentPreview[] {
+function sortPortfolioPreviews<T extends Pick<WpContentPreview, "sortOrder" | "date">>(items: T[]): T[] {
     return [...items].sort((a, b) => {
         const hasOrderA = typeof a.sortOrder === "number";
         const hasOrderB = typeof b.sortOrder === "number";
@@ -839,22 +902,6 @@ async function normalizePortfolioProjectDetails(item: WpPortfolioProjectRestItem
     };
 }
 
-export async function getWpPortfolioProjects(limit = 20): Promise<WpContentPreview[]> {
-    const { items } = await wpPublicGetList<WpPortfolioProjectRestItem>(
-        "portfolio_project",
-        {
-            per_page: limit,
-            status: "publish",
-            orderby: "date",
-            order: "desc",
-            _embed: "wp:featuredmedia,wp:term",
-        },
-        CONTENT_REVALIDATE_SECONDS,
-    );
-
-    return sortPortfolioPreviews(await Promise.all(items.map((item) => normalizePortfolioProjectPreview(item))));
-}
-
 async function getWpPortfolioProjectsByIds(ids: number[], excludeId?: number): Promise<WpContentPreview[]> {
     const uniqueIds = Array.from(new Set(ids))
         .filter((id) => Number.isInteger(id) && id > 0 && id !== excludeId);
@@ -862,28 +909,7 @@ async function getWpPortfolioProjectsByIds(ids: number[], excludeId?: number): P
     if (uniqueIds.length === 0) return [];
 
     try {
-        const { items } = await wpPublicGetList<WpPortfolioProjectRestItem>(
-            "portfolio_project",
-            {
-                include: uniqueIds.join(","),
-                per_page: Math.min(uniqueIds.length, 100),
-                status: "publish",
-                orderby: "include",
-                _embed: "wp:featuredmedia,wp:term",
-            },
-            CONTENT_REVALIDATE_SECONDS,
-        );
-
-        const byId = new Map(items.map((item) => [item.id, item]));
-
-        const normalized = await Promise.all(
-            uniqueIds
-                .map((id) => byId.get(id))
-                .filter((item): item is WpPortfolioProjectRestItem => Boolean(item))
-                .map((item) => normalizePortfolioProjectPreview(item)),
-        );
-
-        return normalized;
+        return await loadWpContentPreviewsByIds("portfolio_project", uniqueIds);
     } catch (error) {
         console.error("Failed to load related portfolio projects", error);
         return [];
@@ -894,14 +920,10 @@ async function getWpPortfolioProjectNavigation(currentId: number): Promise<WpCon
     const archivePath = "/portfolio";
 
     try {
-        const items = await getWpPortfolioProjects(100);
-        const currentIndex = items.findIndex((item) => item.id === currentId);
-
         return {
             archivePath,
             archiveLabel: "Все проекты",
-            previous: currentIndex >= 0 ? items[currentIndex + 1] : undefined,
-            next: currentIndex > 0 ? items[currentIndex - 1] : undefined,
+            ...await getWpContentNeighbors("portfolio_project", currentId),
         };
     } catch (error) {
         console.error("Failed to load WP portfolio project navigation", error);
@@ -981,28 +1003,17 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
         console.error("Failed to build WP page sitemap entries", error);
     }
 
-    try {
-        const archive = await getWpArchiveSeoData("novosti-i-stati", "/novosti-i-stati");
+    // Let collection failures propagate so ISR can retain its last complete sitemap.
+    for (const collection of ["posts", "portfolio_project"] as const) {
+        const slug = collection === "posts" ? "novosti-i-stati" : "portfolio";
+        const archive = await getWpArchiveSeoData(slug, `/${slug}`);
+        const items = await getWpContentIndex(collection);
         if (!archive.seo.noindex) {
             entries.push({ path: archive.path, modified: archive.modified });
         }
-
-        const posts = await getWpPosts(100);
-        entries.push(...posts.filter((post) => shouldIncludeSeoInSitemap(post.path, post.seo)).map((post) => ({ path: post.path, modified: post.modified })));
-    } catch (error) {
-        console.error("Failed to build WP posts sitemap entries", error);
-    }
-
-    try {
-        const archive = await getWpArchiveSeoData("portfolio", "/portfolio");
-        if (!archive.seo.noindex) {
-            entries.push({ path: archive.path, modified: archive.modified });
-        }
-
-        const projects = await getWpPortfolioProjects(100);
-        entries.push(...projects.filter((project) => shouldIncludeSeoInSitemap(project.path, project.seo)).map((project) => ({ path: project.path, modified: project.modified })));
-    } catch (error) {
-        console.error("Failed to build WP portfolio sitemap entries", error);
+        entries.push(...items
+            .filter((item) => shouldIncludeSeoInSitemap(item.path, item.seo))
+            .map((item) => ({ path: item.path, modified: item.modified })));
     }
 
     return entries;

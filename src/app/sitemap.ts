@@ -189,6 +189,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
   } catch (error) {
     console.error("Failed to build WP content sitemap entries", error);
+    throw error;
   }
 
   return dedupeSitemapEntries(allUrls);

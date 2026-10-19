@@ -298,3 +298,44 @@ export async function wpPublicGetList<T>(
         };
     });
 }
+
+/** Read a complete WP collection; never return a successful but truncated list. */
+export async function wpPublicGetAll<T extends { id: number }>(
+    path: string,
+    query: WpQueryParams = {},
+    revalidateSeconds = DEFAULT_REVALIDATE_SECONDS,
+): Promise<T[]> {
+    const perPage = 100;
+    const concurrency = 4;
+    const getPage = (page: number) => wpPublicGetList<T>(path, {
+        ...query,
+        per_page: perPage,
+        page,
+    }, revalidateSeconds);
+    const first = await getPage(1);
+
+    if (!Number.isSafeInteger(first.total) || first.total < 0
+        || first.totalPages !== Math.ceil(first.total / perPage)) {
+        throw new Error(`Invalid WP pagination headers: ${path}`);
+    }
+
+    const items = [...first.items];
+    for (let page = 2; page <= first.totalPages; page += concurrency) {
+        const pages = await Promise.all(
+            Array.from({ length: Math.min(concurrency, first.totalPages - page + 1) }, (_, index) => getPage(page + index)),
+        );
+
+        for (const result of pages) {
+            if (result.total !== first.total || result.totalPages !== first.totalPages) {
+                throw new Error(`WP collection changed during pagination: ${path}`);
+            }
+            items.push(...result.items);
+        }
+    }
+
+    const uniqueItems = new Map(items.map((item) => [item.id, item]));
+    if (items.length !== first.total || uniqueItems.size !== first.total) {
+        throw new Error(`Incomplete WP collection: ${path}`);
+    }
+    return [...uniqueItems.values()];
+}
