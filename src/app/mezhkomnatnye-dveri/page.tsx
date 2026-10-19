@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { DOOR_CATALOG_PAGE_SIZE, parseDoorCatalogPage } from "@src/lib/woo/catalog-pagination";
 import Header from "@src/components/Headers/Header";
 import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
@@ -29,23 +31,27 @@ type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata({ searchParams }: { searchParams: PageSearchParams }): Promise<Metadata> {
     const [resolvedSearchParams, filterKeys] = await Promise.all([searchParams, getDoorCatalogFilterKeys()]);
+    const page = parseDoorCatalogPage(resolvedSearchParams.page);
+    if (page === null) notFound();
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, filterKeys);
 
     try {
         const rootCategory = await getDoorRootCategoryInfo();
         if (!hasActiveCatalogFilters(filters)) {
-            return buildDoorCategoryMetadata(rootCategory, filters);
+            return buildDoorCategoryMetadata(rootCategory, filters, undefined, page);
         }
         const preferredRoute = await resolvePreferredDoorCatalogRoute(rootCategory, filters);
-        return buildDoorCategoryMetadata(rootCategory, filters, preferredRoute.canonicalPath);
+        return buildDoorCategoryMetadata(rootCategory, filters, preferredRoute.canonicalPath, page);
     } catch (error) {
         console.error("Failed to resolve root door category canonical", error);
-        return buildDoorCategoryMetadata(undefined, filters);
+        return buildDoorCategoryMetadata(undefined, filters, undefined, page);
     }
 }
 
 export default async function DoorsCatalogPage({ searchParams }: { searchParams: PageSearchParams }) {
     const [resolvedSearchParams, filterKeys] = await Promise.all([searchParams, getDoorCatalogFilterKeys()]);
+    const page = parseDoorCatalogPage(resolvedSearchParams.page);
+    if (page === null) notFound();
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, filterKeys);
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
     let seoLinks: Array<{ href: string; label: string }> = [];
@@ -55,8 +61,8 @@ export default async function DoorsCatalogPage({ searchParams }: { searchParams:
     try {
         catalog = await getCatalogProducts({
             type: "doors",
-            page: 1,
-            perPage: 24,
+            page,
+            perPage: DOOR_CATALOG_PAGE_SIZE,
             categorySlug: "mezhkomnatnye-dveri",
             filters,
         });
@@ -73,6 +79,8 @@ export default async function DoorsCatalogPage({ searchParams }: { searchParams:
                 ? error.message
                 : "Не удалось загрузить каталог. Попробуйте обновить страницу.";
     }
+
+    if (catalog && page > catalog.totalPages) notFound();
 
     return (
         <>
@@ -91,6 +99,7 @@ export default async function DoorsCatalogPage({ searchParams }: { searchParams:
                     description={catalog?.currentCategory?.description ?? "Подберите дверь по размеру, цвету, материалу, типу открывания и другим характеристикам. После выбора можно настроить комплектацию и добавить фурнитуру."}
                     heroImage={catalog?.currentCategory?.image}
                     total={catalog?.total}
+                    pagination={catalog ? { path: ROOT_PATH, filters, page, totalPages: catalog.totalPages } : undefined}
                     activeHref={ROOT_PATH}
                     categoryTree={catalog?.categoryTree}
                     filters={catalog?.currentCategory ? (

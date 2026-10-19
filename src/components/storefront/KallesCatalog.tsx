@@ -3,6 +3,8 @@ import shopBanner from "@assets/images/shop/shop-banner.jpg";
 import type { ReactNode } from "react";
 import type { CatalogProductCard, DoorCategoryNode } from "@src/lib/woo/types";
 import KallesCatalogGrid from "@src/components/storefront/KallesCatalogGrid";
+import { CatalogPagination } from "@src/components/storefront/CatalogPagination";
+import type { CatalogPagination as CatalogPaginationProps } from "@src/lib/woo/catalog-pagination";
 
 export type KallesCatalogCategoryLink = {
     href: string;
@@ -24,6 +26,7 @@ type KallesCatalogShellProps = {
     emptyMessage: string;
     seoLinks?: Array<{ href: string; label: string }>;
     afterContent?: ReactNode;
+    pagination?: CatalogPaginationProps;
 };
 
 const FALLBACK_DOOR_CATEGORY_TREE: DoorCategoryNode = {
@@ -200,6 +203,7 @@ export function KallesCatalogShell({
                                        emptyMessage,
                                        seoLinks = [],
                                        afterContent,
+                                       pagination,
                                    }: KallesCatalogShellProps) {
     return (
         <>
@@ -226,8 +230,9 @@ export function KallesCatalogShell({
                             <KallesSeoLandingLinks links={seoLinks} />
                         </aside>
 
-                        <div className="col-12 col-lg-9">
+                        <div id="catalog-products" className="col-12 col-lg-9" style={{ scrollMarginTop: 100 }}>
                             {!loadError && items.length > 0 ? <KallesCatalogGrid items={items} total={total} /> : null}
+                            {!loadError && items.length > 0 && pagination ? <CatalogPagination {...pagination} /> : null}
                             {afterContent}
                         </div>
                     </div>

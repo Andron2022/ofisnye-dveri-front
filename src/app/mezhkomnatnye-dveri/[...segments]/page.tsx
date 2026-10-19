@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DOOR_CATALOG_PAGE_SIZE, parseDoorCatalogPage } from "@src/lib/woo/catalog-pagination";
 import Header from "@src/components/Headers/Header";
 import TopBanner from "@src/components/Headers/TopBanner";
 import FooterPage from "@src/components/Footer";
@@ -138,20 +139,24 @@ export async function generateMetadata({
     const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
 
     if (resolvedRoute.kind === "category") {
+        const page = parseDoorCatalogPage(resolvedSearchParams.page);
+        if (page === null) notFound();
         if (!hasActiveCatalogFilters(queryFilters)) {
-            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters);
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters, undefined, page);
         }
 
         try {
             const preferredRoute = await resolvePreferredDoorCatalogRoute(resolvedRoute.category, queryFilters);
-            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters, preferredRoute.canonicalPath);
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters, preferredRoute.canonicalPath, page);
         } catch (error) {
             console.error("Failed to resolve category preferred canonical", error);
-            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters);
+            return buildDoorCategoryMetadata(resolvedRoute.category, queryFilters, undefined, page);
         }
     }
 
     if (resolvedRoute.kind === "seoLanding") {
+        const page = parseDoorCatalogPage(resolvedSearchParams.page);
+        if (page === null) notFound();
         const { fullFilters } = buildLandingFilterState(resolvedRoute.landing, queryFilters);
         let productCount = 0;
 
@@ -166,7 +171,7 @@ export async function generateMetadata({
 
         // Любой query-вариант landing остаётся noindex, даже если query пытается
         // повторно задать группу, уже зафиксированную clean landing path.
-        return buildDoorSeoLandingMetadata(resolvedRoute.landing, queryFilters, productCount);
+        return buildDoorSeoLandingMetadata(resolvedRoute.landing, queryFilters, productCount, page);
     }
 
     const product = await getDoorProductForRender(
@@ -189,6 +194,8 @@ async function DoorCategoryPage({ category, searchParams }: {
     searchParams: PageSearchParams;
 }) {
     const resolvedSearchParams = await searchParams;
+    const page = parseDoorCatalogPage(resolvedSearchParams.page);
+    if (page === null) notFound();
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
     const routeHref = category.path;
     let catalog: Awaited<ReturnType<typeof getCatalogProducts>> | null = null;
@@ -199,8 +206,8 @@ async function DoorCategoryPage({ category, searchParams }: {
     try {
         catalog = await getCatalogProducts({
             type: "doors",
-            page: 1,
-            perPage: 24,
+            page,
+            perPage: DOOR_CATALOG_PAGE_SIZE,
             categorySlug: category.slug,
             filters,
         });
@@ -212,6 +219,8 @@ async function DoorCategoryPage({ category, searchParams }: {
     } catch (error) {
         loadError = error instanceof Error ? error.message : "Не удалось загрузить категорию. Попробуйте обновить страницу.";
     }
+
+    if (catalog && page > catalog.totalPages) notFound();
 
     return (
         <>
@@ -229,6 +238,7 @@ async function DoorCategoryPage({ category, searchParams }: {
                     description={getDoorCategoryLead(category)}
                     heroImage={category.image}
                     total={catalog?.total}
+                    pagination={catalog ? { path: routeHref, filters, page, totalPages: catalog.totalPages } : undefined}
                     activeHref={routeHref}
                     categoryTree={catalog?.categoryTree}
                     filters={catalog ? (
@@ -305,6 +315,8 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
     searchParams: PageSearchParams;
 }) {
     const resolvedSearchParams = await searchParams;
+    const page = parseDoorCatalogPage(resolvedSearchParams.page);
+    if (page === null) notFound();
     const queryFilters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, await getDoorCatalogFilterKeys());
     const { fullFilters } = buildLandingFilterState(landing, queryFilters);
     const hasQueryFilters = hasActiveCatalogFilters(queryFilters);
@@ -317,8 +329,8 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
     try {
         catalog = await getCatalogProducts({
             type: "doors",
-            page: 1,
-            perPage: 24,
+            page,
+            perPage: DOOR_CATALOG_PAGE_SIZE,
             categorySlug: landing.baseCategory.slug,
             filters: fullFilters,
         });
@@ -327,6 +339,8 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
             ? error.message
             : "Не удалось загрузить товары SEO-посадочной. Попробуйте обновить страницу.";
     }
+
+    if (catalog && page > catalog.totalPages) notFound();
 
     try {
         [relatedLinks, siblingLinks, routingLandings] = await Promise.all([
@@ -368,6 +382,7 @@ async function DoorSeoLandingPage({ landing, searchParams }: {
                     description={landing.intro || getDoorCategoryLead(landing.baseCategoryInfo)}
                     heroImage={landing.baseCategoryInfo.image}
                     total={catalog?.total}
+                    pagination={catalog ? { path: landing.path, filters: queryFilters, page, totalPages: catalog.totalPages } : undefined}
                     activeHref={landing.baseCategoryInfo.path}
                     categoryTree={catalog?.categoryTree}
                     filters={catalog ? (

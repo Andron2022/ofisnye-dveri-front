@@ -5,6 +5,7 @@ import { hasActiveCatalogFilters } from "@src/lib/woo/catalog-filters";
 import { getHeadlessSeoImageUrl } from "@src/lib/seo/types";
 import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
 import { resolveSeoCanonicalPath } from "@src/lib/seo/canonical";
+import { buildDoorCatalogPagePath } from "@src/lib/woo/catalog-pagination";
 import type { HeadlessSeo } from "@src/lib/seo/types";
 import type { SiteChromeSettings } from "@src/lib/site-chrome/types";
 import type { ResolvedDoorSeoLanding } from "@src/lib/woo/products";
@@ -298,6 +299,7 @@ export function buildDoorCategoryMetadata(
   category: DoorCategoryInfo | DoorRouteCategory | undefined,
   filters: CatalogActiveFilters,
   canonicalPath?: string,
+  page = 1,
 ): Metadata {
   const fallback = getDoorCategorySeo(category);
   const index = shouldIndexCatalogPage(filters);
@@ -307,7 +309,7 @@ export function buildDoorCategoryMetadata(
   return buildSeoMetadata({
     title: fallback.title,
     description: fallback.description,
-    path: canonicalPath ?? fallback.path,
+    path: index ? buildDoorCatalogPagePath(canonicalPath ?? fallback.path, {}, page) : canonicalPath ?? fallback.path,
     index,
     image: resolvedCategory?.image,
     imageAlt: resolvedCategory?.name,
@@ -319,6 +321,7 @@ export function buildDoorSeoLandingMetadata(
   landing: ResolvedDoorSeoLanding,
   filters: CatalogActiveFilters,
   productCount: number,
+  page = 1,
 ): Metadata {
   const title = landing.h1 || landing.title;
   const description =
@@ -330,7 +333,7 @@ export function buildDoorSeoLandingMetadata(
   return buildSeoMetadata({
     title,
     description,
-    path: landing.path,
+    path: shouldIndexCatalogPage(filters) ? buildDoorCatalogPagePath(landing.path, {}, page) : landing.path,
     index: productCount > 0 && shouldIndexCatalogPage(filters),
     image: landing.baseCategoryInfo.image,
     imageAlt: title,
