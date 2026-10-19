@@ -42,6 +42,7 @@ export type WallPanelsProcessStep = {
 };
 
 export type WallPanelsPageContent = {
+    seo?: HeadlessSeo;
     path: string;
     metaTitle: string;
     metaDescription: string;

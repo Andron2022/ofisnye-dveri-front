@@ -2,6 +2,7 @@
 
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@src/lib/seo/site";
+import { shouldIncludeSeoInSitemap } from "@src/lib/seo/canonical";
 import { normalizeHeadlessSeo } from "@src/lib/seo/types";
 import type { HeadlessSeo } from "@src/lib/seo/types";
 import {
@@ -968,7 +969,7 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
                     const wpPage = slug ? await getWpPageBySlug(slug) : null;
                     const seo = normalizeHeadlessSeo(wpPage?.headless_seo);
 
-                    if (!seo.noindex) {
+                    if (shouldIncludeSeoInSitemap(fallbackPage.path, seo)) {
                         entries.push({ path: fallbackPage.path, modified: wpPage?.modified });
                     }
                 } catch {
@@ -987,7 +988,7 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
         }
 
         const posts = await getWpPosts(100);
-        entries.push(...posts.filter((post) => !post.seo.noindex).map((post) => ({ path: post.path, modified: post.modified })));
+        entries.push(...posts.filter((post) => shouldIncludeSeoInSitemap(post.path, post.seo)).map((post) => ({ path: post.path, modified: post.modified })));
     } catch (error) {
         console.error("Failed to build WP posts sitemap entries", error);
     }
@@ -999,7 +1000,7 @@ export async function getWpContentSitemapEntries(): Promise<WpSitemapEntry[]> {
         }
 
         const projects = await getWpPortfolioProjects(100);
-        entries.push(...projects.filter((project) => !project.seo.noindex).map((project) => ({ path: project.path, modified: project.modified })));
+        entries.push(...projects.filter((project) => shouldIncludeSeoInSitemap(project.path, project.seo)).map((project) => ({ path: project.path, modified: project.modified })));
     } catch (error) {
         console.error("Failed to build WP portfolio sitemap entries", error);
     }

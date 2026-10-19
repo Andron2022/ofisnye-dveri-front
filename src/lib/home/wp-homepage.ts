@@ -451,6 +451,7 @@ async function mergeHomepageWithAcf(acf: WpPageAcf, seo: HeadlessSeo, modified?:
 
   return {
     seo: {
+      headless: seo,
       title: seo.title || getAcfString(acf, "home_meta_title", homePageContent.seo.title),
       description: seo.description || getAcfString(acf, "home_meta_description", homePageContent.seo.description),
       image: seo.image?.url ? { src: seo.image.url, alt: seo.image.alt } : undefined,

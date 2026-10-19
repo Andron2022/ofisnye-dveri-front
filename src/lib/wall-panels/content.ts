@@ -272,6 +272,7 @@ export async function getWallPanelsPageContent(): Promise<WallPanelsPageContent>
 
         return {
             path: fallbackWallPanelsContent.path,
+            seo,
             metaTitle: seo.title || getAcfString(acf, "wall_panels_meta_title", pageTitle || fallbackWallPanelsContent.metaTitle),
             metaDescription: seo.description || truncateText(
                 getAcfString(acf, "wall_panels_meta_description", pageText || fallbackWallPanelsContent.metaDescription),
@@ -316,11 +317,6 @@ export async function buildWallPanelsMetadata(): Promise<Metadata> {
         path: page.path,
         image: page.seoImage?.src || page.heroImage?.src,
         imageAlt: page.seoImage?.alt || page.heroImage?.alt || page.heroTitle,
-        seo: {
-            title: page.metaTitle,
-            description: page.metaDescription,
-            image: page.seoImage ? { url: page.seoImage.src, alt: page.seoImage.alt } : null,
-            noindex: page.seoNoindex,
-        },
+        seo: page.seo,
     });
 }

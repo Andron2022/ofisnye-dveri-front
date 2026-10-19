@@ -1,5 +1,11 @@
 # VDS deployment contract
 
+For a new empty VDS, start with the complete Russian runbook:
+[`docs/vds-from-scratch-to-production.md`](docs/vds-from-scratch-to-production.md)
+— LocalWP export, server setup, first staging, production prelaunch, backups and a
+separate public launch with indexing. Its DB import steps are for empty target
+databases only; existing production uses the no-DB release procedures below.
+
 The canonical deployment layout is environment-scoped:
 
 ```text
@@ -81,13 +87,16 @@ After the original environment bootstrap, use:
 
 ```bash
 sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh staging origin/main
-sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production <APPROVED_SHA>
+sudo bash /srv/ofisnye-dveri/repository/deploy/scripts/deploy-environment.sh production \
+  "${APPROVED_SHA:?Set APPROVED_SHA to the full accepted Git SHA}"
 ```
 
 The orchestrator deploys project-managed WordPress MU-code first, verifies the WP REST code contract, deploys the Next.js standalone release from the same Git SHA, runs smoke checks and records SHA parity. Deployment shell scripts are invoked explicitly through `bash`; the Unix executable bit is not part of the deployment contract, which keeps the workflow stable when changed files pass through Windows/ZIP. Closed staging/production-prelaunch environments prompt interactively for Basic Auth credentials before the external storefront smoke.
 
 Detailed current runbooks:
 
+- [`docs/change-based-release-guide.md`](docs/change-based-release-guide.md) — Russian decision guide for each development task: code, WP data, ACF, manifests, env and infrastructure; promotion and rollback with live production data;
+- [`docs/deployment-operations.md`](docs/deployment-operations.md) — Russian operations reference: checks, combined deploy, backups, isolated restore tests, recovery, rollback, timers and logs;
 - `docs/local-to-staging-no-db.md`;
 - `docs/local-to-production-no-db.md`.
 

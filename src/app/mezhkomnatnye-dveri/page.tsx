@@ -31,12 +31,11 @@ export async function generateMetadata({ searchParams }: { searchParams: PageSea
     const [resolvedSearchParams, filterKeys] = await Promise.all([searchParams, getDoorCatalogFilterKeys()]);
     const filters = parseDoorCatalogFiltersFromSearchParams(resolvedSearchParams, filterKeys);
 
-    if (!hasActiveCatalogFilters(filters)) {
-        return buildDoorCategoryMetadata(undefined, filters);
-    }
-
     try {
         const rootCategory = await getDoorRootCategoryInfo();
+        if (!hasActiveCatalogFilters(filters)) {
+            return buildDoorCategoryMetadata(rootCategory, filters);
+        }
         const preferredRoute = await resolvePreferredDoorCatalogRoute(rootCategory, filters);
         return buildDoorCategoryMetadata(rootCategory, filters, preferredRoute.canonicalPath);
     } catch (error) {

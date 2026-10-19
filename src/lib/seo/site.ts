@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { hasActiveCatalogFilters } from "@src/lib/woo/catalog-filters";
 import { getHeadlessSeoImageUrl } from "@src/lib/seo/types";
 import { isSiteIndexingEnabled } from "@src/lib/runtime/environment";
+import { resolveSeoCanonicalPath } from "@src/lib/seo/canonical";
 import type { HeadlessSeo } from "@src/lib/seo/types";
 import type { SiteChromeSettings } from "@src/lib/site-chrome/types";
 import type { ResolvedDoorSeoLanding } from "@src/lib/woo/products";
@@ -83,7 +84,8 @@ function normalizePublicUrl(value: string | null | undefined): string | undefine
   if (!value?.trim()) return undefined;
 
   try {
-    return new URL(value.trim(), getSiteOrigin()).toString();
+    const url = new URL(value.trim(), getSiteOrigin());
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : undefined;
   } catch {
     return undefined;
   }
@@ -162,14 +164,18 @@ export function buildSeoMetadata({
   publishedTime,
   modifiedTime,
 }: BuildMetadataArgs): Metadata {
-  const resolvedTitle = seo?.title?.trim() || title;
+  const explicitTitle = seo?.title?.trim();
+  const resolvedTitle = explicitTitle || title;
   const resolvedDescription = seo?.description?.trim() || description;
-  const resolvedImage = normalizePublicUrl(getHeadlessSeoImageUrl(seo) || image);
+  const resolvedImage = normalizePublicUrl(getHeadlessSeoImageUrl(seo)) || normalizePublicUrl(image);
   const resolvedImageAlt =
     seo?.image?.alt?.trim() || imageAlt?.trim() || resolvedTitle;
   const shouldIndex = isSiteIndexingEnabled() && index && !seo?.noindex;
-  const absoluteUrl = buildAbsoluteUrl(path);
-  const fullTitle = buildTitle(resolvedTitle);
+  const absoluteUrl = buildAbsoluteUrl(resolveSeoCanonicalPath(path, seo));
+  const fullTitle = explicitTitle || buildTitle(title);
+  const ogTitle = seo?.og_title?.trim() || fullTitle;
+  const ogDescription = seo?.og_description?.trim() || resolvedDescription;
+  const twitterImage = normalizePublicUrl(seo?.twitter_image?.url) || resolvedImage;
   const images = resolvedImage
     ? [{ url: resolvedImage, alt: resolvedImageAlt }]
     : undefined;
@@ -177,8 +183,8 @@ export function buildSeoMetadata({
   const openGraph: Metadata["openGraph"] =
     openGraphType === "article"
       ? {
-          title: fullTitle,
-          description: resolvedDescription,
+          title: ogTitle,
+          description: ogDescription,
           url: absoluteUrl,
           siteName: SITE_NAME,
           locale: "ru_RU",
@@ -188,8 +194,8 @@ export function buildSeoMetadata({
           images,
         }
       : {
-          title: fullTitle,
-          description: resolvedDescription,
+          title: ogTitle,
+          description: ogDescription,
           url: absoluteUrl,
           siteName: SITE_NAME,
           locale: "ru_RU",
@@ -198,7 +204,7 @@ export function buildSeoMetadata({
         };
 
   return {
-    title: resolvedTitle,
+    title: explicitTitle ? { absolute: explicitTitle } : resolvedTitle,
     description: resolvedDescription,
     alternates: {
       canonical: absoluteUrl,
@@ -216,10 +222,10 @@ export function buildSeoMetadata({
     },
     openGraph,
     twitter: {
-      card: resolvedImage ? "summary_large_image" : "summary",
-      title: fullTitle,
-      description: resolvedDescription,
-      images: resolvedImage ? [resolvedImage] : undefined,
+      card: twitterImage ? "summary_large_image" : "summary",
+      title: seo?.twitter_title?.trim() || ogTitle,
+      description: seo?.twitter_description?.trim() || ogDescription,
+      images: twitterImage ? [twitterImage] : undefined,
     },
   };
 }

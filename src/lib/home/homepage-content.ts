@@ -1,5 +1,7 @@
 // src/lib/home/homepage-content.ts
 
+import type { HeadlessSeo } from "@src/lib/seo/types";
+
 export type HomeImage = {
   src: string;
   alt?: string;
@@ -79,6 +81,7 @@ export type HomePageContent = {
     image?: HomeImage;
     noindex?: boolean;
     modified?: string;
+    headless?: HeadlessSeo;
   };
   hero: {
     enabled: boolean;
