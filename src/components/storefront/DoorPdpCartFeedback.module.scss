@@ -1,0 +1,59 @@
+.dock {
+    position: fixed;
+    z-index: 1000;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: min(350px, calc(100vw - 24px));
+    border-radius: 16px;
+    background: white;
+    box-shadow: 0 3px 20px rgb(0 0 0 / 16%);
+
+    &:empty { display: none; }
+
+    a:focus-visible, button:focus-visible { outline: 3px solid #17788a; outline-offset: 3px; }
+}
+
+.atTop {
+    top: max(12px, env(safe-area-inset-top));
+    bottom: auto;
+}
+
+.compact {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: inherit;
+    color: #222;
+
+    i { font-size: 22px; }
+    strong { padding: 2px 8px; border-radius: 20px; color: white; background: #222; }
+}
+
+.notice { display: grid; gap: 8px; padding: 16px 16px 8px; color: #222; }
+.message { display: grid; gap: 8px; }
+.noticeActions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 8px 16px;
+
+    button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; font-size: 26px; }
+}
+.viewCart { color: #126577; text-decoration: underline; }
+
+:global(body):has(.dock) :global([data-storefront-cart-link][data-cart-highlight]) {
+    outline: 3px solid #17788a;
+    outline-offset: 6px;
+    border-radius: 6px;
+    animation: cartAttention 700ms ease-in-out 2;
+}
+
+@keyframes cartAttention { 50% { outline-offset: 10px; } }
+@media (prefers-reduced-motion: reduce) {
+    :global(body):has(.dock) :global([data-storefront-cart-link][data-cart-highlight]) { animation: none; }
+}
+
+:global(body:has(.offcanvas.show)) .dock { visibility: hidden; }

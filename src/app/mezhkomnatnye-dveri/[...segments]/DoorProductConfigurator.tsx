@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { FiZoomIn } from "react-icons/fi";
+import { AccessoryImageLightbox } from "@src/components/storefront/AccessoryImageLightbox";
+import { DoorPdpCartFeedback, type CartAdditionFeedback } from "@src/components/storefront/DoorPdpCartFeedback";
 import { useCart } from "@src/lib/cart/CartProvider";
 import type { CartAccessorySnapshot, CartItemInput, CartOptionSnapshot } from "@src/lib/cart/types";
 import type {
@@ -12,9 +14,15 @@ import type {
     DoorProductDetails,
 } from "@src/lib/woo/types";
 import type { DoorPdpConfiguratorComplectContent } from "@src/lib/wp/door-pdp-service-tabs";
+import styles from "./DoorProductConfigurator.module.scss";
 
 type SelectedOptions = DoorCartCandidate["selectedOptions"];
 type SelectedAccessoryMap = Record<number, number>;
+
+// Match the existing cart/checkout quantity range without changing their contracts.
+function normalizeQuantity(value: number, minimum: number): number {
+    return Number.isFinite(value) ? Math.max(minimum, Math.min(99, Math.floor(value))) : minimum;
+}
 
 function toNumber(price: string | null): number | null {
     if (!price) return null;
@@ -171,19 +179,26 @@ function AccessoryRow({ item, qty, onQtyChange }: {
     qty: number;
     onQtyChange: (nextQty: number) => void;
 }) {
+    const [imageOpen, setImageOpen] = useState(false);
     const price = toNumber(item.price);
     const lineTotal = price === null ? null : price * qty;
 
     return (
         <tr>
             <td style={{ width: 120 }}>
-                <div className="bg-light overflow-hidden d-flex align-items-center justify-content-center" style={{ width: 96, height: 72 }}>
-                    {item.image ? (
-                        <img src={item.image} alt={item.name} className="w-100 h-100 object-fit-cover" />
-                    ) : (
+                {item.image ? (
+                    <>
+                        <button type="button" className={styles.photo} aria-label={`Увеличить фото: ${item.name}`} onClick={() => setImageOpen(true)}>
+                            <img src={item.image} alt={item.name} width={96} height={72} />
+                            <span className={styles.zoom} aria-hidden="true"><FiZoomIn size={16} /></span>
+                        </button>
+                        {imageOpen ? <AccessoryImageLightbox src={item.image} name={item.name} onClose={() => setImageOpen(false)} /> : null}
+                    </>
+                ) : (
+                    <div className={styles.photo}>
                         <span className="small text-muted text-center px-2">Нет фото</span>
-                    )}
-                </div>
+                    </div>
+                )}
             </td>
             <td>
                 <div className="fw-medium">{item.shortLabel || item.name}</div>
@@ -191,20 +206,23 @@ function AccessoryRow({ item, qty, onQtyChange }: {
             </td>
             <td className="text-nowrap fw-medium">{formatPrice(item.price)}</td>
             <td className="text-nowrap">
-                <div className="input-step border rounded-pill bg-white">
-                    <button type="button" aria-label="Уменьшить количество" onClick={() => onQtyChange(Math.max(0, qty - 1))}>−</button>
+                <div className={`input-step border rounded-pill bg-white ${styles.quantity}`}>
+                    <button type="button" aria-label={`Уменьшить количество: ${item.name}`} disabled={qty <= 0} onClick={() => onQtyChange(qty - 1)}>−</button>
                     <input
                         id={`accessory-${item.id}`}
                         type="number"
                         min={0}
+                        max={99}
                         step={1}
+                        inputMode="numeric"
+                        aria-label={`Количество: ${item.name}`}
                         value={qty}
                         onChange={(event) => {
-                            const nextQty = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                            const nextQty = normalizeQuantity(Number(event.target.value), 0);
                             onQtyChange(nextQty);
                         }}
                     />
-                    <button type="button" aria-label="Увеличить количество" onClick={() => onQtyChange(qty + 1)}>+</button>
+                    <button type="button" aria-label={`Увеличить количество: ${item.name}`} disabled={qty >= 99} onClick={() => onQtyChange(qty + 1)}>+</button>
                 </div>
             </td>
             <td className="text-nowrap fw-medium">{formatPrice(lineTotal)}</td>
@@ -212,17 +230,19 @@ function AccessoryRow({ item, qty, onQtyChange }: {
     );
 }
 
-function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange }: {
+function AccessoriesGroup({ title, items, selectedAccessories, onQtyChange, panelId, tabId }: {
     title: string;
     items: DoorAccessoryCard[];
     selectedAccessories: SelectedAccessoryMap;
     onQtyChange: (productId: number, nextQty: number) => void;
+    panelId: string;
+    tabId: string;
 }) {
     if (items.length === 0) return null;
 
     return (
-        <div className="mb-4">
-            <h3 className="fs-5 mb-3">{title}</h3>
+        <div id={panelId} role="tabpanel" aria-labelledby={tabId} tabIndex={0}>
+            <h3 className="visually-hidden">{title}</h3>
             <div className="table-responsive">
                 <table className="table align-middle mb-0">
                     <thead>
@@ -254,11 +274,31 @@ export default function DoorProductConfigurator({ product, complectContent }: {
     product: DoorProductDetails;
     complectContent: DoorPdpConfiguratorComplectContent;
 }) {
-    const { addItem, isHydrated } = useCart();
+    const { addItem, isHydrated, items } = useCart();
     const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>(() => getInitialSelectedOptions(product));
     const [selectedAccessories, setSelectedAccessories] = useState<SelectedAccessoryMap>({});
     const [quantity, setQuantity] = useState(1);
-    const [addedItemKey, setAddedItemKey] = useState<string | null>(null);
+    const accessoryGroups = product.accessories.filter((group) => group.items.length > 0);
+    const [activeGroupKey, setActiveGroupKey] = useState(() => accessoryGroups[0]?.key ?? "");
+    const activeGroup = accessoryGroups.find((group) => group.key === activeGroupKey) ?? accessoryGroups[0];
+    const tabsId = useId();
+    const additionId = useRef(0);
+    const [pendingAddition, setPendingAddition] = useState<{
+        id: number; itemKey: string; previousQuantity: number; requestedQuantity: number;
+    } | null>(null);
+    const [cartFeedback, setCartFeedback] = useState<CartAdditionFeedback | null>(null);
+
+    useEffect(() => {
+        if (!pendingAddition) return;
+        const updatedItem = items.find((item) => item.itemKey === pendingAddition.itemKey);
+        if (!updatedItem) return;
+        setCartFeedback({
+            id: pendingAddition.id,
+            addedQuantity: Math.max(0, updatedItem.quantity - pendingAddition.previousQuantity),
+            requestedQuantity: pendingAddition.requestedQuantity,
+        });
+        setPendingAddition(null);
+    }, [items, pendingAddition]);
 
     const basePrice = toNumber(product.price);
     const optionsDelta = getOptionsDelta(product, selectedOptions);
@@ -277,10 +317,10 @@ export default function DoorProductConfigurator({ product, complectContent }: {
 
     const changeOption = (key: string, value: string) => {
         setSelectedOptions((current) => ({ ...current, [key]: value }));
-        setAddedItemKey(null);
     };
 
     const changeAccessoryQty = (productId: number, nextQty: number) => {
+        nextQty = normalizeQuantity(nextQty, 0);
         setSelectedAccessories((current) => {
             const next = { ...current };
 
@@ -292,12 +332,16 @@ export default function DoorProductConfigurator({ product, complectContent }: {
             next[productId] = nextQty;
             return next;
         });
-        setAddedItemKey(null);
     };
 
     const handleAddToCart = () => {
         const item = addItem(cartItemInput);
-        setAddedItemKey(item.itemKey);
+        setPendingAddition({
+            id: ++additionId.current,
+            itemKey: item.itemKey,
+            previousQuantity: items.find((existing) => existing.itemKey === item.itemKey)?.quantity ?? 0,
+            requestedQuantity: quantity,
+        });
     };
 
     return (
@@ -325,17 +369,56 @@ export default function DoorProductConfigurator({ product, complectContent }: {
                     ) : <p className="text-muted mb-0">Для этой двери дополнительные опции не настроены.</p>}
                 </div>
 
-                <div className="bg-white p-4 mb-5">
+                <div className="bg-white p-3 p-lg-4 mb-5">
                     <h2 className="fs-3 mb-4 text-center">Фурнитура</h2>
-                    {product.accessories.length > 0 ? product.accessories.map((group) => (
+                    {activeGroup ? <>
+                        <div className={styles.tabs} role="tablist" aria-label="Группы фурнитуры">
+                            {accessoryGroups.map((group, index) => {
+                                const selectedCount = group.items.filter((item) => (selectedAccessories[item.id] ?? 0) > 0).length;
+                                return (
+                                    <button
+                                        key={group.key}
+                                        type="button"
+                                        id={`${tabsId}-tab-${group.key}`}
+                                        role="tab"
+                                        aria-selected={activeGroup.key === group.key}
+                                        aria-controls={`${tabsId}-panel-${group.key}`}
+                                        tabIndex={activeGroup.key === group.key ? 0 : -1}
+                                        onClick={() => setActiveGroupKey(group.key)}
+                                        onKeyDown={(event) => {
+                                            let nextIndex: number;
+                                            if (event.key === "ArrowRight") nextIndex = (index + 1) % accessoryGroups.length;
+                                            else if (event.key === "ArrowLeft") nextIndex = (index - 1 + accessoryGroups.length) % accessoryGroups.length;
+                                            else if (event.key === "Home") nextIndex = 0;
+                                            else if (event.key === "End") nextIndex = accessoryGroups.length - 1;
+                                            else return;
+                                            event.preventDefault();
+                                            const nextGroup = accessoryGroups[nextIndex];
+                                            setActiveGroupKey(nextGroup.key);
+                                            const tab = document.getElementById(`${tabsId}-tab-${nextGroup.key}`);
+                                            tab?.focus({ preventScroll: true });
+                                            tab?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+                                        }}
+                                    >
+                                        {group.title}
+                                        {selectedCount > 0 ? <><span className={styles.selected} aria-hidden="true" /><span className="visually-hidden">Выбрано позиций: {selectedCount}</span></> : null}
+                                    </button>
+                                );
+                            })}
+                        </div>
                         <AccessoriesGroup
-                            key={group.key}
-                            title={group.title}
-                            items={group.items}
+                            key={activeGroup.key}
+                            panelId={`${tabsId}-panel-${activeGroup.key}`}
+                            tabId={`${tabsId}-tab-${activeGroup.key}`}
+                            title={activeGroup.title}
+                            items={activeGroup.items}
                             selectedAccessories={selectedAccessories}
                             onQtyChange={changeAccessoryQty}
                         />
-                    )) : <p className="text-muted mb-0">Для этой двери фурнитура не настроена.</p>}
+                        {accessoryGroups.filter((group) => group.key !== activeGroup.key).map((group) => (
+                            <div key={group.key} id={`${tabsId}-panel-${group.key}`} role="tabpanel" aria-labelledby={`${tabsId}-tab-${group.key}`} hidden />
+                        ))}
+                    </> : <p className="text-muted mb-0">Для этой двери фурнитура не настроена.</p>}
                 </div>
 
                 <div className="bg-white p-4">
@@ -381,36 +464,29 @@ export default function DoorProductConfigurator({ product, complectContent }: {
                         </div>
 
                         <div className="d-flex flex-column gap-3 flex-shrink-0" style={{ flexBasis: "33.333%" }}>
-                            <div className="d-flex align-items-center gap-3 justify-content-lg-end">
-                                <div className="input-step border rounded-pill bg-white">
-                                    <button type="button" aria-label="Уменьшить количество комплектов" onClick={() => { setQuantity((current) => Math.max(1, current - 1)); setAddedItemKey(null); }}>−</button>
+                            <div className={styles.actions} data-pdp-cart-actions>
+                                <div className={`input-step border rounded-pill bg-white ${styles.quantity}`}>
+                                    <button type="button" aria-label="Уменьшить количество комплектов" disabled={quantity <= 1} onClick={() => setQuantity((current) => normalizeQuantity(current - 1, 1))}>−</button>
                                     <input
                                         id="door-kit-quantity"
                                         type="number"
                                         min={1}
+                                        max={99}
                                         step={1}
+                                        inputMode="numeric"
+                                        aria-label="Количество комплектов двери"
                                         value={quantity}
                                         onChange={(event) => {
-                                            const nextQuantity = Math.max(1, Math.floor(Number(event.target.value) || 1));
+                                            const nextQuantity = normalizeQuantity(Number(event.target.value), 1);
                                             setQuantity(nextQuantity);
-                                            setAddedItemKey(null);
                                         }}
                                     />
-                                    <button type="button" aria-label="Увеличить количество комплектов" onClick={() => { setQuantity((current) => current + 1); setAddedItemKey(null); }}>+</button>
+                                    <button type="button" aria-label="Увеличить количество комплектов" disabled={quantity >= 99} onClick={() => setQuantity((current) => normalizeQuantity(current + 1, 1))}>+</button>
                                 </div>
-                                <button type="button" className="btn btn-info text-white rounded-pill px-5" onClick={handleAddToCart} disabled={!isHydrated}>
+                                <button type="button" className={`btn btn-info text-white rounded-pill px-5 ${styles.addButton}`} onClick={handleAddToCart} disabled={!isHydrated}>
                                     {isHydrated ? "Добавить в корзину" : "Загружаем корзину…"}
                                 </button>
                             </div>
-
-                            {addedItemKey ? (
-                                <div className="alert alert-success mb-0 d-flex flex-column gap-2 align-items-start" role="status">
-                                    <span>Комплект добавлен в корзину.</span>
-                                    <Link href="/shopping-cart" className="btn btn-sm btn-outline-dark rounded-pill">
-                                        Перейти в корзину
-                                    </Link>
-                                </div>
-                            ) : null}
 
                             <p className="text-muted mb-0 small">В корзину попадёт дверь, выбранная комплектация и отмеченная фурнитура. Доставка и установка подтверждаются менеджером.</p>
                         </div>
@@ -418,6 +494,7 @@ export default function DoorProductConfigurator({ product, complectContent }: {
                 </div>
 
             </div>
+            <DoorPdpCartFeedback feedback={cartFeedback} />
         </section>
     );
 }

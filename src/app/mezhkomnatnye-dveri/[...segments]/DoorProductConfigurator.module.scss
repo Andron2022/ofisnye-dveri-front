@@ -1,0 +1,69 @@
+.tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 3px 12px;
+    margin-bottom: 16px;
+
+    button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        padding: 8px 14px;
+        border: 1px solid #ddd;
+        border-radius: 24px;
+        background: white;
+        color: #333;
+
+        &[aria-selected="true"] { border-color: #222; background: #222; color: white; }
+        &:focus-visible { outline: 3px solid #17788a; outline-offset: 2px; }
+    }
+}
+.selected { width: 7px; height: 7px; border-radius: 50%; background: #56cfe1; }
+.photo {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 72px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 4px;
+    background: #f6f6f6;
+
+    img { width: 100%; height: 100%; object-fit: contain; }
+}
+button.photo {
+    cursor: zoom-in;
+
+    &:focus-visible { outline: 3px solid #17788a; outline-offset: 2px; }
+    &:hover, &:focus-visible { box-shadow: inset 0 0 0 1px #999; }
+    &:hover .zoom, &:focus-visible .zoom { opacity: 1; }
+}
+.zoom {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 92%);
+    color: #222;
+    opacity: 0;
+}
+@media (hover: none) { .zoom { opacity: 1; } }
+.quantity {
+    input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input:focus-visible, button:focus-visible { outline: 2px solid #17788a; outline-offset: 1px; }
+    button:disabled { opacity: .35; cursor: default; }
+}
+.actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.addButton { min-height: 44px; }
+@media (max-width: 575.98px) { .addButton { width: 100%; } }

@@ -9,7 +9,8 @@ import mem2 from "@assets/images/about-us/mem-02.jpeg"
 import Image from 'next/image'
 import Link from 'next/link'
 
-const PopupPage = () => {
+// Keep the demo mechanism available, but require explicit opt-in to display it.
+const PopupPage = ({ autoShow = false }: { autoShow?: boolean }) => {
 
     const [currentIndex, setCurrentIndex] = useState<number>(0);
     const [show, setShow] = useState<boolean>(false);
@@ -17,12 +18,13 @@ const PopupPage = () => {
     const stopAutohide = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
+        if (!autoShow) return;
         const showTimeout = setTimeout(showWindow, 2000);
         return () => clearTimeout(showTimeout);
-    }, []);
+    }, [autoShow]);
 
     useEffect(() => {
-        if (show) {
+        if (autoShow && show) {
             stopAutohide.current = setTimeout(hideWindow, 5000);
         }
         return () => {
@@ -99,7 +101,7 @@ const PopupPage = () => {
                 {
                     popUp.map((item: any, index: number) => {
                         return (
-                            <div key={index} className={`pop-up ${show && currentIndex === index ? 'd-flex' : 'd-none'}`}>
+                            <div key={index} className={`pop-up ${autoShow && show && currentIndex === index ? 'd-flex' : 'd-none'}`}>
                                 <div className="pop-card position-relative d-flex align-items-center">
                                     <div className="popup-img">
                                         <Link href="#!">

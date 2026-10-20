@@ -95,6 +95,7 @@ The orchestrator deploys project-managed WordPress MU-code first, verifies the W
 
 Detailed current runbooks:
 
+- [`docs/door-pdp-accessories-cart-ux.md`](docs/door-pdp-accessories-cart-ux.md) — PDP accessory tabs, image Lightbox, quantity controls and cart feedback; frontend release without WP data changes, with browser acceptance and rollback guidance;
 - [`docs/change-based-release-guide.md`](docs/change-based-release-guide.md) — Russian decision guide for each development task: code, WP data, ACF, manifests, env and infrastructure; promotion and rollback with live production data;
 - [`docs/deployment-operations.md`](docs/deployment-operations.md) — Russian operations reference: checks, combined deploy, backups, isolated restore tests, recovery, rollback, timers and logs;
 - `docs/local-to-staging-no-db.md`;

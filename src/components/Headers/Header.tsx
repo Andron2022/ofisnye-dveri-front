@@ -43,8 +43,9 @@ function CartLink() {
     return (
         <Link
             href="/shopping-cart"
+            data-storefront-cart-link
             className="position-relative d-inline-flex align-items-center justify-content-center"
-            aria-label={`Корзина${itemsCount > 0 ? `, товаров: ${itemsCount}` : ""}`}
+            aria-label={`Корзина, комплектов: ${itemsCount}`}
         >
             <i className="iccl iccl-cart" />
             {itemsCount > 0 ? (
