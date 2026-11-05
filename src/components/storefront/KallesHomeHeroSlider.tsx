@@ -93,7 +93,7 @@ export default function KallesHomeHeroSlider({ slides }: KallesHomeHeroSliderPro
   return (
     <div className="kalles-home-section type_slideshow type_carousel kalles-medical kalles-bags">
       <div ref={slideshowRef} className="slideshow" data-home-hero-slides={slides.length}>
-        {slides.map((slide) => {
+        {slides.map((slide, index) => {
           const alignment = getAlignmentClasses(slide.align);
           const imageSrc = slide.image?.src;
           const imageAlt = slide.image?.alt || slide.titleTop || slide.titleBottom || "Главный слайд";
@@ -101,7 +101,7 @@ export default function KallesHomeHeroSlider({ slides }: KallesHomeHeroSliderPro
           return (
             <div key={slide.id} className="slideshow__slide">
               {imageSrc ? (
-                <img src={imageSrc} alt={imageAlt} className="position-absolute w-100 h-100 object-fit-cover" />
+                <img src={imageSrc} alt={imageAlt} fetchPriority={index === 0 ? "high" : "low"} className="position-absolute w-100 h-100 object-fit-cover" />
               ) : (
                 <div className="position-absolute w-100 h-100 bg-dark" />
               )}

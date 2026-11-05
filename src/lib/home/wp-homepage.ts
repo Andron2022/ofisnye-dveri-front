@@ -85,7 +85,12 @@ function normalizeAlign(value: unknown, fallback: HomeHeroSlide["align"] = "righ
   return fallback;
 }
 
-function getImageUrlFromObject(image: WpAcfImageObject): string | undefined {
+function getImageUrlFromObject(image: WpAcfImageObject, preferOriginal = false): string | undefined {
+  if (preferOriginal) {
+    const originalUrl = image.url || image.source_url || image.sizes?.full;
+    if (typeof originalUrl === "string" && originalUrl.trim()) return originalUrl.trim();
+  }
+
   const preferredSizes = ["large", "medium_large", "full"];
 
   for (const size of preferredSizes) {
@@ -155,8 +160,13 @@ function collectHomepageImageIds(acf: WpPageAcf): number[] {
   return Array.from(ids);
 }
 
-function getPreferredMediaUrl(media: WpEmbeddedMedia | null): string | undefined {
+function getPreferredMediaUrl(media: WpEmbeddedMedia | null, preferOriginal = false): string | undefined {
   if (!media) return undefined;
+
+  if (preferOriginal) {
+    const originalUrl = media.source_url || media.media_details?.sizes?.full?.source_url;
+    if (typeof originalUrl === "string" && originalUrl.trim()) return originalUrl.trim();
+  }
 
   const preferredSizes = ["large", "medium_large", "full"];
 
@@ -224,6 +234,7 @@ function resolveHomepageImage(
   value: WpAcfImageValue,
   mediaMap: Map<number, WpEmbeddedMedia>,
   altOverride?: string,
+  preferOriginal = false,
 ): HomeImage | undefined {
   if (!value) return undefined;
 
@@ -241,7 +252,7 @@ function resolveHomepageImage(
     if (!maybeId) return undefined;
 
     const media = mediaMap.get(maybeId);
-    const src = getPreferredMediaUrl(media ?? null);
+    const src = getPreferredMediaUrl(media ?? null, preferOriginal);
     return src
       ? {
           src,
@@ -252,7 +263,7 @@ function resolveHomepageImage(
 
   if (typeof value === "number") {
     const media = mediaMap.get(value);
-    const src = getPreferredMediaUrl(media ?? null);
+    const src = getPreferredMediaUrl(media ?? null, preferOriginal);
     return src
       ? {
           src,
@@ -263,7 +274,7 @@ function resolveHomepageImage(
 
   if (isPlainObject(value)) {
     const imageObject = value as WpAcfImageObject;
-    const objectUrl = getImageUrlFromObject(imageObject);
+    const objectUrl = getImageUrlFromObject(imageObject, preferOriginal);
 
     if (objectUrl) {
       return {
@@ -276,7 +287,7 @@ function resolveHomepageImage(
     if (!id) return undefined;
 
     const media = mediaMap.get(id);
-    const src = getPreferredMediaUrl(media ?? null);
+    const src = getPreferredMediaUrl(media ?? null, preferOriginal);
     return src
       ? {
           src,
@@ -301,6 +312,7 @@ function buildHeroSlide(
     acf[`home_hero_slide_${index}_image`] as WpAcfImageValue,
     mediaMap,
     getAcfString(acf, `home_hero_slide_${index}_image_alt`),
+    true,
   );
   const eyebrow = getAcfString(acf, `home_hero_slide_${index}_eyebrow`, fallback?.eyebrow ?? "");
   const titleTop = getAcfString(acf, `home_hero_slide_${index}_title_top`, fallback?.titleTop ?? "");
