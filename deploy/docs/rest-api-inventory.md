@@ -49,6 +49,7 @@
 | GET /wp-json/od/v1/door-configuration/schema | Общая схема атрибутов, фильтров, групп опций и фурнитуры. | local 200 |
 | GET /wp-json/od/v1/door-product-configuration/{id} | Разрешённая конфигурация двери: семейство, canonical category, варианты, опции, фурнитура, valid и issues. Guard для PDP и заказа. | Local ID 265: 409 и valid=false; другие проверенные ID: 200. Staging ID 265: 200 и valid=true. |
 | GET /wp-json/od/v1/door-filter-terms | Доступные группы фильтров и term ID для интерфейса. | local 200 |
+| GET /wp-json/od/v1/attribute-term-swatches?taxonomy=pa_tsvet-dveri | Визуальные свойства существующих Woo terms из ACF. Разрешены также pa_tsvet-paneli; необязательный product_ids возвращает реальные term ID опубликованных товаров пакетно. Не зависит от каталожных фильтров. | Local 13.11.2026: 200; HEX и текстура проверены. [Контракт и проверки](./color-texture-swatches.md) |
 | GET /wp-json/od/v1/door-catalog-products | По base_category_id и фильтрам возвращает ID подходящих дверей. | local 200; проверены несколько комбинаций |
 | GET /wp-json/od/v1/door-seo-landings | SEO-подборки; возможны base_category_id и slug. | local 200 |
 | GET /wp-json/od/v1/door-seo-landings/{id}/products | ID товаров подборки. | local 200 для проверенных ID |

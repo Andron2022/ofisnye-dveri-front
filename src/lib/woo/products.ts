@@ -13,6 +13,7 @@ import {
 } from "@src/lib/wp/door-seo-landings";
 import { buildCatalogFilterGroups } from "@src/lib/woo/catalog-filters";
 import { getDoorConfigurationSchema, getDoorProductConfiguration } from "@src/lib/wp/door-product-configuration";
+import { getDoorPdpColorSwatches } from "@src/lib/wp/attribute-term-swatches";
 import {
     buildDoorFilterState,
     doorFilterStateFullyResolvesActiveFilters,
@@ -313,6 +314,7 @@ function buildDoorPdpPresentation(
     return {
         summaryRows: sortDoorPdpRows(summaryRows),
         characteristicRows: sortDoorPdpRows(characteristicRows),
+        colorSwatches: {},
     };
 }
 
@@ -732,7 +734,13 @@ async function mapDoorProductDetails(
 
     const siblingProducts = await getProductsByIds(configuration.family.siblingIds);
     const siblings = siblingProducts.map((item) => mapDoorFamilySibling(item, product.id, routeContext));
-    const accessories = await getResolvedAccessories(configuration.accessoryGroups, categories);
+    const [accessories, colorSwatches] = await Promise.all([
+        getResolvedAccessories(configuration.accessoryGroups, categories),
+        configuration.variantDimensions.some((dimension) => dimension.taxonomy === "pa_tsvet-dveri")
+            ? getDoorPdpColorSwatches([{ id: product.id, attributes }, ...siblings])
+            : Promise.resolve({}),
+    ]);
+    presentation.colorSwatches = colorSwatches;
     const orderOptions: DoorOrderOptions = configuration.optionGroups.map((group) => ({
         key: group.key,
         title: group.title,

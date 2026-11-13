@@ -32,6 +32,8 @@ import CatalogFilters from "../CatalogFilters";
 import { KallesCatalogShell } from "@src/components/storefront/KallesCatalog";
 import KallesDoorProductGallery from "@src/components/storefront/KallesDoorProductGallery";
 import KallesDoorProductTabs from "@src/components/storefront/KallesDoorProductTabs";
+import DoorColorSwatches from "@src/components/storefront/DoorColorSwatches";
+import { getDoorColorSwatch, sortDoorColorValues } from "@src/lib/woo/color-swatch-presentation";
 import { getDoorPdpPageSettings } from "@src/lib/wp/door-pdp-service-tabs";
 import DoorProductConfigurator from "./DoorProductConfigurator";
 import { getDoorCatalogFilterKeys } from "@src/lib/wp/door-seo-landings";
@@ -493,16 +495,6 @@ function getSortedFamilySiblings(product: DoorProductDetails): DoorFamilySibling
     });
 }
 
-function getColorSwatchClass(value: string): string {
-    const lowerValue = value.toLowerCase();
-    if (lowerValue.includes("графит") || lowerValue.includes("сер") || lowerValue.includes("grey")) return "bg-secondary bg-opacity-50";
-    if (lowerValue.includes("бел") || lowerValue.includes("white")) return "bg-white";
-    if (lowerValue.includes("чер") || lowerValue.includes("black")) return "bg-dark";
-    if (lowerValue.includes("pink") || lowerValue.includes("роз")) return "bg_color_pink";
-    if (lowerValue.includes("дерев") || lowerValue.includes("дуб") || lowerValue.includes("wood")) return "bg-warning bg-opacity-25";
-    return "bg-light";
-}
-
 function VariantPicker({ product, axis }: { product: DoorProductDetails; axis: VariantAxisConfig }) {
     const values = getFamilyAttributeValues(product, axis.key);
     const currentValue = getCurrentAttributeValue(product, axis.key);
@@ -512,16 +504,12 @@ function VariantPicker({ product, axis }: { product: DoorProductDetails; axis: V
         return (
             <div className="mb-1">
                 <h6 className="text-uppercase fw-bold mb-2">{axis.title}: <span>{getVariantValueLabel(currentValue)}</span></h6>
-                <div className="product-color-list mt-1 gap-2 d-flex align-items-center flex-wrap">
-                    {values.map((value) => {
-                        const exactSibling = findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value });
-                        const isCurrentValue = value === currentValue;
-                        const className = `d-inline-block rounded-circle square-xs ${getColorSwatchClass(value)} ${isCurrentValue ? "active" : ""} ${exactSibling ? "" : "opacity-50"}`;
-                        return exactSibling ? (
-                            <Link key={`${value}-${exactSibling.id}`} href={exactSibling.path} className={className} aria-current={exactSibling.isCurrent ? "page" : undefined} title={value} />
-                        ) : <span key={value} className={className} title={`${value}: недоступно`} />;
-                    })}
-                </div>
+                <DoorColorSwatches label={axis.title} options={sortDoorColorValues(values, product.presentation.colorSwatches).map((value) => ({
+                    value,
+                    href: findExactSiblingForVariant({ product, changedKey: axis.key, changedValue: value })?.path ?? null,
+                    active: value === currentValue,
+                    swatch: getDoorColorSwatch(product.presentation.colorSwatches, value),
+                }))} />
             </div>
         );
     }

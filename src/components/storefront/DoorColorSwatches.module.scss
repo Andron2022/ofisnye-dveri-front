@@ -1,0 +1,93 @@
+.list {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+.item { display: flex; }
+.anchor { display: inline-flex; }
+.target {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #222;
+
+    &[data-active] { border-color: #222; }
+    &:hover { border-color: #777; }
+    &:focus-visible { outline: 3px solid #17788a; outline-offset: 2px; }
+    &[data-disabled] {
+        cursor: not-allowed;
+        .visual { opacity: .45; }
+        &::after {
+            content: "";
+            position: absolute;
+            left: 4px;
+            top: 50%;
+            width: calc(100% - 8px);
+            height: 1px;
+            background: #666;
+            transform: rotate(-25deg);
+            pointer-events: none;
+        }
+    }
+}
+.visual {
+    display: block;
+    flex-shrink: 0;
+    height: 32px;
+    border: 1px solid rgb(0 0 0 / 25%);
+    background: #eee;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.color { width: 32px; border-radius: 50%; }
+.texture {
+    width: 56px;
+    border-radius: 4px;
+    img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+}
+.selected {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #222;
+    color: white;
+    font-size: 11px;
+    line-height: 1;
+}
+.missing { display: grid; place-items: center; height: 100%; color: #666; }
+.fallbackLabel { max-width: 140px; font-size: 12px; line-height: 1.2; }
+.preview {
+    position: fixed;
+    z-index: 1080;
+    width: min(200px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    padding: 6px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #222;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+    pointer-events: none;
+
+    &[hidden] { display: none; }
+    img { display: block; width: 100%; height: auto; max-height: min(220px, calc(100vh - 80px)); object-fit: contain; }
+    span { display: block; padding-top: 5px; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+}

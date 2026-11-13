@@ -1,4 +1,5 @@
 import type { HeadlessSeo } from "@src/lib/seo/types";
+import type { DoorPdpColorSwatches } from "@src/lib/wp/attribute-term-swatches-types";
 
 // src/lib/woo/types.ts
 
@@ -330,6 +331,7 @@ export type DoorPdpPresentationRow = {
 export type DoorPdpPresentation = {
     summaryRows: DoorPdpPresentationRow[];
     characteristicRows: DoorPdpPresentationRow[];
+    colorSwatches: DoorPdpColorSwatches;
 };
 
 export type DoorProductDetails = {
